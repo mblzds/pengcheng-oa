@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.pengcheng</groupId>
+        <artifactId>pengcheng-admin</artifactId>
+        <version>1.0.0</version>
+    </parent>
+
+    <artifactId>pengcheng-infra</artifactId>
+    <packaging>pom</packaging>
+    <name>MasterLife Infra</name>
+    <description>基础设施层</description>
+
+    <modules>
+        <module>pengcheng-db</module>
+        <module>pengcheng-redis</module>
+        <module>pengcheng-oss</module>
+        <module>pengcheng-websocket</module>
+        <module>pengcheng-sms</module>
+        <module>pengcheng-push</module>
+        <module>pengcheng-wechat</module>
+        <module>pengcheng-social</module>
+        <module>pengcheng-crypto</module>
+        <module>pengcheng-pay</module>
+        <module>pengcheng-mail</module>
+    </modules>
+</project>

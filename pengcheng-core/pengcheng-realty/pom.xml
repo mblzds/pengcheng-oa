@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.pengcheng</groupId>
+        <artifactId>pengcheng-core</artifactId>
+        <version>1.0.0</version>
+    </parent>
+
+    <artifactId>pengcheng-realty</artifactId>
+    <packaging>jar</packaging>
+    <name>MasterLife Realty</name>
+    <description>房产业务核心模块 - 客户管理、联盟商管理、成交佣金、付款申请、项目管理（考勤/假勤已迁至 pengcheng-hr）</description>
+
+    <properties>
+        <jacoco.skip>false</jacoco.skip>
+    </properties>
+
+    <dependencies>
+        <!-- 人事与假勤（考勤/签到等为公司级，realty 仅引用） -->
+        <dependency>
+            <groupId>com.pengcheng</groupId>
+            <artifactId>pengcheng-hr</artifactId>
+        </dependency>
+        <!-- 业务核心层 -->
+        <dependency>
+            <groupId>com.pengcheng</groupId>
+            <artifactId>pengcheng-system</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.pengcheng</groupId>
+            <artifactId>pengcheng-message</artifactId>
+        </dependency>
+
+        <!-- 基础设施层 -->
+        <dependency>
+            <groupId>com.pengcheng</groupId>
+            <artifactId>pengcheng-db</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.pengcheng</groupId>
+            <artifactId>pengcheng-redis</artifactId>
+        </dependency>
+
+        <!-- Lombok -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+        </dependency>
+
+        <!-- ==================== 测试依赖 ==================== -->
+        <!-- Spring Boot Test (includes JUnit 5, Mockito, AssertJ) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- jqwik 属性测试框架 -->
+        <dependency>
+            <groupId>net.jqwik</groupId>
+            <artifactId>jqwik</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>

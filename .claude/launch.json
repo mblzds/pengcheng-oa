@@ -1,0 +1,19 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "pengcheng-ui (管理端 Vue3 + Vite)",
+      "cwd": "pengcheng-ui",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 3000
+    },
+    {
+      "name": "pengcheng-starter (后端 Spring Boot)",
+      "cwd": ".",
+      "runtimeExecutable": "mvn",
+      "runtimeArgs": ["spring-boot:run", "-pl", "pengcheng-starter", "-am"],
+      "port": 8080
+    }
+  ]
+}

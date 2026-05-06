@@ -1,0 +1,148 @@
+package com.pengcheng.admin.controller;
+
+import com.pengcheng.common.result.Result;
+import com.pengcheng.pay.WechatPayService;
+import com.pengcheng.pay.WechatPayVerifyService;
+import com.pengcheng.realty.payment.service.PaymentService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
+
+/**
+ * 微信支付回调通知控制器
+ */
+@Slf4j
+@RestController
+@RequestMapping("/api/pay/wechat")
+@RequiredArgsConstructor
+public class WechatPayNotifyController {
+
+    private final WechatPayVerifyService verifyService;
+    private final WechatPayService wechatPayService;
+    private final PaymentService paymentService;
+
+    /**
+     * 微信支付回调通知
+     * 
+     * 请求头:
+     * - Wechatpay-Signature: 签名
+     * - Wechatpay-Nonce: 随机串
+     * - Wechatpay-Timestamp: 时间戳
+     * - Wechatpay-Serial: 证书序列号
+     * - Wechatpay-Signature-Type: 签名类型（WECHATPAY2-SHA256-RSA2048）
+     */
+    @PostMapping("/notify")
+    public String handleNotify(
+            @RequestBody String body,
+            @RequestHeader("Wechatpay-Signature") String signature,
+            @RequestHeader("Wechatpay-Nonce") String nonce,
+            @RequestHeader("Wechatpay-Timestamp") String timestamp,
+            @RequestHeader("Wechatpay-Serial") String serialNo,
+            @RequestHeader(value = "Wechatpay-Signature-Type", required = false) String signatureType) {
+        
+        log.info("收到微信支付回调通知");
+        log.debug("请求体：{}", body);
+        log.debug("签名：{}", signature);
+        log.debug("时间戳：{}", timestamp);
+        log.debug("证书序列号：{}", serialNo);
+
+        // 1. 验证时间戳（防止重放攻击）
+        if (!verifyService.verifyTimestamp(timestamp)) {
+            log.error("回调时间戳验证失败");
+            return buildResponse("FAIL", "时间戳验证失败");
+        }
+
+        // 2. 验证签名
+        if (!verifyService.verifySignature(body, signature, nonce, timestamp, serialNo)) {
+            log.error("回调签名验证失败");
+            return buildResponse("FAIL", "签名验证失败");
+        }
+
+        // 3. 解析回调数据
+        WechatPayVerifyService.WechatPayNotifyResource resource = verifyService.parseNotifyBody(body);
+        if (resource == null) {
+            log.error("解析回调数据失败");
+            return buildResponse("FAIL", "解析回调数据失败");
+        }
+
+        log.info("解析回调数据成功：orderNo={}, transactionId={}, tradeState={}, amount={}",
+                resource.getOutTradeNo(), 
+                resource.getTransactionId(), 
+                resource.getTradeState(),
+                resource.getAmount());
+
+        // 4. 处理支付结果
+        try {
+            if ("SUCCESS".equals(resource.getTradeState())) {
+                // 支付成功，更新订单状态
+                paymentService.updatePayStatus(
+                    resource.getOutTradeNo(),
+                    resource.getTransactionId(),
+                    "wechat",
+                    resource.getAmount() / 100.0  // 转换为元
+                );
+                log.info("订单支付成功：{}", resource.getOutTradeNo());
+            } else {
+                log.warn("订单支付状态异常：{} - {}", resource.getOutTradeNo(), resource.getTradeState());
+            }
+        } catch (Exception e) {
+            log.error("更新订单状态失败：{}", resource.getOutTradeNo(), e);
+            // 返回失败，微信会重试
+            return buildResponse("FAIL", "更新订单状态失败");
+        }
+
+        // 5. 返回成功响应
+        log.info("微信支付回调处理完成：{}", resource.getOutTradeNo());
+        return buildResponse("SUCCESS", "成功");
+    }
+
+    /**
+     * 构建微信支付回调响应
+     */
+    private String buildResponse(String code, String message) {
+        return String.format("{\"code\":\"%s\",\"message\":\"%s\"}", code, message);
+    }
+
+    /**
+     * 查询订单状态（用于手动核对）
+     */
+    @GetMapping("/order/{orderNo}")
+    public Result<Map<String, Object>> queryOrder(@PathVariable String orderNo) {
+        try {
+            Map<String, Object> result = wechatPayService.queryOrder(orderNo);
+            return Result.ok(result);
+        } catch (Exception e) {
+            log.error("查询订单失败：{}", orderNo, e);
+            return Result.error("查询失败：" + e.getMessage());
+        }
+    }
+
+    /**
+     * 申请退款（可选）
+     */
+    @PostMapping("/refund")
+    public Result<Map<String, Object>> refund(@RequestBody RefundRequest request) {
+        try {
+            Map<String, Object> result = wechatPayService.refund(
+                request.getOutTradeNo(),
+                request.getOutRefundNo(),
+                request.getAmount(),
+                request.getReason()
+            );
+            return Result.ok(result);
+        } catch (Exception e) {
+            log.error("申请退款失败", e);
+            return Result.error("退款失败：" + e.getMessage());
+        }
+    }
+
+    @lombok.Data
+    public static class RefundRequest {
+        private String outTradeNo;      // 原订单号
+        private String outRefundNo;     // 退款单号
+        private Integer amount;         // 退款金额（分）
+        private String reason;          // 退款原因
+    }
+}

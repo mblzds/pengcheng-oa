@@ -1,0 +1,80 @@
+package com.mars.web.controller.${moduleName};
+
+import cn.dev33.satoken.annotation.SaCheckPermission;
+import com.mars.common.result.PageResult;
+import com.mars.common.result.Result;
+import ${packageName}.annotation.Log;
+import ${packageName}.annotation.Log.BusinessType;
+import ${packageName}.entity.${className};
+import ${packageName}.service.${className}Service;
+import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.*;
+
+/**
+ * ${functionName}
+ * 
+ * @author ${author}
+ * @date ${datetime}
+ */
+@RestController
+@RequestMapping("/${moduleName}/${businessName}")
+@RequiredArgsConstructor
+public class ${className}Controller {
+
+    private final ${className}Service ${classname}Service;
+
+    /**
+     * 分页查询
+     */
+    @GetMapping("/page")
+    @SaCheckPermission("${moduleName}:${businessName}:list")
+    public Result<PageResult<${className}>> page(
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "10") Integer pageSize#foreach($column in $columns)#if($column.isQuery == 1),
+            @RequestParam(required = false) $column.javaType $column.javaField#end#end) {
+        var result = ${classname}Service.page(page, pageSize#foreach($column in $columns)#if($column.isQuery == 1), $column.javaField#end#end);
+        return Result.ok(PageResult.of(result));
+    }
+
+    /**
+     * 获取详情
+     */
+    @GetMapping("/{${pkColumn.javaField}}")
+    @SaCheckPermission("${moduleName}:${businessName}:query")
+    public Result<${className}> getInfo(@PathVariable ${pkColumn.javaType} ${pkColumn.javaField}) {
+        return Result.ok(${classname}Service.getById(${pkColumn.javaField}));
+    }
+
+    /**
+     * 新增
+     */
+    @PostMapping
+    @SaCheckPermission("${moduleName}:${businessName}:add")
+    @Log(title = "${functionName}", businessType = BusinessType.INSERT)
+    public Result<Void> add(@RequestBody ${className} ${classname}) {
+        ${classname}Service.create(${classname});
+        return Result.ok();
+    }
+
+    /**
+     * 修改
+     */
+    @PutMapping
+    @SaCheckPermission("${moduleName}:${businessName}:edit")
+    @Log(title = "${functionName}", businessType = BusinessType.UPDATE)
+    public Result<Void> edit(@RequestBody ${className} ${classname}) {
+        ${classname}Service.update(${classname});
+        return Result.ok();
+    }
+
+    /**
+     * 删除
+     */
+    @DeleteMapping("/{${pkColumn.javaField}s}")
+    @SaCheckPermission("${moduleName}:${businessName}:remove")
+    @Log(title = "${functionName}", businessType = BusinessType.DELETE)
+    public Result<Void> remove(@PathVariable ${pkColumn.javaType}[] ${pkColumn.javaField}s) {
+        ${classname}Service.delete(${pkColumn.javaField}s);
+        return Result.ok();
+    }
+}

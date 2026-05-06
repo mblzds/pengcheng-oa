@@ -1,0 +1,218 @@
+{
+	"easycom": {
+		"autoscan": true,
+		"custom": {
+			"^u-(.*)": "uview-plus/components/u-$1/u-$1.vue"
+		}
+	},
+	"pages": [
+		{
+			"path": "pages/workbench/index",
+			"style": {
+				"navigationBarTitleText": "工作台",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/index/index",
+			"style": {
+				"navigationBarTitleText": "消息"
+			}
+		},
+		{
+			"path": "pages/login/index",
+			"style": {
+				"navigationBarTitleText": "登录",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/chat/index",
+			"style": {
+				"navigationBarTitleText": "聊天",
+				"enablePullDownRefresh": false
+			}
+		},
+		{
+			"path": "pages/contacts/index",
+			"style": {
+				"navigationBarTitleText": "通讯录"
+			}
+		},
+		{
+			"path": "pages/group-chat/index",
+			"style": {
+				"navigationBarTitleText": "群聊",
+				"enablePullDownRefresh": false
+			}
+		},
+		{
+			"path": "pages/group/create",
+			"style": {
+				"navigationBarTitleText": "创建群聊"
+			}
+		},
+		{
+			"path": "pages/group/detail",
+			"style": {
+				"navigationBarTitleText": "群设置"
+			}
+		},
+		{
+			"path": "pages/profile/index",
+			"style": {
+				"navigationStyle": "custom",
+				"navigationBarTextStyle": "white"
+			}
+		},
+		{
+			"path": "pages/profile/edit",
+			"style": {
+				"navigationBarTitleText": "个人信息"
+			}
+		},
+		{
+			"path": "pages/profile/password",
+			"style": {
+				"navigationBarTitleText": "修改密码"
+			}
+		},
+		{
+			"path": "pages/profile/blacklist",
+			"style": {
+				"navigationBarTitleText": "黑名单"
+			}
+		},
+		{
+			"path": "pages/customer/report",
+			"style": {
+				"navigationBarTitleText": "客户报备"
+			}
+		},
+		{
+			"path": "pages/customer/list",
+			"style": {
+				"navigationBarTitleText": "客户列表"
+			}
+		},
+		{
+			"path": "pages/customer/detail",
+			"style": {
+				"navigationBarTitleText": "客户详情"
+			}
+		},
+		{
+			"path": "pages/attendance/clock",
+			"style": {
+				"navigationBarTitleText": "考勤打卡",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/attendance/calendar",
+			"style": {
+				"navigationBarTitleText": "考勤月报"
+			}
+		},
+		{
+			"path": "pages/attendance/sign",
+			"style": {
+				"navigationBarTitleText": "扫码签到"
+			}
+		},
+		{
+			"path": "pages/apply/leave",
+			"style": {
+				"navigationBarTitleText": "请假申请"
+			}
+		},
+		{
+			"path": "pages/apply/compensate",
+			"style": {
+				"navigationBarTitleText": "调休申请"
+			}
+		},
+		{
+			"path": "pages/apply/expense",
+			"style": {
+				"navigationBarTitleText": "报销申请"
+			}
+		},
+		{
+			"path": "pages/apply/advance",
+			"style": {
+				"navigationBarTitleText": "垫佣申请"
+			}
+		},
+		{
+			"path": "pages/apply/prepay",
+			"style": {
+				"navigationBarTitleText": "预付佣申请"
+			}
+		},
+		{
+			"path": "pages/apply/list",
+			"style": {
+				"navigationBarTitleText": "申请记录"
+			}
+		},
+		{
+			"path": "pages/approval/list",
+			"style": {
+				"navigationBarTitleText": "审批中心"
+			}
+		},
+		{
+			"path": "pages/approval/detail",
+			"style": {
+				"navigationBarTitleText": "审批详情"
+			}
+		},
+		{
+			"path": "pages/ai/chat",
+			"style": {
+				"navigationBarTitleText": "AI助手"
+			}
+		}
+	],
+	"globalStyle": {
+		"navigationBarTextStyle": "white",
+		"navigationBarTitleText": "MasterLife",
+		"navigationBarBackgroundColor": "#07C160",
+		"backgroundColor": "#EDEDED",
+		"backgroundTextStyle": "dark"
+	},
+	"tabBar": {
+		"color": "#999999",
+		"selectedColor": "#07C160",
+		"backgroundColor": "#ffffff",
+		"borderStyle": "white",
+		"list": [
+			{
+				"pagePath": "pages/workbench/index",
+				"text": "工作台",
+				"iconPath": "static/tabbar/workbench.png",
+				"selectedIconPath": "static/tabbar/workbench-active.png"
+			},
+			{
+				"pagePath": "pages/index/index",
+				"text": "消息",
+				"iconPath": "static/tabbar/chat.png",
+				"selectedIconPath": "static/tabbar/chat-active.png"
+			},
+			{
+				"pagePath": "pages/contacts/index",
+				"text": "通讯录",
+				"iconPath": "static/tabbar/contacts.png",
+				"selectedIconPath": "static/tabbar/contacts-active.png"
+			},
+			{
+				"pagePath": "pages/profile/index",
+				"text": "我的",
+				"iconPath": "static/tabbar/profile.png",
+				"selectedIconPath": "static/tabbar/profile-active.png"
+			}
+		]
+	},
+	"uniIdRouter": {}
+}

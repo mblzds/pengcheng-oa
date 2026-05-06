@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.pengcheng</groupId>
+        <artifactId>pengcheng-core</artifactId>
+        <version>1.0.0</version>
+    </parent>
+
+    <artifactId>pengcheng-ai</artifactId>
+    <packaging>jar</packaging>
+    <name>MasterLife AI</name>
+    <description>AI服务模块 - 集成 Spring AI Alibaba，提供智能判客、智能报表、佣金计算、RAG知识库、营销文案</description>
+
+    <dependencies>
+        <!-- Spring AI Alibaba DashScope Starter -->
+        <dependency>
+            <groupId>com.alibaba.cloud.ai</groupId>
+            <artifactId>spring-ai-alibaba-starter-dashscope</artifactId>
+        </dependency>
+
+        <!--
+          向量数据库 PGVector（P2-1.1 启用，支持 RAG 知识库）
+          运行时是否生效取决于 application-*.yml 中 spring.ai.vectorstore.pgvector.* 配置是否完整。
+          dev 环境默认 enabled=false，仅在 prod/staging 配置齐备时由 Spring AI AutoConfiguration 激活。
+          需配合 docker-compose.yml 的 pgvector 服务使用。
+        -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-vector-store-pgvector</artifactId>
+        </dependency>
+
+        <!-- Apache Tika 文档解析（替代 stub DocumentProcessor） -->
+        <dependency>
+            <groupId>org.apache.tika</groupId>
+            <artifactId>tika-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.tika</groupId>
+            <artifactId>tika-parsers-standard-package</artifactId>
+        </dependency>
+
+        <!-- 业务核心层 -->
+        <dependency>
+            <groupId>com.pengcheng</groupId>
+            <artifactId>pengcheng-system</artifactId>
+        </dependency>
+
+        <!-- 房产业务模块（用于 AI 判客访问客户数据） -->
+        <dependency>
+            <groupId>com.pengcheng</groupId>
+            <artifactId>pengcheng-realty</artifactId>
+        </dependency>
+
+        <!-- 基础设施层 -->
+        <dependency>
+            <groupId>com.pengcheng</groupId>
+            <artifactId>pengcheng-redis</artifactId>
+        </dependency>
+
+        <!-- Lombok -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+        </dependency>
+
+        <!-- ==================== 测试依赖 ==================== -->
+        <!-- Spring Boot Test (includes JUnit 5, Mockito, AssertJ) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- jqwik 属性测试框架 -->
+        <dependency>
+            <groupId>net.jqwik</groupId>
+            <artifactId>jqwik</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>

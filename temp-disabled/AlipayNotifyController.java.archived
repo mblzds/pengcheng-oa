@@ -1,0 +1,143 @@
+package com.pengcheng.admin.controller;
+
+import com.pengcheng.common.result.Result;
+import com.pengcheng.pay.AlipayService;
+import com.pengcheng.pay.AlipayVerifyService;
+import com.pengcheng.realty.payment.service.PaymentService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * 支付宝回调通知控制器
+ */
+@Slf4j
+@RestController
+@RequestMapping("/api/pay/alipay")
+@RequiredArgsConstructor
+public class AlipayNotifyController {
+
+    private final AlipayVerifyService verifyService;
+    private final AlipayService alipayService;
+    private final PaymentService paymentService;
+
+    /**
+     * 支付宝异步回调通知
+     * 
+     * 支付宝 POST 请求，参数为 form 表单格式
+     */
+    @PostMapping("/notify")
+    public String handleNotify(@RequestParam Map<String, String> params) {
+        log.info("收到支付宝回调通知");
+        log.debug("回调参数：{}", params);
+
+        // 1. 验证参数完整性
+        if (!verifyService.verifyParams(params)) {
+            log.error("回调参数验证失败");
+            return "failure";
+        }
+
+        // 2. 验证签名
+        if (!verifyService.verifySignature(params)) {
+            log.error("回调签名验证失败");
+            return "failure";
+        }
+
+        // 3. 解析回调结果
+        AlipayVerifyService.AlipayNotifyResult result = verifyService.parseNotifyResult(params);
+        
+        log.info("解析回调数据成功：orderNo={}, tradeNo={}, status={}, amount={}",
+                result.getOutTradeNo(), 
+                result.getTradeNo(), 
+                result.getTradeStatus(),
+                result.getTotalAmount());
+
+        // 4. 幂等性检查（防止重复处理）
+        if (verifyService.isProcessed(result.getNotifyId())) {
+            log.info("该通知已处理过：{}", result.getNotifyId());
+            return "success";
+        }
+
+        // 5. 验证交易状态
+        if (!verifyService.isValidTradeStatus(result.getTradeStatus())) {
+            log.warn("交易状态异常：{} - {}", result.getOutTradeNo(), result.getTradeStatus());
+            verifyService.markProcessed(result.getNotifyId());
+            return "success";
+        }
+
+        // 6. 处理支付结果
+        try {
+            paymentService.updatePayStatus(
+                result.getOutTradeNo(),
+                result.getTradeNo(),
+                "alipay",
+                Double.parseDouble(result.getTotalAmount())
+            );
+            log.info("订单支付成功：{}", result.getOutTradeNo());
+            
+            // 标记已处理
+            verifyService.markProcessed(result.getNotifyId());
+            
+        } catch (Exception e) {
+            log.error("更新订单状态失败：{}", result.getOutTradeNo(), e);
+            // 返回 failure，支付宝会重试
+            return "failure";
+        }
+
+        log.info("支付宝回调处理完成：{}", result.getOutTradeNo());
+        return "success";
+    }
+
+    /**
+     * 查询订单状态
+     */
+    @GetMapping("/order/{orderNo}")
+    public Result<Map<String, Object>> queryOrder(@PathVariable String orderNo) {
+        try {
+            Map<String, Object> result = alipayService.queryOrder(orderNo);
+            return Result.ok(result);
+        } catch (Exception e) {
+            log.error("查询订单失败：{}", orderNo, e);
+            return Result.error("查询失败：" + e.getMessage());
+        }
+    }
+
+    /**
+     * 申请退款
+     */
+    @PostMapping("/refund")
+    public Result<Map<String, Object>> refund(@RequestBody RefundRequest request) {
+        try {
+            Map<String, Object> result = alipayService.refund(
+                request.getOutTradeNo(),
+                request.getOutRefundNo(),
+                request.getAmount(),
+                request.getReason()
+            );
+            return Result.ok(result);
+        } catch (Exception e) {
+            log.error("申请退款失败", e);
+            return Result.error("退款失败：" + e.getMessage());
+        }
+    }
+
+    /**
+     * 手动验证签名（用于调试）
+     */
+    @PostMapping("/verify")
+    public Result<Boolean> verify(@RequestParam Map<String, String> params) {
+        boolean verified = verifyService.verifySignature(params);
+        return Result.ok(verified);
+    }
+
+    @lombok.Data
+    public static class RefundRequest {
+        private String outTradeNo;      // 原订单号
+        private String outRefundNo;     // 退款单号
+        private Double amount;          // 退款金额（元）
+        private String reason;          // 退款原因
+    }
+}

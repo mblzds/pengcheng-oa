@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.pengcheng</groupId>
+        <artifactId>pengcheng-api</artifactId>
+        <version>1.0.0</version>
+    </parent>
+
+    <artifactId>pengcheng-admin-api</artifactId>
+    <packaging>jar</packaging>
+    <name>MasterLife API</name>
+    <description>后台管理接口层 - Admin控制器</description>
+
+    <dependencies>
+        <!-- 统一响应 Result 等（Controller 层直接引用） -->
+        <dependency>
+            <groupId>com.pengcheng</groupId>
+            <artifactId>pengcheng-common</artifactId>
+        </dependency>
+        <!-- 认证模块 -->
+        <dependency>
+            <groupId>com.pengcheng</groupId>
+            <artifactId>pengcheng-auth</artifactId>
+        </dependency>
+        <!-- 业务模块 -->
+        <dependency>
+            <groupId>com.pengcheng</groupId>
+            <artifactId>pengcheng-system</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.pengcheng</groupId>
+            <artifactId>pengcheng-crypto</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.pengcheng</groupId>
+            <artifactId>pengcheng-file</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.pengcheng</groupId>
+            <artifactId>pengcheng-gen</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.pengcheng</groupId>
+            <artifactId>pengcheng-message</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.pengcheng</groupId>
+            <artifactId>pengcheng-pay</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.pengcheng</groupId>
+            <artifactId>pengcheng-sms</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.pengcheng</groupId>
+            <artifactId>pengcheng-job</artifactId>
+        </dependency>
+
+        <!-- 房产业务模块 -->
+        <dependency>
+            <groupId>com.pengcheng</groupId>
+            <artifactId>pengcheng-realty</artifactId>
+        </dependency>
+        <!-- 人事与绩效公共服务模块（公司级） -->
+        <dependency>
+            <groupId>com.pengcheng</groupId>
+            <artifactId>pengcheng-hr</artifactId>
+        </dependency>
+        <!-- AI服务模块 -->
+        <dependency>
+            <groupId>com.pengcheng</groupId>
+            <artifactId>pengcheng-ai</artifactId>
+        </dependency>
+
+        <!-- WebSocket基础设施 -->
+        <dependency>
+            <groupId>com.pengcheng</groupId>
+            <artifactId>pengcheng-websocket</artifactId>
+        </dependency>
+
+        <!-- Lombok -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+        </dependency>
+
+        <!-- ==================== 测试依赖 ==================== -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>net.jqwik</groupId>
+            <artifactId>jqwik</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>

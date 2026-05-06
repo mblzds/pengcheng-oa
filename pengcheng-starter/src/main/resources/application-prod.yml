@@ -1,0 +1,145 @@
+server:
+  port: 8443
+  ssl:
+    enabled: true
+    key-store: classpath:ssl/keystore.p12
+    key-store-password: ${SSL_KEYSTORE_PASSWORD:changeit}
+    key-store-type: PKCS12
+    key-alias: pengcheng-admin
+
+spring:
+  application:
+    name: MasterLife
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${DB_HOST}:${DB_PORT:3306}/${DB_NAME:pengcheng-system}?useUnicode=true&characterEncoding=UTF-8&zeroDateTimeBehavior=convertToNull&useSSL=true&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD}
+      database: ${REDIS_DB:10}
+      lettuce:
+        pool:
+          max-active: 8
+          max-wait: -1
+          max-idle: 8
+          min-idle: 0
+
+mybatis-plus:
+  mapper-locations: classpath*:mapper/**/*.xml
+  type-aliases-package: com.pengcheng.common.entity,com.pengcheng.system.entity,com.pengcheng.file.entity,com.pengcheng.gen.entity,com.pengcheng.message.entity,com.pengcheng.job.entity,com.pengcheng.realty.entity,com.pengcheng.admin.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+# ======================== Sa-Token 配置 ========================
+sa-token:
+  # token 名称（同时也是 cookie 名称、header 提交的参数名称）
+  token-name: Authorization
+  # token 有效期（单位：秒），默认30天，-1代表永不过期
+  timeout: 86400
+  # token 最低活跃频率（单位：秒），如果 token 超过此时间没有访问系统就会被冻结，默认-1 代表不限制，永不冻结
+  active-timeout: 86400
+  # 是否允许同一账号多地同时登录（为 true 时允许一起登录，为 false 时新登录挤掉旧登录）
+  is-concurrent: true
+  # 在多人登录同一账号时，是否共用一个 token（为 true 时所有登录共用一个 token，为 false 时每次登录新建一个 token）
+  is-share: true
+  # token 风格（uuid: UUID风格, simple-uuid: 简洁UUID, random-32: 随机32位字符串, random-64: 随机64位字符串, random-128: 随机128位字符串, tik: tik风格）
+  token-style: uuid
+  # 是否输出操作日志
+  is-log: false
+  # 是否尝试从请求体里读取 token
+  is-read-body: false
+  # 是否尝试从 cookie 里读取 token
+  is-read-cookie: false
+  # 是否尝试从 header 里读取 token
+  is-read-header: true
+  # 是否在初始化配置时打印版本字符画
+  is-print: true
+  # 是否在登录后将 token 写入响应头
+  is-write-header: false
+  # jwt 秘钥（如果使用 jwt 模式则需要配置）
+  # jwt-secret-key: your-secret-key
+
+# ======================== 应用配置 ========================
+pengcheng:
+  # 演示模式（生产环境专用配置）
+  # true: 开启演示模式，禁止新增、编辑、删除操作，用户操作时提示"演示模式，不允许操作"
+  # false: 关闭演示模式，允许所有操作
+  demo-mode: true
+  ai:
+    enabled: true
+    customer-analysis-fallback: true
+    commission-calc-fallback: true
+    deal-probability-retain-last: true
+    conversation-message-limit: 30
+    conversation-context-window: 8
+    conversation-compaction-enabled: true
+    conversation-compaction-threshold: 40
+    conversation-ttl-hours: 168
+    chat-timeout-seconds: 30
+    route-mode: hybrid
+    route-agent-fallback-to-rule: true
+    route-ab-experiment-enabled: false
+    route-ab-rollout-percent: 50
+    route-ab-control-mode: rule
+    route-ab-experiment-mode: hybrid
+    prompt-ab-experiment-enabled: false
+    prompt-ab-rollout-percent: 50
+    prompt-ab-control-version: v1
+    prompt-ab-experiment-version: v2
+    experiment-auto-rollback-enabled: true
+    experiment-failure-threshold: 5
+    experiment-cooldown-seconds: 300
+    approval-hitl-enabled: true
+    approval-hitl-amount-threshold: 50000
+
+# ======================== AI 服务配置 ========================
+spring.ai:
+  dashscope:
+    api-key: ${DASHSCOPE_API_KEY}
+    chat:
+      options:
+        model: ${AI_CHAT_MODEL:qwen-plus}
+    embedding:
+      options:
+        model: ${AI_EMBEDDING_MODEL:text-embedding-v3}
+  openai:
+    base-url: ${ZHIPU_BASE_URL:https://open.bigmodel.cn/api/paas/v4}
+    api-key: ${ZHIPU_API_KEY}
+    chat:
+      options:
+        model: ${ZHIPU_CHAT_MODEL:glm-4-flash}
+
+# ======================== PGVector 配置 ========================
+spring.ai.vectorstore.pgvector:
+  datasource:
+    url: jdbc:postgresql://${PG_HOST}:${PG_PORT:5432}/${PG_DB:pengcheng_vector}
+    username: ${PG_USERNAME}
+    password: ${PG_PASSWORD}
+  dimensions: 1536
+  index-type: ivfflat
+  distance-type: cosine_distance
+
+# ======================== Flyway 配置 ========================
+spring.flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    baseline-version: 9
+    validate-on-migrate: true
+    out-of-order: true
+
+# 日志配置
+logging:
+  level:
+    com.pengcheng: info

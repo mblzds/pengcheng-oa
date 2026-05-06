@@ -1,0 +1,44 @@
+spring:
+  application:
+    name: MasterLife
+  profiles:
+    active: dev
+
+# Knife4j / OpenAPI 配置
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  show-actuator: false
+  default-flat-param-object: true
+
+knife4j:
+  enable: true
+  setting:
+    language: zh_cn
+    swagger-model-name: 实体类列表
+  basic:
+    enable: false
+    username: admin
+    password: admin
+
+# 服务器配置
+server:
+  port: 8080
+
+pengcheng:
+  feature:
+    alipay:
+      enabled: false
+    wechat:
+      mp:
+        enabled: false
+      mini:
+        enabled: false
+      pay:
+        enabled: false

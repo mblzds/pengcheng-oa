@@ -1,0 +1,175 @@
+package com.pengcheng.admin.controller;
+
+import cn.dev33.satoken.stp.StpUtil;
+import com.pengcheng.auth.LoginHelper;
+import com.pengcheng.auth.LoginResult;
+import com.pengcheng.common.result.Result;
+import com.pengcheng.social.SocialLoginService;
+import com.pengcheng.social.impl.WechatMpLogin;
+import com.pengcheng.system.entity.SysUser;
+import com.pengcheng.system.service.SysUserService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+
+/**
+ * 微信公众号登录控制器
+ */
+@Slf4j
+@RestController
+@RequestMapping("/api/auth/wechat-mp")
+@RequiredArgsConstructor
+public class WechatMpAuthController {
+
+    private final WechatMpLogin wechatMpLogin;
+    private final SysUserService userService;
+    private final LoginHelper loginHelper;
+
+    /**
+     * 获取微信授权 URL
+     * 
+     * @param redirectUri 回调地址
+     * @param state 状态参数
+     * @param scope 授权作用域（snsapi_base / snsapi_userinfo）
+     */
+    @GetMapping("/authorize-url")
+    public Result<Map<String, String>> getAuthorizeUrl(
+            @RequestParam String redirectUri,
+            @RequestParam(required = false) String state,
+            @RequestParam(required = false, defaultValue = "snsapi_userinfo") String scope) {
+        
+        String url = wechatMpLogin.getAuthorizeUrl(redirectUri, state, scope);
+        
+        Map<String, String> result = new HashMap<>();
+        result.put("authorizeUrl", url);
+        
+        return Result.ok(result);
+    }
+
+    /**
+     * 微信回调处理
+     * 
+     * @param code 授权码
+     * @param state 状态参数
+     */
+    @GetMapping("/callback")
+    public Result<LoginResult> handleCallback(
+            @RequestParam String code,
+            @RequestParam(required = false) String state) {
+        
+        log.info("收到微信公众号授权回调，code={}, state={}", code, state);
+
+        try {
+            // 1. 使用 code 换取用户信息
+            SocialLoginService.SocialUserInfo userInfo = wechatMpLogin.getUserInfo(code);
+            
+            // 2. 根据 openId 查找或创建用户
+            SysUser user = userService.getByOpenId(userInfo.getOpenId());
+            if (user == null) {
+                user = autoRegister(userInfo);
+                log.info("微信公众号新用户注册：openId={}", userInfo.getOpenId());
+            }
+
+            if (user.getStatus() != 1) {
+                return Result.error("账号已被禁用");
+            }
+
+            // 3. 更新用户信息（昵称、头像等）
+            updateUserFromWechat(user, userInfo);
+
+            // 4. 执行登录
+            LoginResult result = loginHelper.doLogin(user);
+            
+            return Result.ok(result);
+
+        } catch (Exception e) {
+            log.error("微信公众号登录失败", e);
+            return Result.error("登录失败：" + e.getMessage());
+        }
+    }
+
+    /**
+     * 自动注册用户
+     */
+    private SysUser autoRegister(SocialLoginService.SocialUserInfo userInfo) {
+        SysUser user = new SysUser();
+        user.setUsername("mp_" + userInfo.getOpenId().substring(0, Math.min(userInfo.getOpenId().length(), 10)));
+        user.setNickname(userInfo.getNickname() != null ? userInfo.getNickname() : "微信用户");
+        user.setPassword(cn.hutool.crypto.digest.BCrypt.hashpw("123456"));
+        user.setOpenId(userInfo.getOpenId());
+        user.setUnionId(userInfo.getUnionId());
+        user.setStatus(1);
+        user.setGender(userInfo.getGender() != null ? userInfo.getGender() : 0);
+        user.setUserType("mp");
+        user.setAvatar(userInfo.getAvatar());
+        
+        userService.save(user);
+        return user;
+    }
+
+    /**
+     * 更新用户微信信息
+     */
+    private void updateUserFromWechat(SysUser user, SocialLoginService.SocialUserInfo userInfo) {
+        boolean needUpdate = false;
+
+        if (userInfo.getNickname() != null && !userInfo.getNickname().equals(user.getNickname())) {
+            user.setNickname(userInfo.getNickname());
+            needUpdate = true;
+        }
+
+        if (userInfo.getAvatar() != null && !userInfo.getAvatar().equals(user.getAvatar())) {
+            user.setAvatar(userInfo.getAvatar());
+            needUpdate = true;
+        }
+
+        if (userInfo.getGender() != null && !userInfo.getGender().equals(user.getGender())) {
+            user.setGender(userInfo.getGender());
+            needUpdate = true;
+        }
+
+        if (userInfo.getUnionId() != null && !userInfo.getUnionId().equals(user.getUnionId())) {
+            user.setUnionId(userInfo.getUnionId());
+            needUpdate = true;
+        }
+
+        if (needUpdate) {
+            userService.updateById(user);
+        }
+    }
+
+    /**
+     * 检查微信登录状态
+     */
+    @GetMapping("/check")
+    public Result<Map<String, Object>> checkLoginStatus() {
+        Map<String, Object> result = new HashMap<>();
+        
+        if (StpUtil.isLogin()) {
+            result.put("isLogin", true);
+            result.put("userId", StpUtil.getLoginId());
+        } else {
+            result.put("isLogin", false);
+        }
+        
+        return Result.ok(result);
+    }
+
+    /**
+     * 获取当前用户信息
+     */
+    @GetMapping("/user")
+    public Result<SysUser> getCurrentUser() {
+        Long userId = StpUtil.getLoginIdAsLong();
+        SysUser user = userService.getById(userId);
+        if (user == null) {
+            return Result.error("用户不存在");
+        }
+        user.setPassword(null);
+        return Result.ok(user);
+    }
+}

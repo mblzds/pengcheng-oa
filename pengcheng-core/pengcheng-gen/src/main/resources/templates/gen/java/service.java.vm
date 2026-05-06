@@ -1,0 +1,38 @@
+package ${packageName}.service;
+
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import ${packageName}.entity.${className};
+
+/**
+ * ${functionName} Service
+ * 
+ * @author ${author}
+ * @date ${datetime}
+ */
+public interface ${className}Service {
+
+    /**
+     * 分页查询
+     */
+    Page<${className}> page(Integer page, Integer pageSize#foreach($column in $columns)#if($column.isQuery == 1), $column.javaType $column.javaField#end#end);
+
+    /**
+     * 根据ID查询
+     */
+    ${className} getById(${pkColumn.javaType} ${pkColumn.javaField});
+
+    /**
+     * 新增
+     */
+    void create(${className} ${classname});
+
+    /**
+     * 修改
+     */
+    void update(${className} ${classname});
+
+    /**
+     * 删除
+     */
+    void delete(${pkColumn.javaType}[] ${pkColumn.javaField}s);
+}

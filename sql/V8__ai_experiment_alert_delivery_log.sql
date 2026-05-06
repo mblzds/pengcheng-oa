@@ -1,0 +1,21 @@
+CREATE TABLE IF NOT EXISTS `ai_experiment_alert_delivery_log` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `alert_log_id` bigint NOT NULL COMMENT '关联告警日志ID',
+  `alert_type` varchar(32) NOT NULL COMMENT '告警类型(auto_rollback/manual_block)',
+  `alert_level` varchar(16) NOT NULL COMMENT '告警级别(CRITICAL/WARNING)',
+  `channel` varchar(16) NOT NULL COMMENT '投递渠道(notice/email/webhook)',
+  `target_value` varchar(512) NOT NULL COMMENT '投递目标(邮箱/Webhook地址)',
+  `status` varchar(16) NOT NULL COMMENT '投递状态(pending/success/failed)',
+  `attempt_count` int NOT NULL DEFAULT 0 COMMENT '已尝试次数',
+  `max_attempts` int NOT NULL DEFAULT 3 COMMENT '最大尝试次数',
+  `next_retry_time` datetime DEFAULT NULL COMMENT '下次重试时间',
+  `last_response_code` int DEFAULT NULL COMMENT '最后响应码',
+  `last_error_message` varchar(1024) DEFAULT NULL COMMENT '最后错误信息',
+  `payload_json` text COMMENT '投递负载快照',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_alert_channel` (`alert_log_id`, `channel`),
+  KEY `idx_status_retry_time` (`status`, `next_retry_time`),
+  KEY `idx_create_time` (`create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='AI实验告警投递日志';

@@ -1,0 +1,76 @@
+package ${packageName}.service.impl;
+
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import ${packageName}.entity.${className};
+import ${packageName}.mapper.${className}Mapper;
+import ${packageName}.service.${className}Service;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+
+import java.util.Arrays;
+
+/**
+ * ${functionName} Service 实现
+ * 
+ * @author ${author}
+ * @date ${datetime}
+ */
+@Service
+@RequiredArgsConstructor
+public class ${className}ServiceImpl implements ${className}Service {
+
+    private final ${className}Mapper ${classname}Mapper;
+
+    @Override
+    public Page<${className}> page(Integer page, Integer pageSize#foreach($column in $columns)#if($column.isQuery == 1), $column.javaType $column.javaField#end#end) {
+        Page<${className}> pageParam = new Page<>(page, pageSize);
+        LambdaQueryWrapper<${className}> wrapper = new LambdaQueryWrapper<>();
+#foreach($column in $columns)
+#if($column.isQuery == 1)
+#if($column.javaType == 'String')
+#if($column.queryType == 'LIKE')
+        if (StringUtils.hasText($column.javaField)) {
+            wrapper.like(${className}::get${column.javaField.substring(0,1).toUpperCase()}${column.javaField.substring(1)}, $column.javaField);
+        }
+#else
+        if (StringUtils.hasText($column.javaField)) {
+            wrapper.eq(${className}::get${column.javaField.substring(0,1).toUpperCase()}${column.javaField.substring(1)}, $column.javaField);
+        }
+#end
+#else
+        if ($column.javaField != null) {
+            wrapper.eq(${className}::get${column.javaField.substring(0,1).toUpperCase()}${column.javaField.substring(1)}, $column.javaField);
+        }
+#end
+#end
+#end
+        wrapper.orderByDesc(${className}::get${pkColumn.javaField.substring(0,1).toUpperCase()}${pkColumn.javaField.substring(1)});
+        return ${classname}Mapper.selectPage(pageParam, wrapper);
+    }
+
+    @Override
+    public ${className} getById(${pkColumn.javaType} ${pkColumn.javaField}) {
+        return ${classname}Mapper.selectById(${pkColumn.javaField});
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void create(${className} ${classname}) {
+        ${classname}Mapper.insert(${classname});
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void update(${className} ${classname}) {
+        ${classname}Mapper.updateById(${classname});
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void delete(${pkColumn.javaType}[] ${pkColumn.javaField}s) {
+        ${classname}Mapper.deleteBatchIds(Arrays.asList(${pkColumn.javaField}s));
+    }
+}

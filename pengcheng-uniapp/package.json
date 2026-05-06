@@ -1,0 +1,15 @@
+{
+  "name": "pengcheng-uniapp",
+  "version": "1.0.0",
+  "description": "MasterLife - 聊天办公小程序",
+  "main": "main.js",
+  "scripts": {
+    "verify:miniapp": "node ./scripts/verify-mobile-miniapp.js",
+    "verify:api": "node ./scripts/verify-app-api-mapping.js",
+    "verify": "npm run verify:miniapp && npm run verify:api"
+  },
+  "dependencies": {
+    "crypto-js": "^4.2.0",
+    "uview-plus": "3.3.36"
+  }
+}
