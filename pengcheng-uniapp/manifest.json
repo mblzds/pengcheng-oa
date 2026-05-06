@@ -1,6 +1,6 @@
 {
     "name" : "MasterLife",
-    "appid" : "",
+    "appid" : "__UNI__D41AE76",
     "description" : "MasterLife - 高效沟通，智慧办公",
     "versionName" : "1.0.0",
     "versionCode" : "100",
@@ -50,7 +50,7 @@
     "quickapp" : {},
     /* 小程序特有相关 */
     "mp-weixin" : {
-        "appid" : "",
+        "appid" : "touristappid",
         "setting" : {
             "urlCheck" : false,
             "es6" : true,
@@ -63,7 +63,7 @@
                 "desc" : "你的位置信息将用于展示"
             }
         },
-        "requiredPrivateInfos": ["chooseAddress"]
+        "requiredPrivateInfos" : [ "chooseAddress" ]
     },
     "mp-alipay" : {
         "usingComponents" : true

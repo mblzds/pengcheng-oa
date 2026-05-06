@@ -5,6 +5,7 @@ import cn.dev33.satoken.stp.StpUtil;
 import com.pengcheng.auth.LoginRequest;
 import com.pengcheng.auth.LoginResult;
 import com.pengcheng.auth.LoginStrategyFactory;
+import com.pengcheng.auth.util.TestVerificationCodeHelper;
 import com.pengcheng.auth.enums.ClientType;
 import com.pengcheng.auth.enums.LoginType;
 import com.pengcheng.common.exception.BusinessException;
@@ -17,6 +18,7 @@ import com.pengcheng.system.service.SysUserService;
 import com.pengcheng.system.helper.SystemConfigHelper;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -30,6 +32,7 @@ import java.util.concurrent.TimeUnit;
 @RestController
 @RequestMapping("/app/auth")
 @RequiredArgsConstructor
+@Slf4j
 public class AppAuthController {
 
     private final LoginStrategyFactory loginStrategyFactory;
@@ -71,10 +74,16 @@ public class AppAuthController {
             throw new BusinessException("发送太频繁，请稍后再试");
         }
 
-        String code = String.valueOf((int) ((Math.random() * 9 + 1) * 100000));
-        boolean success = smsServiceFactory.sendCode(phone, code);
-        if (!success) {
-            throw new BusinessException("短信发送失败");
+        String code;
+        if (TestVerificationCodeHelper.isTestMode()) {
+            code = TestVerificationCodeHelper.getSmsCode();
+            log.info("TEST=1，App短信验证码使用固定值: phone={}, code={}", phone, code);
+        } else {
+            code = String.valueOf((int) ((Math.random() * 9 + 1) * 100000));
+            boolean success = smsServiceFactory.sendCode(phone, code);
+            if (!success) {
+                throw new BusinessException("短信发送失败");
+            }
         }
 
         redisTemplate.opsForValue().set(SMS_CODE_KEY + phone, code, 5, TimeUnit.MINUTES);

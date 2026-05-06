@@ -33,6 +33,8 @@ public class DemoModeInterceptor implements HandlerInterceptor {
             "/api/auth/logout",         // 登出
             "/api/auth/captcha",        // 验证码
             "/api/auth/sms-code",       // 短信验证码
+            "/api/app/auth/login",      // App登录
+            "/api/app/auth/sms-code",   // App短信验证码
             "/api/sys/chat/send",       // 发送聊天消息
             "/api/sys/chat/read",       // 标记已读
             "/api/sys/notice/read",     // 标记通知已读

@@ -6,6 +6,7 @@ import cn.hutool.crypto.digest.BCrypt;
 import com.pengcheng.auth.LoginRequest;
 import com.pengcheng.auth.LoginResult;
 import com.pengcheng.auth.LoginStrategyFactory;
+import com.pengcheng.auth.util.TestVerificationCodeHelper;
 import com.pengcheng.auth.enums.ClientType;
 import com.pengcheng.auth.enums.LoginType;
 import com.pengcheng.common.exception.BusinessException;
@@ -19,6 +20,7 @@ import com.pengcheng.system.service.*;
 import com.pengcheng.sms.SmsServiceFactory;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.web.bind.annotation.*;
 
@@ -34,6 +36,7 @@ import java.util.concurrent.TimeUnit;
 @RestController
 @RequestMapping("/auth")
 @RequiredArgsConstructor
+@Slf4j
 public class AdminAuthController {
 
     private final SysUserService userService;
@@ -54,11 +57,16 @@ public class AdminAuthController {
     @GetMapping("/captcha")
     public Result<Map<String, Object>> captcha() {
         String uuid = IdUtil.simpleUUID();
-        String code = generateCaptchaCode(4);
+        String code = TestVerificationCodeHelper.isTestMode()
+                ? TestVerificationCodeHelper.getImageCaptcha()
+                : generateCaptchaCode(4);
         String svg = renderCaptchaSvg(code, 130, 48);
         String imageBase64 = "data:image/svg+xml;base64," + Base64.getEncoder().encodeToString(svg.getBytes(java.nio.charset.StandardCharsets.UTF_8));
 
         redisTemplate.opsForValue().set(CAPTCHA_KEY + uuid, code.toLowerCase(), 5, TimeUnit.MINUTES);
+        if (TestVerificationCodeHelper.isTestMode()) {
+            log.info("TEST=1，后台图片验证码使用固定值: {}", code);
+        }
 
         Map<String, Object> result = new HashMap<>();
         result.put("uuid", uuid);
@@ -128,10 +136,16 @@ public class AdminAuthController {
             throw new BusinessException("发送太频繁，请稍后再试");
         }
 
-        String code = String.valueOf((int) ((Math.random() * 9 + 1) * 100000));
-        boolean success = smsServiceFactory.sendCode(phone, code);
-        if (!success) {
-            throw new BusinessException("短信发送失败，请稍后重试");
+        String code;
+        if (TestVerificationCodeHelper.isTestMode()) {
+            code = TestVerificationCodeHelper.getSmsCode();
+            log.info("TEST=1，后台短信验证码使用固定值: phone={}, code={}", phone, code);
+        } else {
+            code = String.valueOf((int) ((Math.random() * 9 + 1) * 100000));
+            boolean success = smsServiceFactory.sendCode(phone, code);
+            if (!success) {
+                throw new BusinessException("短信发送失败，请稍后重试");
+            }
         }
 
         redisTemplate.opsForValue().set(SMS_CODE_KEY + phone, code, 5, TimeUnit.MINUTES);
