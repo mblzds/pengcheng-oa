@@ -50,7 +50,7 @@
     "quickapp" : {},
     /* 小程序特有相关 */
     "mp-weixin" : {
-        "appid" : "touristappid",
+        "appid" : "wx66faaab4ed23a31d",
         "setting" : {
             "urlCheck" : false,
             "es6" : true,
@@ -63,7 +63,7 @@
                 "desc" : "你的位置信息将用于展示"
             }
         },
-        "requiredPrivateInfos" : [ "chooseAddress" ]
+        "requiredPrivateInfos" : [ "chooseAddress", "getLocation" ]
     },
     "mp-alipay" : {
         "usingComponents" : true

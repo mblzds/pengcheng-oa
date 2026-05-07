@@ -23,7 +23,7 @@
 				<view class="check-box" :class="{ checked: isSelected(user.id) }">
 					<u-icon v-if="isSelected(user.id)" name="checkmark" color="#FFFFFF" size="24"></u-icon>
 				</view>
-				<image class="user-avatar" :src="user.avatar || '/static/default-avatar.png'" mode="aspectFill"></image>
+				<image class="user-avatar" :src="resolveAvatar(user.avatar)" mode="aspectFill"></image>
 				<text class="user-name">{{ user.nickname || user.username }}</text>
 			</view>
 			<view class="empty-state" v-if="filteredUsers.length === 0 && !loading">
@@ -43,6 +43,7 @@
 <script>
 	import { getChatUsers, createGroup } from '../../utils/api.js'
 
+	import { resolveAvatar } from '../../utils/config.js'
 	export default {
 		data() { return { groupName: '', users: [], selectedIds: [], searchText: '', loading: false, creating: false } },
 		computed: {
@@ -55,6 +56,7 @@
 		},
 		onLoad() { this.loadUsers() },
 		methods: {
+			resolveAvatar,
 			async loadUsers() {
 				this.loading = true
 				try { const res = await getChatUsers(); if (res.data && Array.isArray(res.data)) this.users = res.data }

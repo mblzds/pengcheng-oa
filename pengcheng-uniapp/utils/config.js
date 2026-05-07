@@ -36,3 +36,12 @@ export const joinBaseUrl = (path = '') => {
   return `${getApiBaseUrl()}${prefix}${path}`
 }
 
+/**
+ * 解析头像 URL：空 → 默认头像；绝对 URL → 原样返回；相对路径 → 拼接 API 基地址
+ * 用于所有 <image :src="..."> 头像展示，避免相对路径在小程序/原生 App 中无法解析
+ */
+export const resolveAvatar = (path) => {
+  if (!path) return '/static/default-avatar.png'
+  return joinBaseUrl(path)
+}
+

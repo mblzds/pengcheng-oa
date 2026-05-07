@@ -26,7 +26,7 @@
 			</view>
 
 				<view class="contact-item" v-for="user in filteredUsers" :key="user.id" @tap="handleUserTap(user)">
-					<image v-if="user.avatar" class="contact-avatar" :src="user.avatar" mode="aspectFill"></image>
+					<image v-if="user.avatar" class="contact-avatar" :src="resolveAvatar(user.avatar)" mode="aspectFill"></image>
 					<view v-else class="contact-avatar avatar-text" :style="{ background: getAvatarColor(user.nickname || user.username) }">
 						<text>{{ getFirstChar(user.nickname || user.username) }}</text>
 					</view>
@@ -43,7 +43,7 @@
 					<text>群聊 ({{ displayedGroups.length }})</text>
 				</view>
 				<view class="contact-item" v-for="group in displayedGroups" :key="'g-' + group.id" @tap="openGroupChat(group)">
-					<image v-if="group.avatar" class="contact-avatar" :src="group.avatar" mode="aspectFill"></image>
+					<image v-if="group.avatar" class="contact-avatar" :src="resolveAvatar(group.avatar)" mode="aspectFill"></image>
 					<view v-else class="contact-avatar avatar-text" :style="{ background: getAvatarColor(group.name) }">
 						<text>{{ getFirstChar(group.name) }}</text>
 				</view>
@@ -72,6 +72,7 @@
 	import { getChatUsers, getGroupList } from '../../utils/api.js'
 	import { checkLogin } from '../../utils/auth.js'
 
+	import { resolveAvatar } from '../../utils/config.js'
 	export default {
 		data() {
 			return {
@@ -111,6 +112,7 @@
 		},
 		onShow() { if (!checkLogin()) return; this.loadData() },
 		methods: {
+			resolveAvatar,
 			getFirstChar(name) {
 				if (!name) return '?'
 				return name.charAt(0).toUpperCase()

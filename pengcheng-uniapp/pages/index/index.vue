@@ -37,7 +37,7 @@
 			<view class="conversation-item" v-for="item in conversations" :key="'c-' + item.contactId"
 				@tap="openChat(item)" @longpress="handleLongPress(item)">
 				<view class="avatar-wrap">
-					<image v-if="item.avatar" class="conv-avatar" :src="item.avatar" mode="aspectFill"></image>
+					<image v-if="item.avatar" class="conv-avatar" :src="resolveAvatar(item.avatar)" mode="aspectFill"></image>
 					<view v-else class="conv-avatar avatar-text" :style="{ background: getAvatarColor(item.nickname || item.username) }">
 						<text>{{ getFirstChar(item.nickname || item.username) }}</text>
 					</view>
@@ -58,7 +58,7 @@
 
 			<view class="conversation-item" v-for="group in groups" :key="'g-' + group.id" @tap="openGroupChat(group)">
 				<view class="avatar-wrap">
-					<image v-if="group.avatar" class="conv-avatar" :src="group.avatar" mode="aspectFill"></image>
+					<image v-if="group.avatar" class="conv-avatar" :src="resolveAvatar(group.avatar)" mode="aspectFill"></image>
 					<view v-else class="conv-avatar avatar-text" :style="{ background: getAvatarColor(group.name) }">
 						<text>{{ getFirstChar(group.name) }}</text>
 					</view>
@@ -92,6 +92,7 @@
 	import wsClient from '../../utils/websocket.js'
 	import { navigateByNotice } from '../../utils/notice.js'
 
+	import { resolveAvatar } from '../../utils/config.js'
 	export default {
 		data() {
 			return {
@@ -114,6 +115,7 @@
 			this.removeWebSocketListeners()
 		},
 		methods: {
+			resolveAvatar,
 			getFirstChar(name) {
 				if (!name) return '?'
 				return name.charAt(0).toUpperCase()

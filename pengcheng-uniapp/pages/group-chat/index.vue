@@ -19,7 +19,7 @@
 				<!-- 对方消息：头像在左，气泡在右 -->
 				<view class="message-row msg-row-other" v-else-if="!isSelf(msg.senderId)">
 					<image v-if="msg.senderAvatar" class="msg-avatar"
-						:src="msg.senderAvatar" mode="aspectFill"></image>
+						:src="resolveAvatar(msg.senderAvatar)" mode="aspectFill"></image>
 					<view v-else class="msg-avatar avatar-text"
 						:style="{ background: getAvatarColor(msg.senderName) }">
 						<text>{{ getFirstChar(msg.senderName) }}</text>
@@ -50,7 +50,7 @@
 						</view>
 					</view>
 					<image v-if="myAvatar" class="msg-avatar"
-						:src="myAvatar" mode="aspectFill"></image>
+						:src="resolveAvatar(myAvatar)" mode="aspectFill"></image>
 					<view v-else class="msg-avatar avatar-text"
 						:style="{ background: getAvatarColor(myName) }">
 						<text>{{ getFirstChar(myName) }}</text>
@@ -127,6 +127,7 @@
 	import { getUserInfo } from '../../utils/auth.js'
 	import wsClient from '../../utils/websocket.js'
 
+	import { resolveAvatar } from '../../utils/config.js'
 	export default {
 		data() {
 			return {
@@ -149,6 +150,7 @@
 		},
 		onUnload() { this.removeWebSocketListeners() },
 		methods: {
+			resolveAvatar,
 			isSelf(senderId) {
 				return String(senderId) === String(this.myUserId)
 			},

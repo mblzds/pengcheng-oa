@@ -34,35 +34,48 @@
 			</view>
 		</view>
 
-		<!-- 拍照预览 -->
-		<view class="camera-section" v-if="photoPath">
-			<image class="photo-preview" :src="photoPath" mode="aspectFill" />
-			<view class="photo-actions">
-				<n-button size="small" @tap="retakePhoto">重拍</n-button>
+		<!-- 拍照区域（始终可见） -->
+		<view class="photo-card">
+			<!-- 未拍照：显示拍照入口 -->
+			<view v-if="!photoPath" class="photo-placeholder" @tap="takePhoto">
+				<view class="camera-icon-wrap">
+					<u-icon name="camera" color="#07C160" size="36"></u-icon>
+				</view>
+				<text class="photo-hint-main">拍照打卡</text>
+				<text class="photo-hint-sub">点击拍摄现场照片（可选）</text>
+			</view>
+
+			<!-- 已拍照：显示预览 -->
+			<view v-else class="photo-preview-wrap">
+				<image class="photo-preview" :src="photoPath" mode="aspectFill" @tap="previewPhoto" />
+				<view class="photo-actions">
+					<view class="photo-tag">
+						<u-icon name="checkmark-circle-fill" color="#07C160" size="14"></u-icon>
+						<text class="photo-tag-text">已拍照</text>
+					</view>
+					<view class="retake-btn" @tap="takePhoto">
+						<u-icon name="reload" color="#666" size="14"></u-icon>
+						<text class="retake-text">重拍</text>
+					</view>
+				</view>
 			</view>
 		</view>
 
 		<!-- 打卡按钮 -->
 		<view class="clock-action">
-			<view class="clock-btn" :class="{ disabled: !canClock }" @tap="handleClock">
-				<text class="clock-btn-text">{{ clockBtnText }}</text>
-				<text class="clock-btn-time">{{ currentTime }}</text>
+			<view class="clock-btn" :class="{ disabled: !canClock || clocking }" @tap="handleClock">
+				<u-loading-icon v-if="clocking" color="#FFF" size="28"></u-loading-icon>
+				<template v-else>
+					<text class="clock-btn-text">{{ clockBtnText }}</text>
+					<text class="clock-btn-time">{{ currentTime }}</text>
+				</template>
 			</view>
 		</view>
 	</view>
-	
-	<!-- 拍照提示弹窗 -->
-	<n-modal v-model:show="showCameraTip" preset="dialog" title="拍照打卡" :closable="false">
-		<text>是否需要拍照记录打卡？</text>
-		<template #action>
-			<n-button @click="confirmClock(false)">跳过拍照</n-button>
-			<n-button type="primary" @click="takePhotoAndClock">拍照打卡</n-button>
-		</template>
-	</n-modal>
 </template>
 
 <script>
-	import { clockAttendance, getAttendanceRecords } from '../../utils/api.js'
+	import { clockAttendance, getAttendanceRecords, uploadAttendancePhoto } from '../../utils/api.js'
 
 	export default {
 		data() {
@@ -79,8 +92,7 @@
 				clocking: false,
 				timer: null,
 				photoPath: '',
-				showCameraTip: false,
-				pendingClockType: ''
+				photoUrl: ''
 			}
 		},
 		computed: {
@@ -103,6 +115,7 @@
 		},
 		methods: {
 			goBack() { uni.navigateBack() },
+
 			startTimer() {
 				this.updateTime()
 				this.timer = setInterval(() => this.updateTime(), 1000)
@@ -114,6 +127,7 @@
 				const now = new Date()
 				this.currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`
 			},
+
 			getLocation() {
 				this.locationError = ''
 				uni.getLocation({
@@ -128,12 +142,35 @@
 							width: 30, height: 30
 						}]
 					},
-					fail: () => {
-						this.locationError = '请开启定位权限'
+					fail: (err) => {
 						this.canClock = false
+						const msg = err && err.errMsg ? err.errMsg : ''
+						if (msg.includes('auth deny') || msg.includes('auth denied')) {
+							this.locationError = '请在设置中开启定位权限'
+							uni.showModal({
+								title: '需要定位权限',
+								content: '考勤打卡需要获取你的位置信息，请在小程序设置中开启「位置信息」权限',
+								confirmText: '去开启',
+								cancelText: '取消',
+								success: (r) => {
+									if (r.confirm) {
+										uni.openSetting({
+											success: (s) => {
+												if (s.authSetting && s.authSetting['scope.userLocation']) {
+													this.getLocation()
+												}
+											}
+										})
+									}
+								}
+							})
+						} else {
+							this.locationError = '定位失败，请检查手机定位是否开启'
+						}
 					}
 				})
 			},
+
 			async loadTodayRecords() {
 				try {
 					const now = new Date()
@@ -145,28 +182,17 @@
 					const records = res.data || []
 					const todayRecord = records.find(r => r.attendanceDate === today)
 					if (todayRecord) {
-						this.clockInTime = (todayRecord.clockInTime || '').replace('T', ' ').slice(11, 16)
-						this.clockOutTime = (todayRecord.clockOutTime || '').replace('T', ' ').slice(11, 16)
+						this.clockInTime = (todayRecord.clockInTime || '').slice(11, 16)
+						this.clockOutTime = (todayRecord.clockOutTime || '').slice(11, 16)
 					} else {
 						this.clockInTime = ''
 						this.clockOutTime = ''
 					}
 				} catch (err) { console.error(err) }
 			},
-			async handleClock() {
-				if (!this.canClock || this.clocking) return
-				this.pendingClockType = this.clockInTime ? 'out' : 'in'
-				this.showCameraTip = true
-			},
-			async confirmClock(withPhoto) {
-				this.showCameraTip = false
-				if (withPhoto) {
-					this.takePhotoAndClock()
-				} else {
-					await this.submitClock(null)
-				}
-			},
-			async takePhotoAndClock() {
+
+			// 拍照（独立操作，不触发打卡）
+			async takePhoto() {
 				try {
 					const res = await new Promise((resolve, reject) => {
 						uni.chooseImage({
@@ -178,63 +204,66 @@
 						})
 					})
 					this.photoPath = res.tempFilePaths[0]
-					await this.submitClock(res.tempFiles[0])
+					this.photoUrl = '' // 重置，打卡时再上传
 				} catch (err) {
-					uni.showToast({ title: '拍照取消', icon: 'none' })
+					if (!err?.errMsg?.includes('cancel')) {
+						uni.showToast({ title: '拍照失败，请重试', icon: 'none' })
+					}
 				}
 			},
-			async submitClock(photoFile) {
-				if (this.clocking) return
+
+			previewPhoto() {
+				if (this.photoPath) {
+					uni.previewImage({ urls: [this.photoPath], current: this.photoPath })
+				}
+			},
+
+			// 打卡：若有本地照片则先上传再提交，否则直接提交
+			async handleClock() {
+				if (!this.canClock || this.clocking) return
 				this.clocking = true
 				try {
+					// 有照片且尚未上传，先上传
+					if (this.photoPath && !this.photoUrl) {
+						uni.showLoading({ title: '上传照片…', mask: true })
+						const uploadRes = await uploadAttendancePhoto(this.photoPath)
+						uni.hideLoading()
+						this.photoUrl = uploadRes.data || ''
+					}
+
 					const now = new Date()
-					const formData = {
-						type: this.pendingClockType,
+					const pad = v => String(v).padStart(2, '0')
+					const clockTime = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`
+
+					await clockAttendance({
+						type: this.clockInTime ? 'out' : 'in',
 						latitude: this.latitude,
 						longitude: this.longitude,
-						clockTime: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}T${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`
-					}
-					if (photoFile) {
-						await this.uploadAndClock(formData, photoFile)
-					} else {
-						await clockAttendance(formData)
-					}
+						clockTime,
+						photoUrl: this.photoUrl || undefined
+					})
+
 					uni.showToast({ title: '打卡成功', icon: 'success' })
+					// 打卡成功后清空照片，供下次重新拍
 					this.photoPath = ''
+					this.photoUrl = ''
 					this.loadTodayRecords()
 				} catch (err) {
+					uni.hideLoading()
 					uni.showToast({ title: err.message || '打卡失败', icon: 'none' })
+					// 上传失败时重置 URL，保留本地预览供重试
+					this.photoUrl = ''
 				} finally {
 					this.clocking = false
 				}
-			},
-			async uploadAndClock(formData, photoFile) {
-				return new Promise((resolve, reject) => {
-					uni.uploadFile({
-						url: '/api/attendance/clock',
-						filePath: photoFile.path,
-						name: 'photo',
-						formData: formData,
-						success: (res) => {
-							const data = JSON.parse(res.data)
-							if (data.code === 200) resolve(data)
-							else reject(new Error(data.message || '打卡失败'))
-						},
-						fail: (err) => reject(new Error('上传失败'))
-					})
-				})
-			},
-			retakePhoto() {
-				this.photoPath = ''
-				this.takePhotoAndClock()
-			},
-			goBack() { uni.navigateBack() },
+			}
 		}
 	}
 </script>
 
 <style lang="scss" scoped>
-	.page { min-height: 100vh; min-height: 100dvh; background: #F0F0F0; display: flex; flex-direction: column; }
+	.page { min-height: 100vh; background: #F0F0F0; display: flex; flex-direction: column; }
+
 	.header-wrap { background: linear-gradient(160deg, #059B4B 0%, #07C160 45%, #2BD373 100%); }
 	.status-bar { width: 100%; }
 	.nav-bar {
@@ -254,7 +283,7 @@
 	.status-divider { width: 1rpx; height: 60rpx; background: #E8E8E8; }
 
 	.map-section { margin: 0 20rpx; border-radius: 16rpx; overflow: hidden; position: relative; }
-	.clock-map { width: 100%; height: 400rpx; }
+	.clock-map { width: 100%; height: 360rpx; }
 	.location-tip {
 		position: absolute; bottom: 16rpx; left: 16rpx; right: 16rpx;
 		background: rgba(245,34,45,0.1); border-radius: 8rpx; padding: 12rpx 16rpx;
@@ -262,6 +291,43 @@
 	}
 	.tip-text { font-size: 24rpx; color: #F5222D; }
 
+	/* 拍照区域 */
+	.photo-card {
+		margin: 20rpx; background: #FFF; border-radius: 16rpx; overflow: hidden;
+	}
+
+	.photo-placeholder {
+		display: flex; flex-direction: column; align-items: center; justify-content: center;
+		padding: 40rpx 0;
+		&:active { background: #F8F8F8; }
+	}
+	.camera-icon-wrap {
+		width: 100rpx; height: 100rpx; border-radius: 50%;
+		background: rgba(7, 193, 96, 0.08);
+		display: flex; align-items: center; justify-content: center;
+		margin-bottom: 16rpx;
+	}
+	.photo-hint-main { font-size: 28rpx; color: #1A1A1A; font-weight: 500; }
+	.photo-hint-sub { font-size: 22rpx; color: #999; margin-top: 8rpx; }
+
+	.photo-preview-wrap { position: relative; }
+	.photo-preview { width: 100%; height: 380rpx; display: block; }
+	.photo-actions {
+		display: flex; align-items: center; justify-content: space-between;
+		padding: 16rpx 24rpx;
+	}
+	.photo-tag {
+		display: flex; align-items: center; gap: 8rpx;
+	}
+	.photo-tag-text { font-size: 24rpx; color: #07C160; }
+	.retake-btn {
+		display: flex; align-items: center; gap: 8rpx;
+		padding: 10rpx 20rpx; border: 1rpx solid #E0E0E0; border-radius: 40rpx;
+		&:active { background: #F5F5F5; }
+	}
+	.retake-text { font-size: 24rpx; color: #666; }
+
+	/* 打卡按钮 */
 	.clock-action {
 		flex: 1; display: flex; align-items: center; justify-content: center; padding: 40rpx 0;
 	}
@@ -271,16 +337,8 @@
 		display: flex; flex-direction: column; align-items: center; justify-content: center;
 		box-shadow: 0 8rpx 40rpx rgba(7,193,96,0.4);
 		&.disabled { background: linear-gradient(180deg, #CCC, #AAA); box-shadow: none; }
-		&:active { transform: scale(0.96); }
+		&:active:not(.disabled) { transform: scale(0.96); }
 	}
 	.clock-btn-text { font-size: 30rpx; color: #FFF; font-weight: 600; }
 	.clock-btn-time { font-size: 40rpx; color: #FFF; font-weight: 700; margin-top: 8rpx; }
-	
-	.camera-section {
-		margin: 20rpx; background: #FFF; border-radius: 16rpx; overflow: hidden;
-	}
-	.photo-preview { width: 100%; height: 400rpx; }
-	.photo-actions {
-		display: flex; justify-content: flex-end; padding: 12rpx;
-	}
 </style>

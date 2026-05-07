@@ -5,7 +5,7 @@
 			<view class="cell cell-avatar" @tap="handleChangeAvatar">
 				<text class="cell-label">头像</text>
 				<view class="cell-right">
-					<image class="avatar-img" :src="form.avatar || '/static/default-avatar.png'" mode="aspectFill"></image>
+					<image class="avatar-img" :src="resolveAvatar(form.avatar)" mode="aspectFill"></image>
 					<u-icon name="arrow-right" color="#CCCCCC" size="14"></u-icon>
 				</view>
 			</view>
@@ -73,6 +73,7 @@
 <script>
 	import { getAppProfile, updateAppProfile, uploadFile } from '../../utils/api.js'
 	import { getUserInfo, setUserInfo } from '../../utils/auth.js'
+	import { resolveAvatar } from '../../utils/config.js'
 
 	export default {
 		data() {
@@ -104,6 +105,7 @@
 			this.loadProfile()
 		},
 		methods: {
+			resolveAvatar,
 			async loadProfile() {
 				try {
 					uni.showLoading({ title: '加载中...' })

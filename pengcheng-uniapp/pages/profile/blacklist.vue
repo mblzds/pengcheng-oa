@@ -2,7 +2,7 @@
 	<view class="page">
 		<scroll-view scroll-y class="list-wrap">
 			<view class="item" v-for="item in blacklist" :key="item.id" @tap="openChat(item)">
-				<image class="avatar" :src="item.blockedUserAvatar || '/static/default-avatar.png'" mode="aspectFill"></image>
+				<image class="avatar" :src="resolveAvatar(item.blockedUserAvatar)" mode="aspectFill"></image>
 				<view class="info">
 					<text class="name">{{ item.blockedUserName || `用户${item.blockedUserId}` }}</text>
 					<text class="time">{{ formatTime(item.createTime) }}</text>
@@ -21,6 +21,7 @@
 <script>
 import { getBlacklist, unblockUser } from '../../utils/api.js'
 
+import { resolveAvatar } from '../../utils/config.js'
 export default {
 	data() {
 		return {
@@ -32,6 +33,7 @@ export default {
 		this.loadBlacklist()
 	},
 	methods: {
+		resolveAvatar,
 		async loadBlacklist() {
 			this.loading = true
 			try {

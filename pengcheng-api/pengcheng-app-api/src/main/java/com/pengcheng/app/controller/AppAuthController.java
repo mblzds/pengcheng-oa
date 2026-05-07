@@ -103,11 +103,19 @@ public class AppAuthController {
 
     /**
      * App端头像上传（无需文件管理权限）
+     * 上传成功后自动写入当前用户的 avatar 字段
      */
     @SaCheckLogin
     @PostMapping("/upload-avatar")
     public Result<String> uploadAvatar(@RequestParam("file") MultipartFile file) {
         SysFile sysFile = fileService.uploadImage(file);
+        Long userId = StpUtil.getLoginIdAsLong();
+        SysUser user = userService.getById(userId);
+        if (user == null) {
+            throw new BusinessException("用户不存在");
+        }
+        user.setAvatar(sysFile.getUrl());
+        userService.updateById(user);
         return Result.ok(sysFile.getUrl());
     }
 

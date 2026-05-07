@@ -15,7 +15,7 @@
         <!-- 对方消息：头像在左，气泡在右 -->
         <view class="message-row msg-row-other" v-if="!isSelf(msg.senderId)">
           <image v-if="msg.senderAvatar || targetAvatar" class="msg-avatar"
-                 :src="msg.senderAvatar || targetAvatar" mode="aspectFill"></image>
+                 :src="resolveAvatar(msg.senderAvatar || targetAvatar)" mode="aspectFill"></image>
           <view v-else class="msg-avatar avatar-text"
                 :style="{ background: getAvatarColor(msg.senderName || targetName) }">
             <text>{{ getFirstChar(msg.senderName || targetName) }}</text>
@@ -49,7 +49,7 @@
             <view class="bubble-arrow-right"></view>
           </view>
           <image v-if="myAvatar" class="msg-avatar"
-                 :src="myAvatar" mode="aspectFill"></image>
+                 :src="resolveAvatar(myAvatar)" mode="aspectFill"></image>
           <view v-else class="msg-avatar avatar-text"
                 :style="{ background: getAvatarColor(myName) }">
             <text>{{ getFirstChar(myName) }}</text>
@@ -132,6 +132,7 @@ import {getChatHistory, sendMessage, markAsRead, uploadFile} from '../../utils/a
 import {getUserInfo} from '../../utils/auth.js'
 import wsClient from '../../utils/websocket.js'
 
+import { resolveAvatar } from '../../utils/config.js'
 export default {
   data() {
     return {
@@ -159,6 +160,7 @@ export default {
     this.removeWebSocketListeners()
   },
   methods: {
+    resolveAvatar,
     isSelf(senderId) {
       return String(senderId) === String(this.myUserId)
     },

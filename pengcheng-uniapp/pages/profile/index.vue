@@ -10,7 +10,7 @@
 			<!-- 用户头像区域 居中 -->
 			<view class="user-center">
 				<view class="avatar-wrap" @tap="handleChangeAvatar">
-					<image class="user-avatar" :src="userInfo.avatar || '/static/default-avatar.png'"
+					<image class="user-avatar" :src="resolveAvatar(userInfo.avatar)"
 						mode="aspectFill"></image>
 					<view class="avatar-camera">
 						<u-icon name="camera-fill" color="#FFF" size="11"></u-icon>
@@ -117,6 +117,7 @@
 <script>
 	import { logout, getAppProfile, updateAppProfile, uploadAvatar } from '../../utils/api.js'
 	import { getUserInfo, setUserInfo, clearAuth } from '../../utils/auth.js'
+	import { resolveAvatar } from '../../utils/config.js'
 	import wsClient from '../../utils/websocket.js'
 
 	export default {
@@ -137,6 +138,7 @@
 			this.calcCacheSize()
 		},
 		methods: {
+			resolveAvatar,
 			async loadProfile() {
 				try {
 					const res = await getAppProfile()

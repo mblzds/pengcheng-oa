@@ -2,7 +2,7 @@
 	<view class="page">
 		<scroll-view scroll-y class="content">
 			<view class="group-header card">
-				<image class="group-avatar" :src="group.avatar || '/static/default-avatar.png'" mode="aspectFill"></image>
+				<image class="group-avatar" :src="resolveAvatar(group.avatar)" mode="aspectFill"></image>
 				<view class="group-info">
 					<text class="group-name">{{ group.name }}</text>
 					<text class="group-member-count">{{ members.length }} 人</text>
@@ -16,7 +16,7 @@
 				</view>
 				<view class="member-grid">
 					<view class="member-item" v-for="member in displayMembers" :key="member.id" @tap="handleMemberTap(member)">
-						<image class="member-avatar" :src="member.avatar || '/static/default-avatar.png'" mode="aspectFill"></image>
+						<image class="member-avatar" :src="resolveAvatar(member.avatar)" mode="aspectFill"></image>
 						<text class="member-name">{{ member.nickname || member.userNickname }}</text>
 						<text class="member-role" v-if="member.role === 2">群主</text>
 						<text class="member-role admin" v-else-if="member.role === 1">管理</text>
@@ -69,6 +69,7 @@
 	} from '../../utils/api.js'
 	import { getUserInfo } from '../../utils/auth.js'
 
+	import { resolveAvatar } from '../../utils/config.js'
 	export default {
 		data() { return { groupId: 0, group: {}, members: [], showAllMembers: false, myUserId: 0 } },
 		computed: {
@@ -81,6 +82,7 @@
 			this.loadGroupInfo()
 		},
 		methods: {
+			resolveAvatar,
 			async loadGroupInfo() {
 				try {
 					const [groupRes, membersRes] = await Promise.all([getGroupDetail(this.groupId), getGroupMembers(this.groupId)])

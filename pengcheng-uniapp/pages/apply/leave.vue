@@ -11,23 +11,19 @@
 						</view>
 					</picker>
 				</view>
-				<view class="form-item">
+				<view class="form-item" @tap="openStartPicker">
 					<text class="form-label">开始时间 <text class="required">*</text></text>
-					<picker mode="datetime" @change="e => form.startTime = e.detail.value">
-						<view class="picker-value">
-							<text :class="{ placeholder: !form.startTime }">{{ form.startTime || '请选择开始时间' }}</text>
-							<u-icon name="arrow-right" color="#CCC" size="14"></u-icon>
-						</view>
-					</picker>
+					<view class="picker-value">
+						<text :class="{ placeholder: !form.startTime }">{{ form.startTime || '请选择开始时间' }}</text>
+						<u-icon name="arrow-right" color="#CCC" size="14"></u-icon>
+					</view>
 				</view>
-				<view class="form-item">
+				<view class="form-item" @tap="openEndPicker">
 					<text class="form-label">结束时间 <text class="required">*</text></text>
-					<picker mode="datetime" @change="e => form.endTime = e.detail.value">
-						<view class="picker-value">
-							<text :class="{ placeholder: !form.endTime }">{{ form.endTime || '请选择结束时间' }}</text>
-							<u-icon name="arrow-right" color="#CCC" size="14"></u-icon>
-						</view>
-					</picker>
+					<view class="picker-value">
+						<text :class="{ placeholder: !form.endTime }">{{ form.endTime || '请选择结束时间' }}</text>
+						<u-icon name="arrow-right" color="#CCC" size="14"></u-icon>
+					</view>
 				</view>
 				<view class="form-item">
 					<text class="form-label">请假原因 <text class="required">*</text></text>
@@ -40,11 +36,35 @@
 				{{ submitting ? '提交中...' : '提交申请' }}
 			</button>
 		</view>
+
+		<u-datetime-picker
+			:show="showStartPicker"
+			v-model="startPickerValue"
+			mode="datetime"
+			@confirm="onStartConfirm"
+			@cancel="showStartPicker = false"
+			@close="showStartPicker = false"
+		></u-datetime-picker>
+
+		<u-datetime-picker
+			:show="showEndPicker"
+			v-model="endPickerValue"
+			mode="datetime"
+			@confirm="onEndConfirm"
+			@cancel="showEndPicker = false"
+			@close="showEndPicker = false"
+		></u-datetime-picker>
 	</view>
 </template>
 
 <script>
 	import { applyLeave } from '../../utils/api.js'
+
+	const formatDateTime = (ts) => {
+		const d = new Date(ts)
+		const pad = n => String(n).padStart(2, '0')
+		return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:00`
+	}
 
 	export default {
 		data() {
@@ -57,6 +77,10 @@
 					{ label: '婚假', value: 4 },
 					{ label: '产假', value: 5 }
 				],
+				showStartPicker: false,
+				showEndPicker: false,
+				startPickerValue: Date.now(),
+				endPickerValue: Date.now(),
 				submitting: false
 			}
 		},
@@ -67,10 +91,31 @@
 				this.form.leaveType = item.value
 				this.form.leaveTypeLabel = item.label
 			},
+			openStartPicker() {
+				this.startPickerValue = this.form.startTime ? new Date(this.form.startTime).getTime() : Date.now()
+				this.showStartPicker = true
+			},
+			openEndPicker() {
+				this.endPickerValue = this.form.endTime
+					? new Date(this.form.endTime).getTime()
+					: (this.form.startTime ? new Date(this.form.startTime).getTime() : Date.now())
+				this.showEndPicker = true
+			},
+			onStartConfirm(e) {
+				this.form.startTime = formatDateTime(e.value)
+				this.showStartPicker = false
+			},
+			onEndConfirm(e) {
+				this.form.endTime = formatDateTime(e.value)
+				this.showEndPicker = false
+			},
 			async handleSubmit() {
 				if (!this.form.leaveType) return uni.showToast({ title: '请选择请假类型', icon: 'none' })
 				if (!this.form.startTime) return uni.showToast({ title: '请选择开始时间', icon: 'none' })
 				if (!this.form.endTime) return uni.showToast({ title: '请选择结束时间', icon: 'none' })
+				if (new Date(this.form.endTime).getTime() <= new Date(this.form.startTime).getTime()) {
+					return uni.showToast({ title: '结束时间必须晚于开始时间', icon: 'none' })
+				}
 				if (!this.form.reason.trim()) return uni.showToast({ title: '请输入请假原因', icon: 'none' })
 				this.submitting = true
 				try {
