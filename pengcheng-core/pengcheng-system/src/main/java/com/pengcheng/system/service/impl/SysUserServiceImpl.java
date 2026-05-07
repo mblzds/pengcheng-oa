@@ -46,6 +46,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     public PageResult<SysUser> page(Integer page, Integer pageSize, String username, Integer status, String userType, Long deptId, Long postId) {
         Page<SysUser> pageParam = new Page<>(page, pageSize);
         LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<>();
+        wrapper.apply("u.deleted = 0");
         wrapper.like(StringUtils.hasText(username), SysUser::getUsername, username)
                 .eq(status != null, SysUser::getStatus, status)
                 .eq(StringUtils.hasText(userType), SysUser::getUserType, userType)
@@ -95,10 +96,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void create(SysUser user, List<Long> roleIds, List<Long> postIds) {
-        // 检查用户名是否存在
-        if (this.getByUsername(user.getUsername()) != null) {
-            throw new BusinessException("用户名已存在");
-        }
+        checkUsernameUnique(user.getUsername(), null);
         checkPhoneUnique(user.getPhone(), null);
         checkOpenIdUnique(user.getOpenId(), null);
         // 加密密码
@@ -118,11 +116,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         if (existUser == null) {
             throw new BusinessException("用户不存在");
         }
-        // 检查用户名是否存在
-        SysUser byUsername = this.getByUsername(user.getUsername());
-        if (byUsername != null && !byUsername.getId().equals(user.getId())) {
-            throw new BusinessException("用户名已存在");
-        }
+        checkUsernameUnique(user.getUsername(), user.getId());
         checkPhoneUnique(user.getPhone(), user.getId());
         checkOpenIdUnique(user.getOpenId(), user.getId());
         // 不更新密码
@@ -233,15 +227,20 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
                 .collect(Collectors.toList());
     }
 
+    private void checkUsernameUnique(String username, Long excludeId) {
+        if (!StringUtils.hasText(username)) {
+            return;
+        }
+        if (baseMapper.countByUsernameAll(username, excludeId) > 0) {
+            throw new BusinessException("用户名已被占用");
+        }
+    }
+
     private void checkPhoneUnique(String phone, Long excludeId) {
         if (!StringUtils.hasText(phone)) {
             return;
         }
-        LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<SysUser>().eq(SysUser::getPhone, phone);
-        if (excludeId != null) {
-            wrapper.ne(SysUser::getId, excludeId);
-        }
-        if (this.count(wrapper) > 0) {
+        if (baseMapper.countByPhoneAll(phone, excludeId) > 0) {
             throw new BusinessException("手机号已被占用");
         }
     }
@@ -250,11 +249,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         if (!StringUtils.hasText(openId)) {
             return;
         }
-        LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<SysUser>().eq(SysUser::getOpenId, openId);
-        if (excludeId != null) {
-            wrapper.ne(SysUser::getId, excludeId);
-        }
-        if (this.count(wrapper) > 0) {
+        if (baseMapper.countByOpenIdAll(openId, excludeId) > 0) {
             throw new BusinessException("微信账号已被绑定到其他用户");
         }
     }

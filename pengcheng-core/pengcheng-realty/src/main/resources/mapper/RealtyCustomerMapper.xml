@@ -5,15 +5,23 @@
 
     <select id="selectPageWithScope" resultType="com.pengcheng.realty.customer.entity.Customer">
         SELECT * FROM customer
-        <if test="ew != null and ew.customSqlSegment != null and ew.customSqlSegment != ''">
-            ${ew.customSqlSegment}
+        WHERE deleted = 0
+        <if test="ew != null and ew.nonEmptyOfWhere">
+            AND ${ew.sqlSegment}
+        </if>
+        <if test="ew != null and !ew.nonEmptyOfWhere and ew.sqlSegment != null and ew.sqlSegment != ''">
+            ${ew.sqlSegment}
         </if>
     </select>
 
     <select id="selectListWithScope" resultType="com.pengcheng.realty.customer.entity.Customer">
         SELECT * FROM customer
-        <if test="ew != null and ew.customSqlSegment != null and ew.customSqlSegment != ''">
-            ${ew.customSqlSegment}
+        WHERE deleted = 0
+        <if test="ew != null and ew.nonEmptyOfWhere">
+            AND ${ew.sqlSegment}
+        </if>
+        <if test="ew != null and !ew.nonEmptyOfWhere and ew.sqlSegment != null and ew.sqlSegment != ''">
+            ${ew.sqlSegment}
         </if>
     </select>
 

@@ -19,6 +19,7 @@ services:
       - SPRING_PROFILES_ACTIVE=prod
       - SERVER_PORT=8080
       - SERVER_SSL_ENABLED=false
+      - PENGCHENG_DEMO_MODE=false
       - TEST=${TEST:-0}
       - DB_HOST=mysql
       - DB_PORT=3306

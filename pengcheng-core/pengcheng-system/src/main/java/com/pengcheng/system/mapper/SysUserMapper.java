@@ -41,4 +41,22 @@ public interface SysUserMapper extends BaseMapper<SysUser> {
             "INNER JOIN sys_user_role ur ON rm.role_id = ur.role_id " +
             "WHERE ur.user_id = #{userId} AND m.status = 1 AND m.deleted = 0 AND m.permission IS NOT NULL AND m.permission != ''")
     List<String> selectPermissionsByUserId(@Param("userId") Long userId);
+
+    /**
+     * 唯一性检测：跨软删全表统计 username。
+     * 唯一索引 uk_username 不区分 deleted，软删行也会占用索引位，必须包含进来。
+     */
+    @Select("<script>SELECT COUNT(*) FROM sys_user WHERE username = #{username}" +
+            "<if test='excludeId != null'> AND id != #{excludeId}</if></script>")
+    long countByUsernameAll(@Param("username") String username, @Param("excludeId") Long excludeId);
+
+    /** 唯一性检测：跨软删全表统计 phone。 */
+    @Select("<script>SELECT COUNT(*) FROM sys_user WHERE phone = #{phone}" +
+            "<if test='excludeId != null'> AND id != #{excludeId}</if></script>")
+    long countByPhoneAll(@Param("phone") String phone, @Param("excludeId") Long excludeId);
+
+    /** 唯一性检测：跨软删全表统计 open_id。 */
+    @Select("<script>SELECT COUNT(*) FROM sys_user WHERE open_id = #{openId}" +
+            "<if test='excludeId != null'> AND id != #{excludeId}</if></script>")
+    long countByOpenIdAll(@Param("openId") String openId, @Param("excludeId") Long excludeId);
 }

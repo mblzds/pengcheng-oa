@@ -59,7 +59,7 @@ public class AttendanceController {
     }
 
     @GetMapping("/records")
-    @SaCheckPermission("hr:attendance:list")
+    @SaCheckPermission("realty:attendance:list")
     public Result<List<AttendanceRecord>> records(
             @RequestParam(required = false) Long userId,
             @RequestParam(required = false) LocalDate startDate,

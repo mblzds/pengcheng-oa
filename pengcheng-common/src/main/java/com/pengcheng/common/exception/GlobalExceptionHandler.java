@@ -7,12 +7,16 @@ import com.pengcheng.common.result.Result;
 import lombok.extern.slf4j.Slf4j;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -21,6 +25,16 @@ import java.util.stream.Collectors;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Pattern DUPLICATE_ENTRY_PATTERN =
+            Pattern.compile("Duplicate entry '([^']*)' for key '(?:[^.]+\\.)?([^']+)'");
+
+    private static final Map<String, String> UNIQUE_KEY_LABELS = Map.of(
+            "uk_username", "用户名",
+            "uk_phone", "手机号",
+            "uk_open_id", "微信账号",
+            "uk_email", "邮箱"
+    );
 
     /**
      * 业务异常（兜底处理所有 BusinessException 子类）
@@ -103,6 +117,35 @@ public class GlobalExceptionHandler {
         }
         log.error("约束校验异常: {}", message);
         return Result.fail(BizErrorCode.BAD_REQUEST.getCode(), message);
+    }
+
+    /**
+     * 数据完整性异常（唯一索引、外键、非空约束等）
+     * 把 MySQL 原始报错翻译成可读提示，避免 SQL 详情泄漏给前端。
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public Result<Void> handleDataIntegrityViolationException(DataIntegrityViolationException e) {
+        Throwable root = e.getMostSpecificCause();
+        String rootMsg = root != null ? root.getMessage() : e.getMessage();
+        log.warn("数据完整性异常: {}", rootMsg);
+        String friendly = translateIntegrityError(rootMsg);
+        return Result.fail(BizErrorCode.BAD_REQUEST.getCode(), friendly);
+    }
+
+    private String translateIntegrityError(String rootMsg) {
+        if (rootMsg == null) {
+            return "数据完整性约束失败";
+        }
+        Matcher m = DUPLICATE_ENTRY_PATTERN.matcher(rootMsg);
+        if (m.find()) {
+            String value = m.group(1);
+            String key = m.group(2);
+            String label = UNIQUE_KEY_LABELS.get(key);
+            return label != null
+                    ? String.format("%s「%s」已被占用", label, value)
+                    : String.format("「%s」已存在，不能重复", value);
+        }
+        return "数据完整性约束失败";
     }
 
     /**
