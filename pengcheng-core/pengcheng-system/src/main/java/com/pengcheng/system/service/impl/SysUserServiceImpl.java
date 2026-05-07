@@ -99,6 +99,8 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         if (this.getByUsername(user.getUsername()) != null) {
             throw new BusinessException("用户名已存在");
         }
+        checkPhoneUnique(user.getPhone(), null);
+        checkOpenIdUnique(user.getOpenId(), null);
         // 加密密码
         String password = StringUtils.hasText(user.getPassword()) ? user.getPassword() : DEFAULT_PASSWORD;
         user.setPassword(BCrypt.hashpw(password));
@@ -121,6 +123,8 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         if (byUsername != null && !byUsername.getId().equals(user.getId())) {
             throw new BusinessException("用户名已存在");
         }
+        checkPhoneUnique(user.getPhone(), user.getId());
+        checkOpenIdUnique(user.getOpenId(), user.getId());
         // 不更新密码
         user.setPassword(null);
         this.updateById(user);
@@ -196,6 +200,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         if (user == null) {
             throw new BusinessException("用户不存在");
         }
+        checkPhoneUnique(profile.getPhone(), userId);
         // 只允许更新昵称、邮箱、手机号、头像
         user.setNickname(profile.getNickname());
         user.setEmail(profile.getEmail());
@@ -226,6 +231,32 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
                 .stream()
                 .map(SysUserPost::getPostId)
                 .collect(Collectors.toList());
+    }
+
+    private void checkPhoneUnique(String phone, Long excludeId) {
+        if (!StringUtils.hasText(phone)) {
+            return;
+        }
+        LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<SysUser>().eq(SysUser::getPhone, phone);
+        if (excludeId != null) {
+            wrapper.ne(SysUser::getId, excludeId);
+        }
+        if (this.count(wrapper) > 0) {
+            throw new BusinessException("手机号已被占用");
+        }
+    }
+
+    private void checkOpenIdUnique(String openId, Long excludeId) {
+        if (!StringUtils.hasText(openId)) {
+            return;
+        }
+        LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<SysUser>().eq(SysUser::getOpenId, openId);
+        if (excludeId != null) {
+            wrapper.ne(SysUser::getId, excludeId);
+        }
+        if (this.count(wrapper) > 0) {
+            throw new BusinessException("微信账号已被绑定到其他用户");
+        }
     }
 
     private void saveUserRoles(Long userId, List<Long> roleIds) {
