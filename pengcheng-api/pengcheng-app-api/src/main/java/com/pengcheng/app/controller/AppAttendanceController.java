@@ -47,7 +47,7 @@ public class AppAttendanceController {
      * 内部构造 ClockInDTO，设置 location = "lat,lng" 格式
      */
     @PostMapping("/clock")
-    public Result<Void> clock(@RequestBody AppClockDTO dto) {
+    public Result<AttendanceRecord> clock(@RequestBody AppClockDTO dto) {
         Long userId = StpUtil.getLoginIdAsLong();
         LocalDateTime clockTime = dto.getClockTime() != null ? dto.getClockTime() : LocalDateTime.now();
 
@@ -64,12 +64,10 @@ public class AppAttendanceController {
                 .longitude(dto.getLongitude())
                 .build();
 
-        if ("out".equals(dto.getType())) {
-            attendanceService.clockOut(clockInDTO);
-        } else {
-            attendanceService.clockIn(clockInDTO);
-        }
-        return Result.ok();
+        Long recordId = "out".equals(dto.getType())
+                ? attendanceService.clockOut(clockInDTO)
+                : attendanceService.clockIn(clockInDTO);
+        return Result.ok(attendanceRecordMapper.selectById(recordId));
     }
 
     /**

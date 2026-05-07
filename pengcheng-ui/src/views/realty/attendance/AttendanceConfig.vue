@@ -64,20 +64,23 @@
               <n-list v-else bordered style="margin-top: 12px">
                 <n-list-item v-for="(loc, idx) in form.allowedLocations" :key="idx">
                   <n-grid :cols="24" :x-gap="12" :y-gap="8">
-                    <n-gi :span="6">
+                    <n-gi :span="5">
                       <n-input v-model:value="loc.name" placeholder="名称（如：总部）" size="small" />
                     </n-gi>
-                    <n-gi :span="9">
-                      <n-input v-model:value="loc.address" placeholder="地址（可留空）" size="small" />
+                    <n-gi :span="8">
+                      <n-input v-model:value="loc.address" placeholder="地址" size="small" readonly />
                     </n-gi>
                     <n-gi :span="3">
-                      <n-input-number v-model:value="loc.lat" placeholder="纬度" :precision="6" :show-button="false" size="small" />
+                      <n-input-number v-model:value="loc.lat" placeholder="纬度" :precision="6" :show-button="false" size="small" readonly />
                     </n-gi>
                     <n-gi :span="3">
-                      <n-input-number v-model:value="loc.lng" placeholder="经度" :precision="6" :show-button="false" size="small" />
+                      <n-input-number v-model:value="loc.lng" placeholder="经度" :precision="6" :show-button="false" size="small" readonly />
                     </n-gi>
                     <n-gi :span="2">
                       <n-input-number v-model:value="loc.radius" placeholder="半径(米)" :min="10" :max="10000" :show-button="false" size="small" />
+                    </n-gi>
+                    <n-gi :span="2">
+                      <n-button size="small" type="primary" ghost @click="openMapPicker(idx)">选点</n-button>
                     </n-gi>
                     <n-gi :span="1">
                       <n-button quaternary type="error" size="small" @click="removeLocation(idx)">
@@ -103,14 +106,37 @@
         </n-form>
       </n-spin>
     </n-card>
+
+    <n-modal
+      v-model:show="mapPickerVisible"
+      preset="card"
+      :title="`地图选点 — ${editingLocation?.name || '未命名位置'}`"
+      style="width: 760px; max-width: 90vw"
+      :mask-closable="false"
+    >
+      <BaiduMapPicker
+        v-if="mapPickerVisible"
+        :ak="form.baiduMapAk"
+        :model-value="pickedSnapshot"
+        :radius="editingLocation?.radius"
+        @update:model-value="onPicked"
+      />
+      <template #footer>
+        <n-space justify="end">
+          <n-button @click="mapPickerVisible = false">取消</n-button>
+          <n-button type="primary" @click="confirmMapPick" :disabled="!pickedSnapshot">确定使用此位置</n-button>
+        </n-space>
+      </template>
+    </n-modal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useMessage } from 'naive-ui'
 import { AddOutline, TrashOutline } from '@vicons/ionicons5'
 import { configGroupApi } from '@/api/org'
+import BaiduMapPicker from '@/components/BaiduMapPicker.vue'
 
 interface AllowedLocation {
   name: string
@@ -118,6 +144,12 @@ interface AllowedLocation {
   lat: number | null
   lng: number | null
   radius: number
+}
+
+interface PickedPoint {
+  lng: number
+  lat: number
+  address?: string
 }
 
 interface AttendanceConfig {
@@ -174,6 +206,39 @@ function addLocation() {
 
 function removeLocation(idx: number) {
   form.allowedLocations.splice(idx, 1)
+}
+
+const mapPickerVisible = ref(false)
+const editingIdx = ref<number | null>(null)
+const pickedSnapshot = ref<PickedPoint | null>(null)
+const editingLocation = computed<AllowedLocation | null>(() =>
+  editingIdx.value != null ? form.allowedLocations[editingIdx.value] : null
+)
+
+function openMapPicker(idx: number) {
+  if (!form.baiduMapAk?.trim()) {
+    message.warning('请先在上方填入百度地图 AK 后再选点')
+    return
+  }
+  editingIdx.value = idx
+  const loc = form.allowedLocations[idx]
+  pickedSnapshot.value = (loc.lat != null && loc.lng != null)
+    ? { lat: loc.lat, lng: loc.lng, address: loc.address }
+    : null
+  mapPickerVisible.value = true
+}
+
+function onPicked(point: PickedPoint) {
+  pickedSnapshot.value = point
+}
+
+function confirmMapPick() {
+  if (!pickedSnapshot.value || editingIdx.value == null) return
+  const loc = form.allowedLocations[editingIdx.value]
+  loc.lat = pickedSnapshot.value.lat
+  loc.lng = pickedSnapshot.value.lng
+  if (pickedSnapshot.value.address) loc.address = pickedSnapshot.value.address
+  mapPickerVisible.value = false
 }
 
 async function handleSave() {

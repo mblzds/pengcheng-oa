@@ -76,6 +76,7 @@
 
 <script>
 	import { clockAttendance, getAttendanceRecords, uploadAttendancePhoto } from '../../utils/api.js'
+	import { gcj02ToWgs84 } from '../../utils/coordTransform.js'
 
 	export default {
 		data() {
@@ -218,6 +219,27 @@
 				}
 			},
 
+			// 根据后端返回的状态做差异化提示
+			//   clockInStatus / clockOutStatus: 1=正常 2=迟到/早退
+			//   locationStatus: 1=合规 2=超出范围 NULL=未启用位置校验
+			handleClockResult(record, isClockIn) {
+				const tags = []
+				if (isClockIn && record?.clockInStatus === 2) tags.push('迟到')
+				if (!isClockIn && record?.clockOutStatus === 2) tags.push('早退')
+				if (record?.locationStatus === 2) tags.push('位置超出范围')
+
+				if (tags.length === 0) {
+					uni.showToast({ title: '打卡成功', icon: 'success' })
+				} else {
+					uni.showModal({
+						title: '已记录打卡',
+						content: `存在异常：${tags.join('、')}。已为你记入考勤，可联系管理员说明情况。`,
+						showCancel: false,
+						confirmText: '我知道了'
+					})
+				}
+			},
+
 			// 打卡：若有本地照片则先上传再提交，否则直接提交
 			async handleClock() {
 				if (!this.canClock || this.clocking) return
@@ -235,15 +257,20 @@
 					const pad = v => String(v).padStart(2, '0')
 					const clockTime = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`
 
-					await clockAttendance({
-						type: this.clockInTime ? 'out' : 'in',
-						latitude: this.latitude,
-						longitude: this.longitude,
+					// 设备 GPS 由 uni.getLocation 以 GCJ-02 取出（用于 <map> 渲染），
+					// 上报后端必须转回 WGS-84 以匹配后台合规位置存储坐标系
+					const [wgsLng, wgsLat] = gcj02ToWgs84(this.longitude, this.latitude)
+
+					const isClockIn = !this.clockInTime
+					const res = await clockAttendance({
+						type: isClockIn ? 'in' : 'out',
+						latitude: wgsLat,
+						longitude: wgsLng,
 						clockTime,
 						photoUrl: this.photoUrl || undefined
 					})
 
-					uni.showToast({ title: '打卡成功', icon: 'success' })
+					this.handleClockResult(res?.data, isClockIn)
 					// 打卡成功后清空照片，供下次重新拍
 					this.photoPath = ''
 					this.photoUrl = ''
