@@ -98,7 +98,7 @@
         <n-form-item v-if="!formData.id" label="密码" path="password">
           <n-input v-model:value="formData.password" type="password" placeholder="请输入密码，留空默认123456" show-password-on="click" />
         </n-form-item>
-        <n-form-item label="昵称" path="nickname">
+        <n-form-item v-if="formData.id" label="昵称" path="nickname">
           <n-input v-model:value="formData.nickname" placeholder="请输入昵称" />
         </n-form-item>
         <n-form-item label="归属部门" path="deptId">
@@ -385,8 +385,7 @@ const formData = reactive<SysUser>({
 })
 
 const rules: FormRules = {
-  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
-  nickname: [{ required: true, message: '请输入昵称', trigger: 'blur' }]
+  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }]
 }
 
 // ==================== 数据加载 ====================
@@ -496,6 +495,10 @@ async function handleSubmit() {
   try {
     await formRef.value?.validate()
     submitLoading.value = true
+
+    if (!formData.id && !formData.nickname?.trim()) {
+      formData.nickname = formData.username
+    }
 
     const data = {
       user: { ...formData },

@@ -72,7 +72,8 @@ const request = (options) => {
 
         if (res.statusCode === 200) {
           const data = res.data
-          // 后端统一返回格式 { code, msg, data }
+          // 后端统一返回格式 { code, message, data }
+          const bizMsg = data.message || data.msg
           if (data.code === 200 || data.code === 0) {
             // 检查响应数据是否是AES加密的，自动解密
             if (isAesEncryptedData(data.data)) {
@@ -92,10 +93,10 @@ const request = (options) => {
             uni.removeStorageSync('token')
             uni.removeStorageSync('userInfo')
             uni.reLaunch({ url: '/pages/login/index' })
-            rejectWith(data.msg || '登录已过期', { code: data.code, statusCode: res.statusCode })
+            rejectWith(bizMsg || '登录已过期', { code: data.code, statusCode: res.statusCode })
           } else {
-            uni.showToast({ title: data.msg || '请求失败', icon: 'none' })
-            rejectWith(data.msg || '请求失败', { code: data.code, statusCode: res.statusCode, data })
+            uni.showToast({ title: bizMsg || '请求失败', icon: 'none' })
+            rejectWith(bizMsg || '请求失败', { code: data.code, statusCode: res.statusCode, data })
           }
         } else if (res.statusCode === 401) {
           uni.removeStorageSync('token')
@@ -170,7 +171,7 @@ export const upload = (url, filePath, name = 'file') => {
               resolve(data)
             }
           } else {
-            reject(new Error(data.msg || '上传失败'))
+            reject(new Error(data.message || data.msg || '上传失败'))
           }
         } else {
           reject(new Error('上传失败'))
