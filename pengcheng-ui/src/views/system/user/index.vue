@@ -234,7 +234,6 @@ const userTypeOptions = [
 const columns: DataTableColumns<SysUser> = [
   { title: 'ID', key: 'id', width: 60 },
   { title: '用户名', key: 'username', width: 100 },
-  { title: '昵称', key: 'nickname', width: 100 },
   { title: '部门', key: 'deptName', width: 100, render(row) {
     return row.deptName || '-'
   }},
