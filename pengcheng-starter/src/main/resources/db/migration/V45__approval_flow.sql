@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS `approval_flow_node` (
   `business_type` VARCHAR(32) NOT NULL COMMENT '业务类型：leave 请假 / compensate 调休',
   `seq` INT NOT NULL COMMENT '节点顺序，从 1 开始',
   `node_name` VARCHAR(64) NOT NULL COMMENT '节点显示名（直接上级 / HR审批 ...）',
-  `approver_type` VARCHAR(16) NOT NULL COMMENT 'direct_supervisor / role / user',
+  `approver_type` VARCHAR(32) NOT NULL COMMENT 'direct_supervisor / role / user',
   `approver_value` VARCHAR(255) NULL COMMENT 'role/user 时填 ID 列表（逗号分隔）；direct_supervisor 时为 NULL',
   `enabled` TINYINT NOT NULL DEFAULT 1,
   `create_time` DATETIME NULL,
@@ -69,10 +69,12 @@ CREATE TABLE IF NOT EXISTS `approval_record_node` (
 -- 6. 种子默认流程：请假和调休各一个节点（直接上级），首次部署后管理后台可调整
 INSERT INTO `approval_flow_node` (business_type, seq, node_name, approver_type, approver_value, enabled, create_time, update_time, deleted)
 SELECT 'leave', 1, '直接上级', 'direct_supervisor', NULL, 1, NOW(), NOW(), 0
+FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM approval_flow_node WHERE business_type = 'leave' AND deleted = 0);
 
 INSERT INTO `approval_flow_node` (business_type, seq, node_name, approver_type, approver_value, enabled, create_time, update_time, deleted)
 SELECT 'compensate', 1, '直接上级', 'direct_supervisor', NULL, 1, NOW(), NOW(), 0
+FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM approval_flow_node WHERE business_type = 'compensate' AND deleted = 0);
 
 -- 注意：本次迁移不为既有 status=1 的请假/调休回填 approval_record_node。
