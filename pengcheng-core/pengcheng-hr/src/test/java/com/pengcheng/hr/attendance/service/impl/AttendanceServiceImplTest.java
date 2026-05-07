@@ -1,6 +1,7 @@
 package com.pengcheng.hr.attendance.service.impl;
 
 import com.pengcheng.common.event.DataChangeEvent;
+import com.pengcheng.hr.approval.service.ApprovalFlowService;
 import com.pengcheng.hr.attendance.dto.AttendanceMonthlyVO;
 import com.pengcheng.hr.attendance.dto.ClockInDTO;
 import com.pengcheng.hr.attendance.dto.LeaveRequestDTO;
@@ -13,6 +14,7 @@ import com.pengcheng.hr.attendance.mapper.AttendanceRecordMapper;
 import com.pengcheng.hr.attendance.mapper.CompensateRequestMapper;
 import com.pengcheng.hr.attendance.mapper.LeaveRequestMapper;
 import com.pengcheng.hr.attendance.mapper.SignInRecordMapper;
+import com.pengcheng.system.helper.SystemConfigHelper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -40,6 +42,8 @@ class AttendanceServiceImplTest {
     private SignInRecordMapper signInRecordMapper;
     private CompensateRequestMapper compensateRequestMapper;
     private ApplicationEventPublisher eventPublisher;
+    private ApprovalFlowService approvalFlowService;
+    private SystemConfigHelper systemConfigHelper;
     private AttendanceServiceImpl service;
 
     @BeforeEach
@@ -49,13 +53,22 @@ class AttendanceServiceImplTest {
         signInRecordMapper = mock(SignInRecordMapper.class);
         compensateRequestMapper = mock(CompensateRequestMapper.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
+        approvalFlowService = mock(ApprovalFlowService.class);
+        systemConfigHelper = mock(SystemConfigHelper.class);
+        // 默认开启时间校验、关闭位置校验，回退到 9:00/18:00 默认值
+        when(systemConfigHelper.isAttendanceEnforceTime()).thenReturn(true);
+        when(systemConfigHelper.isAttendanceEnforceLocation()).thenReturn(false);
+        when(systemConfigHelper.getAttendanceWorkStartTime()).thenReturn("09:00");
+        when(systemConfigHelper.getAttendanceWorkEndTime()).thenReturn("18:00");
 
         service = new AttendanceServiceImpl(
                 attendanceRecordMapper,
                 leaveRequestMapper,
                 signInRecordMapper,
                 compensateRequestMapper,
-                eventPublisher
+                eventPublisher,
+                approvalFlowService,
+                systemConfigHelper
         );
     }
 

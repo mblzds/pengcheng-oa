@@ -7,6 +7,8 @@ import com.pengcheng.app.dto.AppClockDTO;
 import com.pengcheng.app.dto.AppSignDTO;
 import com.pengcheng.app.dto.SignResultVO;
 import com.pengcheng.common.result.Result;
+import com.pengcheng.file.entity.SysFile;
+import com.pengcheng.file.service.SysFileService;
 import com.pengcheng.hr.attendance.dto.AttendanceMonthlyVO;
 import com.pengcheng.hr.attendance.dto.ClockInDTO;
 import com.pengcheng.hr.attendance.dto.SignInDTO;
@@ -17,6 +19,7 @@ import com.pengcheng.realty.project.entity.Project;
 import com.pengcheng.realty.project.mapper.ProjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -36,6 +39,7 @@ public class AppAttendanceController {
     private final AttendanceService attendanceService;
     private final AttendanceRecordMapper attendanceRecordMapper;
     private final ProjectMapper projectMapper;
+    private final SysFileService fileService;
 
     /**
      * GPS打卡（上班/下班）
@@ -55,6 +59,9 @@ public class AppAttendanceController {
                 .userId(userId)
                 .clockTime(clockTime)
                 .location(location)
+                .photoUrl(dto.getPhotoUrl())
+                .latitude(dto.getLatitude())
+                .longitude(dto.getLongitude())
                 .build();
 
         if ("out".equals(dto.getType())) {
@@ -146,5 +153,15 @@ public class AppAttendanceController {
         Long userId = StpUtil.getLoginIdAsLong();
         AttendanceMonthlyVO summary = attendanceService.getMonthlySummary(userId, year, month);
         return Result.ok(summary);
+    }
+
+    /**
+     * 上传打卡照片
+     * 返回照片的访问 URL，前端拿到 URL 后再调用 /clock 接口提交打卡
+     */
+    @PostMapping("/upload-photo")
+    public Result<String> uploadPhoto(@RequestParam("file") MultipartFile file) {
+        SysFile sysFile = fileService.uploadImage(file);
+        return Result.ok(sysFile.getUrl());
     }
 }

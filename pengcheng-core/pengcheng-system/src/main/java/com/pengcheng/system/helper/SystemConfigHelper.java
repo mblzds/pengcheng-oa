@@ -32,6 +32,7 @@ public class SystemConfigHelper implements com.pengcheng.crypto.CryptoConfigProv
     public static final String GROUP_SECURITY = "security";
     public static final String GROUP_WECHAT_MINIPROGRAM = "wechatMiniProgram";
     public static final String GROUP_WECHAT_MP = "wechatMp";
+    public static final String GROUP_ATTENDANCE = "attendance";
 
     /**
      * 获取配置JSON
@@ -928,7 +929,50 @@ public class SystemConfigHelper implements com.pengcheng.crypto.CryptoConfigProv
      * 获取手机号获取费用提示
      */
     public String getPhoneVerifyFeeNotice() {
-        return getString(GROUP_WECHAT_MINIPROGRAM, "phoneVerifyFeeNotice", 
+        return getString(GROUP_WECHAT_MINIPROGRAM, "phoneVerifyFeeNotice",
             "温馨提示：根据微信官方政策，获取手机号服务为付费服务（0.03 元/次），请确认已开通并了解相关费用。");
+    }
+
+    // ============ 考勤设置 ============
+
+    /** 上班时间，HH:mm */
+    public String getAttendanceWorkStartTime() {
+        return getString(GROUP_ATTENDANCE, "workStartTime", "09:00");
+    }
+
+    /** 下班时间，HH:mm */
+    public String getAttendanceWorkEndTime() {
+        return getString(GROUP_ATTENDANCE, "workEndTime", "18:00");
+    }
+
+    /** 是否启用上下班时间校验（关闭则不再判定迟到/早退） */
+    public boolean isAttendanceEnforceTime() {
+        return getBoolean(GROUP_ATTENDANCE, "enforceTime", true);
+    }
+
+    /** 是否启用打卡位置合规校验 */
+    public boolean isAttendanceEnforceLocation() {
+        return getBoolean(GROUP_ATTENDANCE, "enforceLocation", false);
+    }
+
+    /**
+     * 合规打卡位置列表，数组结构：
+     *   [{name, address, lat, lng, radius}]
+     * radius 单位为米。
+     */
+    public JsonNode getAttendanceAllowedLocations() {
+        JsonNode config = getConfig(GROUP_ATTENDANCE);
+        if (config != null) {
+            JsonNode node = config.get("allowedLocations");
+            if (node != null && node.isArray()) {
+                return node;
+            }
+        }
+        return null;
+    }
+
+    /** 百度地图 JS API AK（后台地图选点用） */
+    public String getAttendanceBaiduMapAk() {
+        return getString(GROUP_ATTENDANCE, "baiduMapAk", "");
     }
 }

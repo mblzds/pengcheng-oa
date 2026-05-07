@@ -236,6 +236,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '考勤打卡', icon: 'TimeOutline' }
       },
       {
+        path: 'realty/attendance/config',
+        name: 'RealtyAttendanceConfig',
+        component: () => import('@/views/realty/attendance/AttendanceConfig.vue'),
+        meta: { title: '考勤设置', icon: 'SettingsOutline' }
+      },
+      {
         path: 'hr/performance',
         name: 'HrPerformance',
         component: () => import('@/views/hr/performance.vue'),

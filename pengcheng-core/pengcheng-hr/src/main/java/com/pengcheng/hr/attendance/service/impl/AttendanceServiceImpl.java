@@ -1,7 +1,10 @@
 package com.pengcheng.hr.attendance.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.pengcheng.common.event.DataChangeEvent;
+import com.pengcheng.hr.approval.constant.ApprovalConstants;
+import com.pengcheng.hr.approval.service.ApprovalFlowService;
 import com.pengcheng.hr.attendance.dto.*;
 import com.pengcheng.hr.attendance.entity.AttendanceRecord;
 import com.pengcheng.hr.attendance.entity.CompensateRequest;
@@ -12,7 +15,9 @@ import com.pengcheng.hr.attendance.mapper.CompensateRequestMapper;
 import com.pengcheng.hr.attendance.mapper.LeaveRequestMapper;
 import com.pengcheng.hr.attendance.mapper.SignInRecordMapper;
 import com.pengcheng.hr.attendance.service.AttendanceService;
+import com.pengcheng.system.helper.SystemConfigHelper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,11 +25,13 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 /**
  * 考勤/请假/调休/签到服务实现（公司级假勤）
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AttendanceServiceImpl implements AttendanceService {
@@ -34,13 +41,21 @@ public class AttendanceServiceImpl implements AttendanceService {
     private final SignInRecordMapper signInRecordMapper;
     private final CompensateRequestMapper compensateRequestMapper;
     private final ApplicationEventPublisher eventPublisher;
+    private final ApprovalFlowService approvalFlowService;
+    private final SystemConfigHelper systemConfigHelper;
 
     public static final int CLOCK_IN_NORMAL = 1;
     public static final int CLOCK_IN_LATE = 2;
     public static final int CLOCK_OUT_NORMAL = 1;
     public static final int CLOCK_OUT_EARLY = 2;
+    public static final int LOCATION_COMPLIANT = 1;
+    public static final int LOCATION_OUT_OF_RANGE = 2;
+    /** 默认上下班时间，仅在配置缺失时兜底 */
     public static final LocalTime WORK_START_TIME = LocalTime.of(9, 0);
     public static final LocalTime WORK_END_TIME = LocalTime.of(18, 0);
+
+    private static final DateTimeFormatter HHMM = DateTimeFormatter.ofPattern("HH:mm");
+    private static final double EARTH_RADIUS_METERS = 6371000.0;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -49,10 +64,11 @@ public class AttendanceServiceImpl implements AttendanceService {
         if (dto.getClockTime() == null) throw new IllegalArgumentException("打卡时间不能为空");
         LocalDate today = dto.getClockTime().toLocalDate();
         AttendanceRecord record = getOrCreateRecord(dto.getUserId(), today);
-        int status = dto.getClockTime().toLocalTime().isAfter(WORK_START_TIME) ? CLOCK_IN_LATE : CLOCK_IN_NORMAL;
         record.setClockInTime(dto.getClockTime());
         record.setClockInLocation(dto.getLocation());
-        record.setClockInStatus(status);
+        record.setClockInPhoto(dto.getPhotoUrl());
+        record.setClockInStatus(determineClockInStatus(dto.getClockTime().toLocalTime()));
+        record.setLocationStatus(checkLocation(dto.getLatitude(), dto.getLongitude()));
         String changeType = record.getId() == null ? "create" : "update";
         if (record.getId() == null) attendanceRecordMapper.insert(record);
         else attendanceRecordMapper.updateById(record);
@@ -67,10 +83,14 @@ public class AttendanceServiceImpl implements AttendanceService {
         if (dto.getClockTime() == null) throw new IllegalArgumentException("打卡时间不能为空");
         LocalDate today = dto.getClockTime().toLocalDate();
         AttendanceRecord record = getOrCreateRecord(dto.getUserId(), today);
-        int status = dto.getClockTime().toLocalTime().isBefore(WORK_END_TIME) ? CLOCK_OUT_EARLY : CLOCK_OUT_NORMAL;
         record.setClockOutTime(dto.getClockTime());
         record.setClockOutLocation(dto.getLocation());
-        record.setClockOutStatus(status);
+        record.setClockOutPhoto(dto.getPhotoUrl());
+        record.setClockOutStatus(determineClockOutStatus(dto.getClockTime().toLocalTime()));
+        Integer locationStatus = checkLocation(dto.getLatitude(), dto.getLongitude());
+        if (locationStatus != null) {
+            record.setLocationStatus(locationStatus);
+        }
         String changeType = record.getId() == null ? "create" : "update";
         if (record.getId() == null) attendanceRecordMapper.insert(record);
         else attendanceRecordMapper.updateById(record);
@@ -94,6 +114,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                 .status(1)
                 .build();
         leaveRequestMapper.insert(request);
+        approvalFlowService.start(ApprovalConstants.BUSINESS_TYPE_LEAVE, request.getId(), request.getUserId());
         eventPublisher.publishEvent(new DataChangeEvent(this, "create", "attendance", request.getId()));
         return request.getId();
     }
@@ -110,6 +131,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                 .status(1)
                 .build();
         compensateRequestMapper.insert(request);
+        approvalFlowService.start(ApprovalConstants.BUSINESS_TYPE_COMPENSATE, request.getId(), userId);
         eventPublisher.publishEvent(new DataChangeEvent(this, "create", "attendance", request.getId()));
         return request.getId();
     }
@@ -195,12 +217,64 @@ public class AttendanceServiceImpl implements AttendanceService {
 
     @Override
     public int determineClockInStatus(LocalTime clockInTime) {
-        return clockInTime.isAfter(WORK_START_TIME) ? CLOCK_IN_LATE : CLOCK_IN_NORMAL;
+        if (!systemConfigHelper.isAttendanceEnforceTime()) return CLOCK_IN_NORMAL;
+        return clockInTime.isAfter(workStartTime()) ? CLOCK_IN_LATE : CLOCK_IN_NORMAL;
     }
 
     @Override
     public int determineClockOutStatus(LocalTime clockOutTime) {
-        return clockOutTime.isBefore(WORK_END_TIME) ? CLOCK_OUT_EARLY : CLOCK_OUT_NORMAL;
+        if (!systemConfigHelper.isAttendanceEnforceTime()) return CLOCK_OUT_NORMAL;
+        return clockOutTime.isBefore(workEndTime()) ? CLOCK_OUT_EARLY : CLOCK_OUT_NORMAL;
+    }
+
+    private LocalTime workStartTime() {
+        return parseHHmm(systemConfigHelper.getAttendanceWorkStartTime(), WORK_START_TIME);
+    }
+
+    private LocalTime workEndTime() {
+        return parseHHmm(systemConfigHelper.getAttendanceWorkEndTime(), WORK_END_TIME);
+    }
+
+    private LocalTime parseHHmm(String value, LocalTime fallback) {
+        if (value == null || value.isBlank()) return fallback;
+        try {
+            return LocalTime.parse(value, HHMM);
+        } catch (Exception e) {
+            log.warn("考勤时间配置 {} 解析失败，使用默认值 {}", value, fallback);
+            return fallback;
+        }
+    }
+
+    /**
+     * 与所有合规位置比对，返回最近距离的合规判定。
+     * 返回 null 表示未启用位置校验、或本次打卡未提供经纬度（视为不可判定）。
+     */
+    Integer checkLocation(Double lat, Double lng) {
+        if (!systemConfigHelper.isAttendanceEnforceLocation()) return null;
+        if (lat == null || lng == null) return LOCATION_OUT_OF_RANGE;
+        JsonNode locations = systemConfigHelper.getAttendanceAllowedLocations();
+        if (locations == null || !locations.isArray() || locations.size() == 0) {
+            return LOCATION_OUT_OF_RANGE;
+        }
+        for (JsonNode loc : locations) {
+            JsonNode latNode = loc.get("lat");
+            JsonNode lngNode = loc.get("lng");
+            JsonNode radiusNode = loc.get("radius");
+            if (latNode == null || lngNode == null || radiusNode == null) continue;
+            double distance = haversineMeters(lat, lng, latNode.asDouble(), lngNode.asDouble());
+            if (distance <= radiusNode.asDouble()) return LOCATION_COMPLIANT;
+        }
+        return LOCATION_OUT_OF_RANGE;
+    }
+
+    private static double haversineMeters(double lat1, double lng1, double lat2, double lng2) {
+        double phi1 = Math.toRadians(lat1);
+        double phi2 = Math.toRadians(lat2);
+        double dPhi = Math.toRadians(lat2 - lat1);
+        double dLambda = Math.toRadians(lng2 - lng1);
+        double a = Math.sin(dPhi / 2) * Math.sin(dPhi / 2)
+                + Math.cos(phi1) * Math.cos(phi2) * Math.sin(dLambda / 2) * Math.sin(dLambda / 2);
+        return EARTH_RADIUS_METERS * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     }
 
     private AttendanceRecord getOrCreateRecord(Long userId, LocalDate date) {
