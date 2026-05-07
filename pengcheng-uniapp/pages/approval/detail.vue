@@ -10,17 +10,20 @@
 				</view>
 			</view>
 
-			<!-- 审批流转时间线 -->
+			<!-- 审批流转时间线（含已审批节点 + 当前节点 + 未来节点占位） -->
 			<view class="card" v-if="detail.histories && detail.histories.length > 0">
 				<view class="card-title">审批流程</view>
 				<view class="timeline">
 					<view class="timeline-item" v-for="(t, i) in detail.histories" :key="i">
-						<view class="tl-dot" :class="{ active: i === 0, approved: t.result === 1, rejected: t.result === 2 }"></view>
+						<view class="tl-dot" :class="dotClass(t, i)"></view>
 						<view class="tl-line" v-if="i < detail.histories.length - 1"></view>
 						<view class="tl-content">
-							<text class="tl-title">{{ t.approverName || '审批人' }} - {{ t.result === 1 ? '通过' : '驳回' }}</text>
-							<text class="tl-time">{{ formatDateTime(t.approvalTime) }}</text>
-							<text class="tl-reason" v-if="t.reason">原因：{{ t.reason }}</text>
+							<view class="tl-header">
+								<text class="tl-node">{{ t.nodeName || ('节点 ' + (i + 1)) }}</text>
+								<text class="tl-state" :class="stateClass(t, i)">{{ stateLabel(t, i) }}</text>
+							</view>
+							<text class="tl-approver">{{ t.approverName || '—' }}</text>
+							<text class="tl-time" v-if="t.approvalTime">{{ formatDateTime(t.approvalTime) }}</text>
 							<text class="tl-reason" v-if="t.remark">备注：{{ t.remark }}</text>
 						</view>
 					</view>
@@ -87,6 +90,29 @@
 				const map = { 1: '待审批', 2: '审批中', 3: '已通过', 4: '已驳回' }
 				return map[status] || String(status)
 			},
+			// 时间线节点：当前未审批节点 = 数组中最早 result==null 的项
+			currentPendingIndex() {
+				if (!this.detail.histories) return -1
+				return this.detail.histories.findIndex(h => h.result == null)
+			},
+			dotClass(t, i) {
+				if (t.result === 1) return 'approved'
+				if (t.result === 2) return 'rejected'
+				if (i === this.currentPendingIndex()) return 'active'
+				return ''
+			},
+			stateClass(t, i) {
+				if (t.result === 1) return 's-approved'
+				if (t.result === 2) return 's-rejected'
+				if (i === this.currentPendingIndex()) return 's-active'
+				return 's-future'
+			},
+			stateLabel(t, i) {
+				if (t.result === 1) return '已通过'
+				if (t.result === 2) return '已驳回'
+				if (i === this.currentPendingIndex()) return '审批中'
+				return '未审批'
+			},
 			formatDateTime(value) {
 				if (!value) return '--'
 				return String(value).replace('T', ' ').slice(0, 16)
@@ -139,19 +165,30 @@
 	.timeline { padding-left: 8rpx; }
 	.timeline-item { display: flex; position: relative; padding-bottom: 24rpx; }
 	.tl-dot {
-		width: 16rpx; height: 16rpx; border-radius: 50%; background: #DDD;
-		margin-right: 20rpx; margin-top: 6rpx; flex-shrink: 0; z-index: 1;
-		&.active { background: #FA8C16; }
+		width: 18rpx; height: 18rpx; border-radius: 50%; background: #DDD;
+		margin-right: 20rpx; margin-top: 8rpx; flex-shrink: 0; z-index: 1;
+		&.active { background: #FA8C16; box-shadow: 0 0 0 4rpx rgba(250, 140, 22, 0.2); }
 		&.approved { background: #52C41A; }
 		&.rejected { background: #F5222D; }
 	}
 	.tl-line {
-		position: absolute; left: 7rpx; top: 22rpx; bottom: 0; width: 2rpx; background: #E8E8E8;
+		position: absolute; left: 8rpx; top: 26rpx; bottom: 0; width: 2rpx; background: #E8E8E8;
 	}
-	.tl-content { flex: 1; }
-	.tl-title { font-size: 26rpx; color: #333; display: block; }
+	.tl-content { flex: 1; min-width: 0; }
+	.tl-header {
+		display: flex; align-items: center; justify-content: space-between; gap: 12rpx;
+	}
+	.tl-node { font-size: 28rpx; color: #1A1A1A; font-weight: 500; }
+	.tl-state {
+		font-size: 22rpx; padding: 2rpx 12rpx; border-radius: 16rpx; flex-shrink: 0;
+		&.s-approved { background: #F6FFED; color: #52C41A; }
+		&.s-rejected { background: #FFF1F0; color: #F5222D; }
+		&.s-active   { background: #FFF7E6; color: #FA8C16; }
+		&.s-future   { background: #F5F5F5; color: #999; }
+	}
+	.tl-approver { font-size: 24rpx; color: #666; margin-top: 6rpx; display: block; }
 	.tl-time { font-size: 22rpx; color: #BBB; margin-top: 4rpx; display: block; }
-	.tl-reason { font-size: 24rpx; color: #F5222D; margin-top: 4rpx; display: block; }
+	.tl-reason { font-size: 24rpx; color: #999; margin-top: 4rpx; display: block; }
 
 	/* 底部操作 */
 	.action-bar {

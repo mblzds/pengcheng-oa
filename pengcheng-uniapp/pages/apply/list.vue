@@ -35,6 +35,9 @@
 				<view class="record-info" v-if="item.rangeText">
 					<text class="info-text">{{ item.rangeText }}</text>
 				</view>
+				<view class="record-info" v-if="item.currentNodeName && item.status === 1">
+					<text class="info-text node-text">当前节点：{{ item.currentNodeName }}</text>
+				</view>
 				<view class="record-info">
 					<text class="info-text">提交时间：{{ item.createTime || '--' }}</text>
 				</view>
@@ -175,7 +178,8 @@
 							status: r.status === 2 ? 3 : (r.status === 3 ? 4 : 1),
 							amount: null,
 							rangeText: end ? `${start} ~ ${end}` : start,
-							createTime: r.createTime
+							createTime: r.createTime,
+							currentNodeName: r.currentNodeName || ''
 						})
 					})
 				}
@@ -264,6 +268,7 @@
 	}
 	.record-info { margin-top: 8rpx; }
 	.info-text { font-size: 24rpx; color: #999; }
+	.info-text.node-text { color: #FA8C16; }
 	.load-tip { text-align: center; padding: 24rpx; text { font-size: 24rpx; color: #CCC; } }
 	.empty-state {
 		display: flex; flex-direction: column; align-items: center; padding: 140rpx 0;

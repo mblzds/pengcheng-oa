@@ -20,6 +20,11 @@ public class SysUser extends BaseEntity {
     private Long deptId;
 
     /**
+     * 直接上级用户ID（审批流 direct_supervisor 节点解析的优先来源；缺失则回退 sys_dept.leader_id）
+     */
+    private Long leaderId;
+
+    /**
      * 部门名称（非数据库字段）
      */
     @TableField(exist = false)

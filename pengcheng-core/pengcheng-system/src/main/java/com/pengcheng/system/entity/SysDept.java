@@ -37,9 +37,14 @@ public class SysDept extends BaseEntity {
     private Integer sort;
 
     /**
-     * 负责人
+     * 负责人姓名（兼容旧字段）
      */
     private String leader;
+
+    /**
+     * 部门负责人用户ID（审批流 direct_supervisor 节点的 fallback）
+     */
+    private Long leaderId;
 
     /**
      * 联系电话

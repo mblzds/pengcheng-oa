@@ -7,6 +7,10 @@ import com.pengcheng.app.dto.AppApproveDTO;
 import com.pengcheng.app.dto.ApprovalDetailVO;
 import com.pengcheng.app.dto.ApprovalPendingVO;
 import com.pengcheng.common.result.Result;
+import com.pengcheng.hr.approval.constant.ApprovalConstants;
+import com.pengcheng.hr.approval.dto.ApprovalProgressVO;
+import com.pengcheng.hr.approval.entity.ApprovalRecordNode;
+import com.pengcheng.hr.approval.service.ApprovalFlowService;
 import com.pengcheng.hr.attendance.entity.CompensateRequest;
 import com.pengcheng.hr.attendance.entity.LeaveRequest;
 import com.pengcheng.hr.attendance.mapper.CompensateRequestMapper;
@@ -32,6 +36,9 @@ import java.util.List;
 /**
  * App端审批控制器
  * 提供待审批列表聚合、审批详情、执行审批接口
+ *
+ * 请假/调休：通过 {@link ApprovalFlowService} 多节点流转引擎驱动；
+ * 付款/佣金：复用 PaymentService / CommissionService 的现有审批逻辑。
  */
 @RestController
 @RequestMapping("/app/approval")
@@ -46,23 +53,31 @@ public class AppApprovalController {
     private final CommissionMapper commissionMapper;
     private final CommissionService commissionService;
     private final SysUserService userService;
+    private final ApprovalFlowService approvalFlowService;
 
     /**
      * 待审批列表（聚合查询）
-     * 聚合 LeaveRequest(status=1) + CompensateRequest(status=1) + PaymentRequest(status=1/2) + Commission(auditStatus=1)
-     * 按类型分组返回
+     * 请假/调休：当前用户作为候选审批人的 record_node（最早未审批节点）
+     * 付款/佣金：维持原有 status 过滤逻辑
      */
     @GetMapping("/pending")
     public Result<ApprovalPendingVO> pending() {
-        // 待审批请假
-        List<LeaveRequest> pendingLeaves = leaveRequestMapper.selectList(
-                new LambdaQueryWrapper<LeaveRequest>().eq(LeaveRequest::getStatus, 1)
-                        .orderByDesc(LeaveRequest::getCreateTime));
+        Long currentUserId = StpUtil.getLoginIdAsLong();
 
-        // 待审批调休
-        List<CompensateRequest> pendingCompensates = compensateRequestMapper.selectList(
-                new LambdaQueryWrapper<CompensateRequest>().eq(CompensateRequest::getStatus, 1)
-                        .orderByDesc(CompensateRequest::getCreateTime));
+        // 请假/调休：从审批流引擎拿当前用户的待办节点
+        List<ApprovalRecordNode> pendingNodes = approvalFlowService.findPending(currentUserId, null);
+        List<ApprovalPendingVO.ApprovalItem> leaveItems = new ArrayList<>();
+        for (ApprovalRecordNode node : pendingNodes) {
+            // 仅对最早未审批节点开放（防止越级看到后续节点）
+            ApprovalRecordNode current = approvalFlowService.getCurrentNode(node.getBusinessType(), node.getBusinessId());
+            if (current == null || !current.getId().equals(node.getId())) {
+                continue;
+            }
+            ApprovalPendingVO.ApprovalItem item = buildLeaveOrCompensateItem(node);
+            if (item != null) {
+                leaveItems.add(item);
+            }
+        }
 
         // 待审批付款（status=1 待审批 或 status=2 审批中）
         List<PaymentRequest> pendingPayments = paymentRequestMapper.selectList(
@@ -76,28 +91,6 @@ public class AppApprovalController {
                         .eq(Commission::getAuditStatus, CommissionService.AUDIT_STATUS_PENDING)
                         .orderByDesc(Commission::getCreateTime));
 
-        // 构建请假/调休审批项
-        List<ApprovalPendingVO.ApprovalItem> leaveItems = new ArrayList<>();
-        for (LeaveRequest lr : pendingLeaves) {
-            leaveItems.add(ApprovalPendingVO.ApprovalItem.builder()
-                    .id(lr.getId())
-                    .type("leave")
-                    .applicantName(resolveUserName(lr.getUserId()))
-                    .summary(buildLeaveSummary(lr))
-                    .applyTime(lr.getCreateTime())
-                    .build());
-        }
-        for (CompensateRequest cr : pendingCompensates) {
-            leaveItems.add(ApprovalPendingVO.ApprovalItem.builder()
-                    .id(cr.getId())
-                    .type("compensate")
-                    .applicantName(resolveUserName(cr.getUserId()))
-                    .summary("调休申请 - " + cr.getCompensateDate())
-                    .applyTime(cr.getCreateTime())
-                    .build());
-        }
-
-        // 构建付款审批项
         List<ApprovalPendingVO.ApprovalItem> paymentItems = new ArrayList<>();
         for (PaymentRequest pr : pendingPayments) {
             paymentItems.add(ApprovalPendingVO.ApprovalItem.builder()
@@ -110,7 +103,6 @@ public class AppApprovalController {
                     .build());
         }
 
-        // 构建佣金审核项
         List<ApprovalPendingVO.ApprovalItem> commissionItems = new ArrayList<>();
         for (Commission c : pendingCommissions) {
             commissionItems.add(ApprovalPendingVO.ApprovalItem.builder()
@@ -125,19 +117,16 @@ public class AppApprovalController {
 
         int totalCount = leaveItems.size() + paymentItems.size() + commissionItems.size();
 
-        ApprovalPendingVO vo = ApprovalPendingVO.builder()
+        return Result.ok(ApprovalPendingVO.builder()
                 .leaveItems(leaveItems)
                 .paymentItems(paymentItems)
                 .commissionItems(commissionItems)
                 .totalCount(totalCount)
-                .build();
-
-        return Result.ok(vo);
+                .build());
     }
 
     /**
      * 审批详情
-     * 根据 type 参数查询对应业务实体，返回审批详情（含审批流转历史时间线）
      */
     @GetMapping("/{id}")
     public Result<ApprovalDetailVO> detail(@PathVariable Long id, @RequestParam String type) {
@@ -152,7 +141,8 @@ public class AppApprovalController {
 
     /**
      * 执行审批（通过/驳回）
-     * 根据 type 分发到对应 Service 的审批方法
+     * 请假/调休的 path id 是业务单 ID（leave_request.id / realty_compensate_request.id），
+     * 由引擎解析当前节点后执行；付款/佣金沿用各自的 service 接口。
      */
     @PostMapping("/{id}/approve")
     public Result<Void> approve(@PathVariable Long id, @RequestBody AppApproveDTO dto) {
@@ -164,8 +154,8 @@ public class AppApprovalController {
         }
 
         switch (type) {
-            case "leave" -> approveLeave(id, dto.getApproved());
-            case "compensate" -> approveCompensate(id, dto.getApproved());
+            case "leave" -> approveFlow(ApprovalConstants.BUSINESS_TYPE_LEAVE, id, approverId, dto);
+            case "compensate" -> approveFlow(ApprovalConstants.BUSINESS_TYPE_COMPENSATE, id, approverId, dto);
             case "expense", "advance", "prepay" -> approvePayment(id, approverId, dto.getApproved(), dto.getReason());
             case "commission" -> approveCommission(id, approverId, dto.getApproved(), dto.getReason());
             default -> {
@@ -175,7 +165,7 @@ public class AppApprovalController {
         return Result.ok();
     }
 
-    // ========== 审批详情构建 ==========
+    // ========== 详情构建：请假/调休（含完整流转链） ==========
 
     private ApprovalDetailVO buildLeaveDetail(Long id) {
         LeaveRequest lr = leaveRequestMapper.selectById(id);
@@ -189,7 +179,7 @@ public class AppApprovalController {
                 .summary(buildLeaveSummary(lr))
                 .status(lr.getStatus())
                 .applyTime(lr.getCreateTime())
-                .histories(List.of()) // 请假为单级审批，无流转历史
+                .histories(buildFlowHistories(ApprovalConstants.BUSINESS_TYPE_LEAVE, id))
                 .build();
     }
 
@@ -205,16 +195,42 @@ public class AppApprovalController {
                 .summary("调休申请 - " + cr.getCompensateDate())
                 .status(cr.getStatus())
                 .applyTime(cr.getCreateTime())
-                .histories(List.of())
+                .histories(buildFlowHistories(ApprovalConstants.BUSINESS_TYPE_COMPENSATE, id))
                 .build();
     }
+
+    /**
+     * 把 ApprovalProgressVO.NodeView 列表映射为前端兼容的 ApprovalHistory 列表
+     * 待审批节点：approverName 显示候选人，result 为 NULL
+     */
+    private List<ApprovalDetailVO.ApprovalHistory> buildFlowHistories(String businessType, Long businessId) {
+        ApprovalProgressVO progress = approvalFlowService.getProgress(businessType, businessId);
+        List<ApprovalDetailVO.ApprovalHistory> list = new ArrayList<>();
+        for (ApprovalProgressVO.NodeView v : progress.getNodes()) {
+            String approverDisplay = v.getApproverName();
+            if (approverDisplay == null || approverDisplay.isBlank()) {
+                approverDisplay = v.getCandidateApproverNames() == null || v.getCandidateApproverNames().isEmpty()
+                        ? "无候选人"
+                        : "候选: " + String.join(" / ", v.getCandidateApproverNames());
+            }
+            list.add(ApprovalDetailVO.ApprovalHistory.builder()
+                    .nodeName(v.getNodeName())
+                    .approverName(approverDisplay)
+                    .result(v.getResult())
+                    .remark(v.getRemark())
+                    .approvalTime(v.getApprovalTime())
+                    .build());
+        }
+        return list;
+    }
+
+    // ========== 详情构建：付款/佣金（保持原有逻辑） ==========
 
     private ApprovalDetailVO buildPaymentDetail(Long id) {
         PaymentRequest pr = paymentRequestMapper.selectById(id);
         if (pr == null) {
             throw new IllegalArgumentException("付款申请不存在");
         }
-        // 查询审批流转历史
         List<PaymentApproval> approvals = paymentService.getApprovalHistory(id);
         List<ApprovalDetailVO.ApprovalHistory> histories = approvals.stream()
                 .map(a -> ApprovalDetailVO.ApprovalHistory.builder()
@@ -266,28 +282,12 @@ public class AppApprovalController {
 
     // ========== 审批执行 ==========
 
-    private void approveLeave(Long id, Boolean approved) {
-        LeaveRequest lr = leaveRequestMapper.selectById(id);
-        if (lr == null) {
-            throw new IllegalArgumentException("请假记录不存在");
-        }
-        if (lr.getStatus() != 1) {
+    private void approveFlow(String businessType, Long businessId, Long approverId, AppApproveDTO dto) {
+        ApprovalRecordNode current = approvalFlowService.getCurrentNode(businessType, businessId);
+        if (current == null) {
             throw new ApprovalFlowException("该申请已完成审批，不可重复操作");
         }
-        lr.setStatus(approved ? 2 : 3);
-        leaveRequestMapper.updateById(lr);
-    }
-
-    private void approveCompensate(Long id, Boolean approved) {
-        CompensateRequest cr = compensateRequestMapper.selectById(id);
-        if (cr == null) {
-            throw new IllegalArgumentException("调休记录不存在");
-        }
-        if (cr.getStatus() != 1) {
-            throw new ApprovalFlowException("该申请已完成审批，不可重复操作");
-        }
-        cr.setStatus(approved ? 2 : 3);
-        compensateRequestMapper.updateById(cr);
+        approvalFlowService.approve(current.getId(), approverId, Boolean.TRUE.equals(dto.getApproved()), dto.getReason());
     }
 
     private void approvePayment(Long id, Long approverId, Boolean approved, String reason) {
@@ -311,6 +311,32 @@ public class AppApprovalController {
     }
 
     // ========== 辅助方法 ==========
+
+    private ApprovalPendingVO.ApprovalItem buildLeaveOrCompensateItem(ApprovalRecordNode node) {
+        if (ApprovalConstants.BUSINESS_TYPE_LEAVE.equals(node.getBusinessType())) {
+            LeaveRequest lr = leaveRequestMapper.selectById(node.getBusinessId());
+            if (lr == null) return null;
+            return ApprovalPendingVO.ApprovalItem.builder()
+                    .id(lr.getId())
+                    .type("leave")
+                    .applicantName(resolveUserName(lr.getUserId()))
+                    .summary(buildLeaveSummary(lr))
+                    .applyTime(lr.getCreateTime())
+                    .build();
+        }
+        if (ApprovalConstants.BUSINESS_TYPE_COMPENSATE.equals(node.getBusinessType())) {
+            CompensateRequest cr = compensateRequestMapper.selectById(node.getBusinessId());
+            if (cr == null) return null;
+            return ApprovalPendingVO.ApprovalItem.builder()
+                    .id(cr.getId())
+                    .type("compensate")
+                    .applicantName(resolveUserName(cr.getUserId()))
+                    .summary("调休申请 - " + cr.getCompensateDate())
+                    .applyTime(cr.getCreateTime())
+                    .build();
+        }
+        return null;
+    }
 
     String resolveUserName(Long userId) {
         if (userId == null) return "未知";

@@ -8,10 +8,7 @@ import com.pengcheng.app.dto.WorkbenchVO;
 import com.pengcheng.common.result.Result;
 import com.pengcheng.message.entity.Notification;
 import com.pengcheng.message.service.NotificationService;
-import com.pengcheng.hr.attendance.entity.CompensateRequest;
-import com.pengcheng.hr.attendance.entity.LeaveRequest;
-import com.pengcheng.hr.attendance.mapper.CompensateRequestMapper;
-import com.pengcheng.hr.attendance.mapper.LeaveRequestMapper;
+import com.pengcheng.hr.approval.service.ApprovalFlowService;
 import com.pengcheng.realty.commission.entity.Commission;
 import com.pengcheng.realty.commission.mapper.CommissionMapper;
 import com.pengcheng.realty.commission.service.CommissionService;
@@ -43,10 +40,9 @@ public class AppWorkbenchController {
     private final DashboardService dashboardService;
     private final NotificationService notificationService;
     private final SysUserService userService;
-    private final LeaveRequestMapper leaveRequestMapper;
-    private final CompensateRequestMapper compensateRequestMapper;
     private final PaymentRequestMapper paymentRequestMapper;
     private final CommissionMapper commissionMapper;
+    private final ApprovalFlowService approvalFlowService;
 
     // 角色编码常量
     static final String ROLE_FIELD_AGENT = "field_agent";       // 驻场人员
@@ -189,30 +185,27 @@ public class AppWorkbenchController {
 
     /**
      * 统计当前用户的待审批数量
+     * 请假/调休：通过审批流引擎按当前用户为候选审批人筛选
+     * 付款/佣金：保持原 status 总数（受角色门控）
      */
     int countPendingApprovals(Long userId, String roleCode) {
-        // 只有总监和财务角色有审批权限
-        if (!isApprover(roleCode)) {
-            return 0;
+        // 请假/调休：任何用户只要被分配为候选审批人即可看到，按引擎筛选
+        long pendingFlow = approvalFlowService.findPending(userId, null).size();
+
+        // 付款/佣金沿用原行为：仅限总监/财务可见全局总数
+        long pendingPayments = 0L;
+        long pendingCommissions = 0L;
+        if (isApprover(roleCode)) {
+            pendingPayments = paymentRequestMapper.selectCount(
+                    new LambdaQueryWrapper<PaymentRequest>()
+                            .in(PaymentRequest::getStatus,
+                                    PaymentService.STATUS_PENDING, PaymentService.STATUS_IN_PROGRESS));
+            pendingCommissions = commissionMapper.selectCount(
+                    new LambdaQueryWrapper<Commission>()
+                            .eq(Commission::getAuditStatus, CommissionService.AUDIT_STATUS_PENDING));
         }
 
-        // 待审批请假
-        long pendingLeaves = leaveRequestMapper.selectCount(
-                new LambdaQueryWrapper<LeaveRequest>().eq(LeaveRequest::getStatus, 1));
-        // 待审批调休
-        long pendingCompensates = compensateRequestMapper.selectCount(
-                new LambdaQueryWrapper<CompensateRequest>().eq(CompensateRequest::getStatus, 1));
-        // 待审批付款
-        long pendingPayments = paymentRequestMapper.selectCount(
-                new LambdaQueryWrapper<PaymentRequest>()
-                        .in(PaymentRequest::getStatus,
-                                PaymentService.STATUS_PENDING, PaymentService.STATUS_IN_PROGRESS));
-        // 待审核佣金
-        long pendingCommissions = commissionMapper.selectCount(
-                new LambdaQueryWrapper<Commission>()
-                        .eq(Commission::getAuditStatus, CommissionService.AUDIT_STATUS_PENDING));
-
-        return (int) (pendingLeaves + pendingCompensates + pendingPayments + pendingCommissions);
+        return (int) (pendingFlow + pendingPayments + pendingCommissions);
     }
 
     private boolean isApprover(String roleCode) {

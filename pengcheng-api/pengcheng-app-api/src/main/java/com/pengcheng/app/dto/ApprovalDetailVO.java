@@ -47,9 +47,11 @@ public class ApprovalDetailVO {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class ApprovalHistory {
-        /** 审批人姓名 */
+        /** 节点名（请假/调休流程使用，如「直接上级」「HR 审批」；其他类型为 null） */
+        private String nodeName;
+        /** 审批人姓名（已审批节点为实际审批人；待审批节点为候选人列表） */
         private String approverName;
-        /** 审批结果：1-通过 2-驳回 */
+        /** 审批结果：1-通过 2-驳回 NULL-待审批 */
         private Integer result;
         /** 审批备注 */
         private String remark;

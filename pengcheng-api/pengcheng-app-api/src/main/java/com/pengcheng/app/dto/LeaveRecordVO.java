@@ -39,4 +39,7 @@ public class LeaveRecordVO {
 
     /** 创建时间 */
     private LocalDateTime createTime;
+
+    /** 当前审批节点名（仅审批中状态有值，如「直接上级」/「HR 审批」） */
+    private String currentNodeName;
 }

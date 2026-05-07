@@ -8,6 +8,9 @@ import com.pengcheng.app.dto.AppLeaveDTO;
 import com.pengcheng.app.dto.LeaveRecordVO;
 import com.pengcheng.common.result.PageResult;
 import com.pengcheng.common.result.Result;
+import com.pengcheng.hr.approval.constant.ApprovalConstants;
+import com.pengcheng.hr.approval.entity.ApprovalRecordNode;
+import com.pengcheng.hr.approval.service.ApprovalFlowService;
 import com.pengcheng.hr.attendance.dto.LeaveRequestDTO;
 import com.pengcheng.hr.attendance.entity.CompensateRequest;
 import com.pengcheng.hr.attendance.entity.LeaveRequest;
@@ -34,6 +37,7 @@ public class AppLeaveController {
     private final AttendanceService attendanceService;
     private final LeaveRequestMapper leaveRequestMapper;
     private final CompensateRequestMapper compensateRequestMapper;
+    private final ApprovalFlowService approvalFlowService;
 
     /**
      * 提交请假申请
@@ -99,6 +103,7 @@ public class AppLeaveController {
                         .reason(lr.getReason())
                         .status(lr.getStatus())
                         .createTime(lr.getCreateTime())
+                        .currentNodeName(resolveCurrentNodeName(ApprovalConstants.BUSINESS_TYPE_LEAVE, lr.getId(), lr.getStatus()))
                         .build());
             }
         }
@@ -121,6 +126,7 @@ public class AppLeaveController {
                         .reason(cr.getReason())
                         .status(cr.getStatus())
                         .createTime(cr.getCreateTime())
+                        .currentNodeName(resolveCurrentNodeName(ApprovalConstants.BUSINESS_TYPE_COMPENSATE, cr.getId(), cr.getStatus()))
                         .build());
             }
         }
@@ -138,5 +144,16 @@ public class AppLeaveController {
                 : new ArrayList<>();
 
         return Result.ok(PageResult.of(pageList, total, page, pageSize));
+    }
+
+    /**
+     * 仅当业务单状态为「审批中」时返回当前节点名，便于列表页展示「等待 XX 审批」
+     */
+    private String resolveCurrentNodeName(String businessType, Long businessId, Integer status) {
+        if (status == null || status != ApprovalConstants.STATUS_PENDING) {
+            return null;
+        }
+        ApprovalRecordNode current = approvalFlowService.getCurrentNode(businessType, businessId);
+        return current == null ? null : current.getNodeName();
     }
 }
