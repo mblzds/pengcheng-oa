@@ -1,6 +1,5 @@
 package com.pengcheng.auth.strategy;
 
-import cn.hutool.crypto.digest.BCrypt;
 import com.pengcheng.auth.LoginHelper;
 import com.pengcheng.auth.LoginRequest;
 import com.pengcheng.auth.LoginResult;
@@ -18,16 +17,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
-import java.security.SecureRandom;
-import java.util.Base64;
-
 @Slf4j
 @Service
 @RequiredArgsConstructor
 @ConditionalOnProperty(prefix = FeatureFlags.WECHAT_MINI_PREFIX, name = FeatureFlags.ENABLED, havingValue = "true")
 public class MiniProgramLoginStrategy implements LoginStrategy {
-
-    private static final SecureRandom PASSWORD_RANDOM = new SecureRandom();
 
     private final WechatMiniProgramService wechatMiniProgramService;
     private final SysUserService userService;
@@ -54,11 +48,11 @@ public class MiniProgramLoginStrategy implements LoginStrategy {
         WechatMiniProgramService.MiniProgramLoginResult wxResult = wechatMiniProgramService.login(request.getWxCode());
         String openId = wxResult.getOpenId();
 
-        // 2. 从 sys_user 查找用户，不存在则自动注册
+        // 2. 从 sys_user 查找用户，不存在则提示联系管理员
         SysUser user = userService.getByOpenId(openId);
         if (user == null) {
-            user = autoRegister(openId);
-            log.info("小程序新用户注册: openId={}", openId);
+            log.warn("小程序 openId 未绑定: {}", openId);
+            throw new BusinessException("账号未注册，请联系管理员开通");
         }
 
         if (user.getStatus() != 1) {
@@ -85,27 +79,5 @@ public class MiniProgramLoginStrategy implements LoginStrategy {
 
         // 4. 执行登录
         return loginHelper.doLogin(user);
-    }
-
-    /**
-     * 小程序用户自动注册到 sys_user
-     */
-    private SysUser autoRegister(String openId) {
-        SysUser user = new SysUser();
-        user.setUsername("wx_" + openId.substring(0, Math.min(openId.length(), 10)));
-        user.setNickname("微信用户");
-        user.setPassword(hashRandomPassword());
-        user.setOpenId(openId);
-        user.setStatus(1);
-        user.setGender(0);
-        user.setUserType("app");
-        userService.save(user);
-        return user;
-    }
-
-    private String hashRandomPassword() {
-        byte[] rawPassword = new byte[24];
-        PASSWORD_RANDOM.nextBytes(rawPassword);
-        return BCrypt.hashpw(Base64.getUrlEncoder().withoutPadding().encodeToString(rawPassword));
     }
 }

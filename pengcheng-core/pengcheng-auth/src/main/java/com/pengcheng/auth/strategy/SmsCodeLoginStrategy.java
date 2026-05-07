@@ -1,6 +1,5 @@
 package com.pengcheng.auth.strategy;
 
-import cn.hutool.crypto.digest.BCrypt;
 import com.pengcheng.auth.LoginHelper;
 import com.pengcheng.auth.LoginRequest;
 import com.pengcheng.auth.LoginResult;
@@ -15,19 +14,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
-import java.security.SecureRandom;
-import java.util.Base64;
-
 /**
  * 手机验证码登录策略（App端）
- * 手机号+短信验证码，未注册自动注册
+ * 手机号+短信验证码，未注册需联系管理员开通
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class SmsCodeLoginStrategy implements LoginStrategy {
-
-    private static final SecureRandom PASSWORD_RANDOM = new SecureRandom();
 
     private final SysUserService userService;
     private final StringRedisTemplate redisTemplate;
@@ -64,13 +58,12 @@ public class SmsCodeLoginStrategy implements LoginStrategy {
         }
         redisTemplate.delete(SMS_CODE_KEY + phone);
 
-        // 查找用户，不存在则自动注册
         SysUser user = userService.lambdaQuery()
                 .eq(SysUser::getPhone, phone)
                 .one();
         if (user == null) {
-            String userType = request.getClientType() == ClientType.APP ? "app" : "pc";
-            user = autoRegister(phone, userType);
+            log.warn("手机号未注册: {}", phone);
+            throw new BusinessException("账号未注册，请联系管理员开通");
         }
 
         if (user.getStatus() != 1) {
@@ -78,25 +71,5 @@ public class SmsCodeLoginStrategy implements LoginStrategy {
         }
 
         return loginHelper.doLogin(user);
-    }
-
-    private SysUser autoRegister(String phone, String userType) {
-        SysUser user = new SysUser();
-        user.setUsername(phone);
-        user.setPhone(phone);
-        user.setNickname("用户" + phone.substring(7));
-        user.setPassword(hashRandomPassword());
-        user.setStatus(1);
-        user.setGender(0);
-        user.setUserType(userType);
-        userService.save(user);
-        log.info("手机号登录自动注册: phone={}, userType={}", phone, userType);
-        return user;
-    }
-
-    private String hashRandomPassword() {
-        byte[] rawPassword = new byte[24];
-        PASSWORD_RANDOM.nextBytes(rawPassword);
-        return BCrypt.hashpw(Base64.getUrlEncoder().withoutPadding().encodeToString(rawPassword));
     }
 }
