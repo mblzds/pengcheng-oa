@@ -69,6 +69,16 @@ public class AppAuthController {
             throw new BusinessException("请输入正确的手机号");
         }
 
+        SysUser user = userService.lambdaQuery()
+                .eq(SysUser::getPhone, phone)
+                .one();
+        if (user == null) {
+            throw new BusinessException("账号未注册，请联系管理员开通");
+        }
+        if (user.getStatus() != null && user.getStatus() != 1) {
+            throw new BusinessException("用户已被禁用");
+        }
+
         String limitKey = "sms:limit:" + phone;
         if (redisTemplate.hasKey(limitKey)) {
             throw new BusinessException("发送太频繁，请稍后再试");
