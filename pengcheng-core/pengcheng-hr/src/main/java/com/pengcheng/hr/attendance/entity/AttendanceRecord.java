@@ -1,5 +1,6 @@
 package com.pengcheng.hr.attendance.entity;
 
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.pengcheng.common.entity.BaseEntity;
 import lombok.AllArgsConstructor;
@@ -42,4 +43,16 @@ public class AttendanceRecord extends BaseEntity {
      * 非空时表示当日不参与缺卡判定
      */
     private String exemptReason;
+
+    /** 员工姓名（非数据库字段，列表回填） */
+    @TableField(exist = false)
+    private String userName;
+
+    /** 工号（非数据库字段，列表回填） */
+    @TableField(exist = false)
+    private String employeeNo;
+
+    /** 所属部门名称（非数据库字段，列表回填） */
+    @TableField(exist = false)
+    private String deptName;
 }

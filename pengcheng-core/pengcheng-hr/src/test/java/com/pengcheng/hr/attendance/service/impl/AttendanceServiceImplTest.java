@@ -14,7 +14,10 @@ import com.pengcheng.hr.attendance.mapper.AttendanceRecordMapper;
 import com.pengcheng.hr.attendance.mapper.CompensateRequestMapper;
 import com.pengcheng.hr.attendance.mapper.LeaveRequestMapper;
 import com.pengcheng.hr.attendance.mapper.SignInRecordMapper;
+import com.pengcheng.hr.employee.mapper.EmployeeProfileMapper;
 import com.pengcheng.system.helper.SystemConfigHelper;
+import com.pengcheng.system.mapper.SysDeptMapper;
+import com.pengcheng.system.mapper.SysUserMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -44,6 +47,9 @@ class AttendanceServiceImplTest {
     private ApplicationEventPublisher eventPublisher;
     private ApprovalFlowService approvalFlowService;
     private SystemConfigHelper systemConfigHelper;
+    private SysUserMapper sysUserMapper;
+    private SysDeptMapper sysDeptMapper;
+    private EmployeeProfileMapper employeeProfileMapper;
     private AttendanceServiceImpl service;
 
     @BeforeEach
@@ -55,6 +61,9 @@ class AttendanceServiceImplTest {
         eventPublisher = mock(ApplicationEventPublisher.class);
         approvalFlowService = mock(ApprovalFlowService.class);
         systemConfigHelper = mock(SystemConfigHelper.class);
+        sysUserMapper = mock(SysUserMapper.class);
+        sysDeptMapper = mock(SysDeptMapper.class);
+        employeeProfileMapper = mock(EmployeeProfileMapper.class);
         // 默认开启时间校验、关闭位置校验，回退到 9:00/18:00 默认值
         when(systemConfigHelper.isAttendanceEnforceTime()).thenReturn(true);
         when(systemConfigHelper.isAttendanceEnforceLocation()).thenReturn(false);
@@ -68,7 +77,10 @@ class AttendanceServiceImplTest {
                 compensateRequestMapper,
                 eventPublisher,
                 approvalFlowService,
-                systemConfigHelper
+                systemConfigHelper,
+                sysUserMapper,
+                sysDeptMapper,
+                employeeProfileMapper
         );
     }
 

@@ -4,6 +4,9 @@ import { request } from '@/utils/request'
 export interface AttendanceRecordItem {
   id?: number
   userId?: number
+  userName?: string
+  employeeNo?: string
+  deptName?: string
   attendanceDate?: string
   clockInTime?: string
   clockInLocation?: string
@@ -31,6 +34,9 @@ export interface AttendanceMonthlyVO {
 export interface LeaveRequestItem {
   id?: number
   userId?: number
+  userName?: string
+  employeeNo?: string
+  deptName?: string
   leaveType?: number
   startTime?: string
   endTime?: string
@@ -42,6 +48,9 @@ export interface LeaveRequestItem {
 export interface CompensateRequestItem {
   id?: number
   userId?: number
+  userName?: string
+  employeeNo?: string
+  deptName?: string
   compensateDate?: string
   reason?: string
   status?: number

@@ -1,6 +1,7 @@
 package com.pengcheng.hr.attendance.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
@@ -23,6 +24,13 @@ public class CompensateRequest implements Serializable {
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
 
+    @TableField(exist = false)
+    private String userName;
+    @TableField(exist = false)
+    private String employeeNo;
+    @TableField(exist = false)
+    private String deptName;
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public Long getUserId() { return userId; }
@@ -37,6 +45,12 @@ public class CompensateRequest implements Serializable {
     public void setCreateTime(LocalDateTime createTime) { this.createTime = createTime; }
     public LocalDateTime getUpdateTime() { return updateTime; }
     public void setUpdateTime(LocalDateTime updateTime) { this.updateTime = updateTime; }
+    public String getUserName() { return userName; }
+    public void setUserName(String userName) { this.userName = userName; }
+    public String getEmployeeNo() { return employeeNo; }
+    public void setEmployeeNo(String employeeNo) { this.employeeNo = employeeNo; }
+    public String getDeptName() { return deptName; }
+    public void setDeptName(String deptName) { this.deptName = deptName; }
 
     public static Builder builder() { return new Builder(); }
     public static class Builder {

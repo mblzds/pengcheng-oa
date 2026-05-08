@@ -1,5 +1,6 @@
 package com.pengcheng.hr.attendance.entity;
 
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.pengcheng.common.entity.BaseEntity;
 
@@ -18,6 +19,13 @@ public class LeaveRequest extends BaseEntity {
     private String reason;
     private Integer status;
 
+    @TableField(exist = false)
+    private String userName;
+    @TableField(exist = false)
+    private String employeeNo;
+    @TableField(exist = false)
+    private String deptName;
+
     public Long getUserId() { return userId; }
     public void setUserId(Long userId) { this.userId = userId; }
     public Integer getLeaveType() { return leaveType; }
@@ -30,6 +38,12 @@ public class LeaveRequest extends BaseEntity {
     public void setReason(String reason) { this.reason = reason; }
     public Integer getStatus() { return status; }
     public void setStatus(Integer status) { this.status = status; }
+    public String getUserName() { return userName; }
+    public void setUserName(String userName) { this.userName = userName; }
+    public String getEmployeeNo() { return employeeNo; }
+    public void setEmployeeNo(String employeeNo) { this.employeeNo = employeeNo; }
+    public String getDeptName() { return deptName; }
+    public void setDeptName(String deptName) { this.deptName = deptName; }
 
     public static Builder builder() { return new Builder(); }
     public static class Builder {

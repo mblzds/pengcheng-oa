@@ -15,7 +15,13 @@ import com.pengcheng.hr.attendance.mapper.CompensateRequestMapper;
 import com.pengcheng.hr.attendance.mapper.LeaveRequestMapper;
 import com.pengcheng.hr.attendance.mapper.SignInRecordMapper;
 import com.pengcheng.hr.attendance.service.AttendanceService;
+import com.pengcheng.hr.employee.entity.EmployeeProfile;
+import com.pengcheng.hr.employee.mapper.EmployeeProfileMapper;
+import com.pengcheng.system.entity.SysDept;
+import com.pengcheng.system.entity.SysUser;
 import com.pengcheng.system.helper.SystemConfigHelper;
+import com.pengcheng.system.mapper.SysDeptMapper;
+import com.pengcheng.system.mapper.SysUserMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -26,7 +32,17 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * 考勤/请假/调休/签到服务实现（公司级假勤）
@@ -43,6 +59,9 @@ public class AttendanceServiceImpl implements AttendanceService {
     private final ApplicationEventPublisher eventPublisher;
     private final ApprovalFlowService approvalFlowService;
     private final SystemConfigHelper systemConfigHelper;
+    private final SysUserMapper sysUserMapper;
+    private final SysDeptMapper sysDeptMapper;
+    private final EmployeeProfileMapper employeeProfileMapper;
 
     public static final int CLOCK_IN_NORMAL = 1;
     public static final int CLOCK_IN_LATE = 2;
@@ -194,7 +213,13 @@ public class AttendanceServiceImpl implements AttendanceService {
         if (startDate != null) wrapper.ge(AttendanceRecord::getAttendanceDate, startDate);
         if (endDate != null) wrapper.le(AttendanceRecord::getAttendanceDate, endDate);
         wrapper.orderByDesc(AttendanceRecord::getAttendanceDate);
-        return attendanceRecordMapper.selectList(wrapper);
+        List<AttendanceRecord> list = attendanceRecordMapper.selectList(wrapper);
+        enrichEmployeeInfo(list, AttendanceRecord::getUserId, (r, info) -> {
+            r.setUserName(info.userName);
+            r.setEmployeeNo(info.employeeNo);
+            r.setDeptName(info.deptName);
+        });
+        return list;
     }
 
     @Override
@@ -203,7 +228,13 @@ public class AttendanceServiceImpl implements AttendanceService {
         if (userId != null) wrapper.eq(LeaveRequest::getUserId, userId);
         if (status != null) wrapper.eq(LeaveRequest::getStatus, status);
         wrapper.orderByDesc(LeaveRequest::getCreateTime);
-        return leaveRequestMapper.selectList(wrapper);
+        List<LeaveRequest> list = leaveRequestMapper.selectList(wrapper);
+        enrichEmployeeInfo(list, LeaveRequest::getUserId, (r, info) -> {
+            r.setUserName(info.userName);
+            r.setEmployeeNo(info.employeeNo);
+            r.setDeptName(info.deptName);
+        });
+        return list;
     }
 
     @Override
@@ -212,7 +243,71 @@ public class AttendanceServiceImpl implements AttendanceService {
         if (userId != null) wrapper.eq(CompensateRequest::getUserId, userId);
         if (status != null) wrapper.eq(CompensateRequest::getStatus, status);
         wrapper.orderByDesc(CompensateRequest::getCreateTime);
-        return compensateRequestMapper.selectList(wrapper);
+        List<CompensateRequest> list = compensateRequestMapper.selectList(wrapper);
+        enrichEmployeeInfo(list, CompensateRequest::getUserId, (r, info) -> {
+            r.setUserName(info.userName);
+            r.setEmployeeNo(info.employeeNo);
+            r.setDeptName(info.deptName);
+        });
+        return list;
+    }
+
+    /**
+     * 批量回填姓名 / 工号 / 部门名。三表查询：sys_user、sys_dept、hr_employee_profile。
+     */
+    private <T> void enrichEmployeeInfo(List<T> list,
+                                        Function<T, Long> userIdGetter,
+                                        BiConsumer<T, EmployeeInfo> applier) {
+        if (list == null || list.isEmpty()) return;
+        Set<Long> userIds = list.stream()
+                .map(userIdGetter)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(HashSet::new));
+        if (userIds.isEmpty()) return;
+
+        Map<Long, SysUser> userMap = batchSelectByIds(sysUserMapper.selectBatchIds(userIds), SysUser::getId);
+        Set<Long> deptIds = userMap.values().stream()
+                .map(SysUser::getDeptId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(HashSet::new));
+        Map<Long, String> deptNameMap = deptIds.isEmpty() ? Collections.emptyMap()
+                : sysDeptMapper.selectBatchIds(deptIds).stream()
+                .collect(Collectors.toMap(SysDept::getId, SysDept::getDeptName, (a, b) -> a));
+
+        LambdaQueryWrapper<EmployeeProfile> profileWrapper = new LambdaQueryWrapper<>();
+        profileWrapper.in(EmployeeProfile::getUserId, userIds);
+        Map<Long, String> employeeNoMap = employeeProfileMapper.selectList(profileWrapper).stream()
+                .filter(p -> p.getUserId() != null && p.getEmployeeNo() != null)
+                .collect(Collectors.toMap(EmployeeProfile::getUserId, EmployeeProfile::getEmployeeNo, (a, b) -> a));
+
+        for (T row : list) {
+            Long uid = userIdGetter.apply(row);
+            if (uid == null) continue;
+            SysUser user = userMap.get(uid);
+            EmployeeInfo info = new EmployeeInfo();
+            if (user != null) {
+                info.userName = user.getNickname();
+                info.deptName = user.getDeptId() == null ? null : deptNameMap.get(user.getDeptId());
+            }
+            info.employeeNo = employeeNoMap.get(uid);
+            applier.accept(row, info);
+        }
+    }
+
+    private static <K, V> Map<K, V> batchSelectByIds(Collection<V> rows, Function<V, K> keyGetter) {
+        if (rows == null || rows.isEmpty()) return Collections.emptyMap();
+        Map<K, V> map = new HashMap<>(rows.size());
+        for (V row : rows) {
+            K key = keyGetter.apply(row);
+            if (key != null) map.put(key, row);
+        }
+        return map;
+    }
+
+    private static class EmployeeInfo {
+        String userName;
+        String employeeNo;
+        String deptName;
     }
 
     @Override

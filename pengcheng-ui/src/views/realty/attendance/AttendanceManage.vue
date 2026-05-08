@@ -122,7 +122,7 @@ const approvalStatusOptions = [
 ]
 
 const recordColumns: DataTableColumns<AttendanceRecordItem> = [
-  { title: '人员ID', key: 'userId', width: 100 },
+  { title: '员工', key: 'userName', width: 200, render: row => renderEmployee(row) },
   { title: '考勤日期', key: 'attendanceDate', width: 120 },
   {
     title: '上班打卡',
@@ -170,7 +170,7 @@ const recordColumns: DataTableColumns<AttendanceRecordItem> = [
 
 const leaveColumns: DataTableColumns<LeaveRequestItem> = [
   { title: '申请ID', key: 'id', width: 90 },
-  { title: '人员ID', key: 'userId', width: 90 },
+  { title: '员工', key: 'userName', width: 200, render: row => renderEmployee(row) },
   {
     title: '类型',
     key: 'leaveType',
@@ -200,7 +200,7 @@ const leaveColumns: DataTableColumns<LeaveRequestItem> = [
 
 const compensateColumns: DataTableColumns<CompensateRequestItem> = [
   { title: '申请ID', key: 'id', width: 90 },
-  { title: '人员ID', key: 'userId', width: 90 },
+  { title: '员工', key: 'userName', width: 200, render: row => renderEmployee(row) },
   { title: '调休日期', key: 'compensateDate', width: 120 },
   { title: '原因', key: 'reason' },
   {
@@ -210,6 +210,15 @@ const compensateColumns: DataTableColumns<CompensateRequestItem> = [
     render: row => renderApprovalStatus(row.status)
   }
 ]
+
+function renderEmployee(row: { userId?: number; userName?: string; employeeNo?: string; deptName?: string }) {
+  const name = row.userName || (row.userId != null ? `用户#${row.userId}` : '-')
+  const meta = [row.employeeNo, row.deptName].filter(Boolean).join(' · ')
+  return h('div', null, [
+    h('div', { style: 'font-weight: 500' }, name),
+    meta ? h('div', { style: 'color: #999; font-size: 12px; margin-top: 2px' }, meta) : null
+  ])
+}
 
 function formatDateTime(value?: string) {
   if (!value) return '-'
