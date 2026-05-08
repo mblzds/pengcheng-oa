@@ -58,21 +58,41 @@
         remote
       />
 
-      <div class="pagination-container" style="display: flex; justify-content: flex-end; margin-top: 12px">
+      <div class="pagination-container">
+        <span class="pg-info">共 {{ pagination.itemCount }} 条</span>
+        <span class="pg-sep">|</span>
         <n-pagination
           v-model:page="pagination.page"
-          v-model:page-size="pagination.pageSize"
+          :page-size="pagination.pageSize"
           :item-count="pagination.itemCount"
-          :page-sizes="[10, 20, 50, 100]"
-          show-size-picker
-          show-quick-jumper
           @update:page="handlePageChange"
-          @update:page-size="handlePageSizeChange"
         >
-          <template #prefix>
-            共 {{ pagination.itemCount }} 条
-          </template>
+          <template #prev><span class="pg-step">上一页</span></template>
+          <template #next><span class="pg-step">下一页</span></template>
         </n-pagination>
+        <span class="pg-sep">|</span>
+        <span class="pg-jumper">
+          跳至
+          <n-input-number
+            v-model:value="jumperValue"
+            :min="1"
+            :max="pageCount || 1"
+            :show-button="false"
+            size="small"
+            style="width: 56px; margin: 0 4px"
+            @keydown.enter="handleJump"
+            @blur="handleJump"
+          />
+          页
+        </span>
+        <span class="pg-sep">|</span>
+        <n-select
+          :value="pagination.pageSize"
+          :options="pageSizeOptions"
+          size="small"
+          style="width: 96px"
+          @update:value="handlePageSizeChange"
+        />
       </div>
     </n-card>
 
@@ -219,6 +239,23 @@ const pagination = reactive({
 })
 
 const pageCount = computed(() => Math.ceil(pagination.itemCount / pagination.pageSize))
+
+// 自定义分页布局所需状态
+const jumperValue = ref<number | null>(null)
+const pageSizeOptions = [
+  { label: '每页 10 条', value: 10 },
+  { label: '每页 20 条', value: 20 },
+  { label: '每页 50 条', value: 50 },
+  { label: '每页 100 条', value: 100 }
+]
+function handleJump() {
+  const v = jumperValue.value
+  if (v && v >= 1 && v <= pageCount.value && v !== pagination.page) {
+    pagination.page = v
+    loadData()
+  }
+  jumperValue.value = null
+}
 
 const roleOptions = ref<Array<{ label: string; value: number }>>([])
 
@@ -654,27 +691,26 @@ onMounted(() => {
   height: calc(100vh - 160px);
 }
 
-/* 分页栏顺序：共N条 | 上一页 1 2 3 下一页 | 跳至N页 | N条/页（用 flex order 把 size-picker 推到最后并加分隔条） */
-.pagination-container :deep(.n-pagination) {
+/* 自建分页布局：共N条 | 上一页 1 2 3 下一页 | 跳至N页 | 每页N条 */
+.pagination-container {
+  display: flex;
   align-items: center;
-  gap: 0;
+  justify-content: flex-end;
+  gap: 14px;
+  margin-top: 12px;
+  font-size: 14px;
 }
-.pagination-container :deep(.n-pagination-prefix) {
-  padding-right: 16px;
-  border-right: 1px solid var(--n-divider-color, #e5e7eb);
-  margin-right: 16px;
+.pagination-container .pg-info,
+.pagination-container .pg-jumper {
+  display: inline-flex;
+  align-items: center;
 }
-.pagination-container :deep(.n-pagination-quick-jumper) {
-  order: 1;
-  padding-left: 16px;
-  border-left: 1px solid var(--n-divider-color, #e5e7eb);
-  margin-left: 16px;
+.pagination-container .pg-sep {
+  color: #d1d5db;
+  user-select: none;
 }
-.pagination-container :deep(.n-pagination-sizes),
-.pagination-container :deep(.n-pagination-size-picker) {
-  order: 2;
-  padding-left: 16px;
-  border-left: 1px solid var(--n-divider-color, #e5e7eb);
-  margin-left: 16px;
+.pagination-container .pg-step {
+  padding: 0 6px;
+  font-size: 13px;
 }
 </style>
