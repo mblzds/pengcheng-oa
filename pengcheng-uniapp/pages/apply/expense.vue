@@ -15,14 +15,12 @@
 					<text class="form-label">报销金额 <text class="required">*</text></text>
 					<input class="form-input" v-model="form.amount" type="digit" placeholder="请输入金额" />
 				</view>
-				<view class="form-item">
+				<view class="form-item" @tap="openOccurPicker">
 					<text class="form-label">发生时间 <text class="required">*</text></text>
-					<picker mode="datetime" @change="e => form.occurTime = e.detail.value">
-						<view class="picker-value">
-							<text :class="{ placeholder: !form.occurTime }">{{ form.occurTime || '请选择发生时间' }}</text>
-							<u-icon name="arrow-right" color="#CCC" size="14"></u-icon>
-						</view>
-					</picker>
+					<view class="picker-value">
+						<text :class="{ placeholder: !form.occurTime }">{{ form.occurTime || '请选择发生时间' }}</text>
+						<u-icon name="arrow-right" color="#CCC" size="14"></u-icon>
+					</view>
 				</view>
 				<view class="form-item">
 					<text class="form-label">费用说明</text>
@@ -47,11 +45,26 @@
 				{{ submitting ? '提交中...' : '提交申请' }}
 			</button>
 		</view>
+
+		<u-datetime-picker
+			:show="showOccurPicker"
+			v-model="occurPickerValue"
+			mode="datetime"
+			@confirm="onOccurConfirm"
+			@cancel="showOccurPicker = false"
+			@close="showOccurPicker = false"
+		></u-datetime-picker>
 	</view>
 </template>
 
 <script>
 	import { applyExpense, uploadFile } from '../../utils/api.js'
+
+	const formatDateTime = (ts) => {
+		const d = new Date(ts)
+		const pad = n => String(n).padStart(2, '0')
+		return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:00`
+	}
 
 	export default {
 		data() {
@@ -65,10 +78,20 @@
 					{ label: '其他', value: 5 }
 				],
 				attachments: [],
+				showOccurPicker: false,
+				occurPickerValue: Date.now(),
 				submitting: false
 			}
 		},
 		methods: {
+			openOccurPicker() {
+				this.occurPickerValue = this.form.occurTime ? new Date(this.form.occurTime).getTime() : Date.now()
+				this.showOccurPicker = true
+			},
+			onOccurConfirm(e) {
+				this.form.occurTime = formatDateTime(e.value)
+				this.showOccurPicker = false
+			},
 			onExpenseTypeChange(e) {
 				const item = this.expenseTypes[e.detail.value]
 				if (!item) return

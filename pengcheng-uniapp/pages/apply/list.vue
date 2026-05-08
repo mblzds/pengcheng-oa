@@ -38,6 +38,9 @@
 				<view class="record-info" v-if="item.currentNodeName && item.status === 1">
 					<text class="info-text node-text">当前节点：{{ item.currentNodeName }}</text>
 				</view>
+				<view class="record-info reject-row" v-if="item.status === 4 && item.rejectReason">
+					<text class="info-text reject-text">驳回原因：{{ item.rejectReason }}</text>
+				</view>
 				<view class="record-info">
 					<text class="info-text">提交时间：{{ item.createTime || '--' }}</text>
 				</view>
@@ -200,13 +203,19 @@
 						const payRows = payRes.data?.list || []
 						payRows.forEach(r => {
 							const typeNameMap = { 1: '报销申请', 2: '垫佣申请', 3: '预付佣申请' }
+							let rejectReason = ''
+							if (r.status === 4 && Array.isArray(r.approvals)) {
+								const rejected = r.approvals.find(a => a.result === 2)
+								if (rejected && rejected.remark) rejectReason = rejected.remark
+							}
 							rows.push({
 								id: `p-${r.id}-${r.status}`,
 								typeName: typeNameMap[r.requestType] || '付款申请',
 								status: r.status,
 								amount: r.amount,
 								rangeText: '',
-								createTime: r.createTime
+								createTime: r.createTime,
+								rejectReason
 							})
 						})
 					}
@@ -269,6 +278,11 @@
 	.record-info { margin-top: 8rpx; }
 	.info-text { font-size: 24rpx; color: #999; }
 	.info-text.node-text { color: #FA8C16; }
+	.reject-row {
+		background: #FFF1F0; border: 1rpx solid #FFCCC7; border-radius: 8rpx;
+		padding: 12rpx 16rpx; margin-top: 12rpx;
+	}
+	.reject-row .reject-text { color: #F5222D; }
 	.load-tip { text-align: center; padding: 24rpx; text { font-size: 24rpx; color: #CCC; } }
 	.empty-state {
 		display: flex; flex-direction: column; align-items: center; padding: 140rpx 0;
