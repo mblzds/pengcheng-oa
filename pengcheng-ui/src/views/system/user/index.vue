@@ -110,6 +110,14 @@
             default-expand-all
           />
         </n-form-item>
+        <n-form-item label="直接上级">
+          <n-input
+            :value="directSupervisor"
+            :readonly="!!directSupervisor"
+            :disabled="!directSupervisor"
+            placeholder="无（最上层负责人）"
+          />
+        </n-form-item>
         <n-form-item label="邮箱" path="email">
           <n-input v-model:value="formData.email" placeholder="请输入邮箱" />
         </n-form-item>
@@ -184,6 +192,36 @@ const hasPermission = (permission: string) => userStore.hasPermission(permission
 // ==================== 部门选择 ====================
 const deptOptions = ref<SysDept[]>([])
 const selectedDeptId = ref<number | undefined>(undefined)
+
+// 部门 id → 节点 映射，便于沿 parentId 向上遍历查找直接上级
+const deptMap = computed(() => {
+  const map = new Map<number, SysDept>()
+  const walk = (nodes: SysDept[]) => {
+    for (const n of nodes) {
+      if (n.id != null) map.set(n.id, n)
+      if (n.children?.length) walk(n.children)
+    }
+  }
+  walk(deptOptions.value || [])
+  return map
+})
+
+// 直接上级：当前部门负责人；若本人就是该部门负责人则向上查找；最顶层为空 → UI 灰显
+const directSupervisor = computed(() => {
+  if (!formData.deptId) return ''
+  const isSelf = (leader?: string) => {
+    if (!leader || !formData.id) return false
+    return leader === formData.nickname || leader === formData.username
+  }
+  let current: SysDept | undefined = deptMap.value.get(formData.deptId)
+  while (current) {
+    if (current.leader && !isSelf(current.leader)) {
+      return current.leader
+    }
+    current = current.parentId ? deptMap.value.get(current.parentId) : undefined
+  }
+  return ''
+})
 
 // 加载部门树（用于下拉选择）
 async function loadDeptOptions() {
