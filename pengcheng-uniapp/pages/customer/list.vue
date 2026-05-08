@@ -1,5 +1,10 @@
 <template>
 	<view class="page">
+		<!-- 选客户后自动打开到访录入的提示 -->
+		<view class="action-hint" v-if="pendingAction === 'visit'">
+			<u-icon name="info-circle" color="#722ED1" size="14"></u-icon>
+			<text class="hint-text">请选择客户，将自动打开「到访录入」</text>
+		</view>
 		<!-- 筛选栏 -->
 		<view class="filter-bar">
 			<input class="filter-input" v-model="filter.surname" placeholder="搜索客户姓氏" @confirm="onSearch" />
@@ -75,7 +80,8 @@
 				loading: false,
 				noMore: false,
 				refreshing: false,
-				showDataUpdated: false
+				showDataUpdated: false,
+				pendingAction: ''
 			}
 		},
 		onShow() {
@@ -85,7 +91,8 @@
 		onHide() {
 			uni.$off('app:data-change', this.onDataChange)
 		},
-		onLoad() {
+		onLoad(opts) {
+			if (opts?.action) this.pendingAction = opts.action
 			this.loadProjects()
 		},
 		methods: {
@@ -157,7 +164,8 @@
 			loadMore() { this.loadList() },
 			onRefresh() { this.refreshing = true; this.resetAndLoad() },
 			goDetail(item) {
-				uni.navigateTo({ url: `/pages/customer/detail?id=${item.id}` })
+				const actionPart = this.pendingAction ? `&action=${this.pendingAction}` : ''
+				uni.navigateTo({ url: `/pages/customer/detail?id=${item.id}${actionPart}` })
 			},
 			goReport() {
 				uni.navigateTo({ url: '/pages/customer/report' })
@@ -168,6 +176,12 @@
 
 <style lang="scss" scoped>
 	.page { min-height: 100vh; min-height: 100dvh; background: #F0F0F0; display: flex; flex-direction: column; }
+	.action-hint {
+		display: flex; align-items: center; gap: 8rpx;
+		padding: 16rpx 24rpx;
+		background: #F9F0FF; border-bottom: 1rpx solid #EFDBFF;
+		.hint-text { font-size: 24rpx; color: #531DAB; }
+	}
 	.filter-bar {
 		display: flex; padding: 16rpx 20rpx; background: #FFF; gap: 16rpx;
 		border-bottom: 1rpx solid #F0F0F0;

@@ -103,7 +103,7 @@
 				this.quickEntries = [
 					{ name: '客户报备', icon: 'edit-pen', bgColor: '#07C160', url: '/pages/customer/report' },
 					{ name: '客户列表', icon: 'order', bgColor: '#1890FF', url: '/pages/customer/list' },
-					{ name: '到访录入', icon: 'calendar', bgColor: '#722ED1', url: '/pages/customer/detail?action=visit' },
+					{ name: '到访录入', icon: 'calendar', bgColor: '#722ED1', url: '/pages/customer/list?action=visit' },
 					{ name: '考勤打卡', icon: 'map', bgColor: '#FA8C16', url: '/pages/attendance/clock' },
 					{ name: '扫码签到', icon: 'scan', bgColor: '#13C2C2', url: '/pages/attendance/sign' },
 					{ name: '付款申请', icon: 'rmb-circle', bgColor: '#F5222D', url: '/pages/apply/list' },

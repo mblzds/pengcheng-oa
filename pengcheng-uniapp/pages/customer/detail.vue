@@ -17,6 +17,14 @@
 					<text class="info-value">{{ report.allianceName || '--' }}</text>
 				</view>
 				<view class="info-row">
+					<text class="info-label">经纪人姓名</text>
+					<text class="info-value">{{ report.agentName || '--' }}</text>
+				</view>
+				<view class="info-row">
+					<text class="info-label">经纪人联系方式</text>
+					<text class="info-value">{{ report.agentPhone || '--' }}</text>
+				</view>
+				<view class="info-row">
 					<text class="info-label">报备编号</text>
 					<text class="info-value">{{ report.reportNo || '--' }}</text>
 				</view>
@@ -83,8 +91,8 @@
 						<view class="tl-dot" :class="{ active: i === 0 }"></view>
 						<view class="tl-line" v-if="i < detail.timeline.length - 1"></view>
 						<view class="tl-content">
-							<text class="tl-title">{{ t.action }}</text>
-							<text class="tl-time">{{ t.time }}</text>
+							<text class="tl-title">{{ t.description }}</text>
+							<text class="tl-time">{{ t.eventTime }}</text>
 						</view>
 					</view>
 				</view>
@@ -95,13 +103,11 @@
 		<u-popup :show="showVisitForm" mode="bottom" round="16" @close="showVisitForm = false">
 			<view class="popup-content">
 				<view class="popup-title">录入到访</view>
-				<view class="form-item">
+				<view class="form-item" @tap="openVisitTimePicker">
 					<text class="form-label">到访时间</text>
-					<picker mode="datetime" @change="e => visitForm.actualVisitTime = e.detail.value">
-						<view class="picker-value">
-							<text :class="{ placeholder: !visitForm.actualVisitTime }">{{ visitForm.actualVisitTime || '请选择' }}</text>
-						</view>
-					</picker>
+					<view class="picker-value">
+						<text :class="{ placeholder: !visitForm.actualVisitTime }">{{ visitForm.actualVisitTime || '请选择' }}</text>
+					</view>
 				</view>
 				<view class="form-item">
 					<text class="form-label">到访人数</text>
@@ -127,38 +133,68 @@
 					<text class="form-label">成交金额</text>
 					<input class="form-input" v-model="dealForm.dealAmount" type="digit" placeholder="请输入" />
 				</view>
-				<view class="form-item">
+				<view class="form-item" @tap="openDealTimePicker">
 					<text class="form-label">成交时间</text>
-					<picker mode="datetime" @change="e => dealForm.dealTime = e.detail.value">
-						<view class="picker-value">
-							<text :class="{ placeholder: !dealForm.dealTime }">{{ dealForm.dealTime || '请选择' }}</text>
-						</view>
-					</picker>
+					<view class="picker-value">
+						<text :class="{ placeholder: !dealForm.dealTime }">{{ dealForm.dealTime || '请选择' }}</text>
+					</view>
 				</view>
 				<view class="form-item">
 					<text class="form-label">签约状态</text>
-					<picker :range="signStatusList" range-key="label" @change="onSignStatusChange">
-						<view class="picker-value">
-							<text :class="{ placeholder: !dealForm.signStatusLabel }">{{ dealForm.signStatusLabel || '请选择' }}</text>
-						</view>
-					</picker>
+					<view class="chip-row">
+						<view
+							class="chip"
+							v-for="opt in signStatusList"
+							:key="opt.value"
+							:class="{ active: dealForm.signStatus === opt.value }"
+							@tap="selectSignStatus(opt)"
+						>{{ opt.label }}</view>
+					</view>
 				</view>
 				<view class="form-item">
 					<text class="form-label">认购类型</text>
-					<picker :range="subscribeTypes" range-key="label" @change="onSubscribeTypeChange">
-						<view class="picker-value">
-							<text :class="{ placeholder: !dealForm.subscribeTypeLabel }">{{ dealForm.subscribeTypeLabel || '请选择' }}</text>
-						</view>
-					</picker>
+					<view class="chip-row">
+						<view
+							class="chip"
+							v-for="opt in subscribeTypes"
+							:key="opt.value"
+							:class="{ active: dealForm.subscribeType === opt.value }"
+							@tap="selectSubscribeType(opt)"
+						>{{ opt.label }}</view>
+					</view>
 				</view>
 				<button class="popup-btn" @tap="submitDeal">确认提交</button>
 			</view>
 		</u-popup>
+
+		<u-datetime-picker
+			:show="showVisitTimePicker"
+			v-model="visitTimePickerValue"
+			mode="datetime"
+			@confirm="onVisitTimeConfirm"
+			@cancel="showVisitTimePicker = false"
+			@close="showVisitTimePicker = false"
+		></u-datetime-picker>
+
+		<u-datetime-picker
+			:show="showDealTimePicker"
+			v-model="dealTimePickerValue"
+			mode="datetime"
+			@confirm="onDealTimeConfirm"
+			@cancel="showDealTimePicker = false"
+			@close="showDealTimePicker = false"
+		></u-datetime-picker>
 	</view>
 </template>
 
 <script>
 	import { getCustomerDetail, addCustomerVisit, addCustomerDeal } from '../../utils/api.js'
+
+	const formatDateTime = (ts) => {
+		const d = new Date(ts)
+		const pad = n => String(n).padStart(2, '0')
+		return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:00`
+	}
 
 	export default {
 		data() {
@@ -171,12 +207,26 @@
 				visitForm: { actualVisitTime: '', actualVisitCount: '', receptionist: '' },
 				dealForm: { roomNo: '', dealAmount: '', dealTime: '', signStatus: '', subscribeType: '', signStatusLabel: '', subscribeTypeLabel: '' },
 				signStatusList: [{ label: '已签约', value: 1 }, { label: '未签约', value: 2 }],
-				subscribeTypes: [{ label: '小订', value: 1 }, { label: '大定', value: 2 }]
+				subscribeTypes: [{ label: '小订', value: 1 }, { label: '大定', value: 2 }],
+				showVisitTimePicker: false,
+				visitTimePickerValue: Date.now(),
+				showDealTimePicker: false,
+				dealTimePickerValue: Date.now()
 			}
 		},
 		onLoad(opts) {
+			if (!opts?.id) {
+				// 缺 customerId 时不能录到访/成交 — 引导用户先选客户
+				uni.showToast({ title: '请先选择客户', icon: 'none' })
+				setTimeout(() => {
+					const url = opts?.action ? `/pages/customer/list?action=${opts.action}` : '/pages/customer/list'
+					uni.redirectTo({ url })
+				}, 800)
+				return
+			}
 			this.customerId = opts.id
 			if (opts.action === 'visit') this.showVisitForm = true
+			if (opts.action === 'deal') this.showDealForm = true
 		},
 		onShow() {
 			if (this.customerId) this.loadDetail()
@@ -193,17 +243,33 @@
 					this.report = this.detail.reportInfo || {}
 				} catch (err) { console.error(err) }
 			},
-			onSignStatusChange(e) {
-				const item = this.signStatusList[e.detail.value]
-				if (!item) return
-				this.dealForm.signStatus = item.value
-				this.dealForm.signStatusLabel = item.label
+			openVisitTimePicker() {
+				this.visitTimePickerValue = this.visitForm.actualVisitTime
+					? new Date(this.visitForm.actualVisitTime).getTime()
+					: Date.now()
+				this.showVisitTimePicker = true
 			},
-			onSubscribeTypeChange(e) {
-				const item = this.subscribeTypes[e.detail.value]
-				if (!item) return
-				this.dealForm.subscribeType = item.value
-				this.dealForm.subscribeTypeLabel = item.label
+			onVisitTimeConfirm(e) {
+				this.visitForm.actualVisitTime = formatDateTime(e.value)
+				this.showVisitTimePicker = false
+			},
+			openDealTimePicker() {
+				this.dealTimePickerValue = this.dealForm.dealTime
+					? new Date(this.dealForm.dealTime).getTime()
+					: Date.now()
+				this.showDealTimePicker = true
+			},
+			onDealTimeConfirm(e) {
+				this.dealForm.dealTime = formatDateTime(e.value)
+				this.showDealTimePicker = false
+			},
+			selectSignStatus(opt) {
+				this.dealForm.signStatus = opt.value
+				this.dealForm.signStatusLabel = opt.label
+			},
+			selectSubscribeType(opt) {
+				this.dealForm.subscribeType = opt.value
+				this.dealForm.subscribeTypeLabel = opt.label
 			},
 			async submitVisit() {
 				if (!this.visitForm.actualVisitTime) return uni.showToast({ title: '请选择到访时间', icon: 'none' })
@@ -315,6 +381,13 @@
 		font-size: 28rpx; color: #1A1A1A;
 	}
 	.placeholder { color: #C0C0C0; }
+	.chip-row { display: flex; flex-wrap: wrap; gap: 16rpx; }
+	.chip {
+		min-width: 120rpx; height: 64rpx; line-height: 64rpx; text-align: center;
+		padding: 0 24rpx; border: 1rpx solid #E8E8E8; border-radius: 32rpx;
+		font-size: 26rpx; color: #666; background: #F8F8F8;
+		&.active { background: #E6F7EE; color: #07C160; border-color: #07C160; }
+	}
 	.popup-btn {
 		margin-top: 32rpx; height: 88rpx; line-height: 88rpx;
 		background: #07C160; color: #FFF; font-size: 30rpx; font-weight: 500;

@@ -108,7 +108,10 @@ public class CustomerVO {
                 .id(customer.getId())
                 .reportNo(customer.getReportNo())
                 .customerName(customer.getCustomerName())
-                .phoneMasked(PhoneMaskUtil.mask(customer.getPhone()))
+                // 直接使用 DB 已存储的 phone_masked 列值，避免依赖 TypeHandler——
+                // selectPageWithScope 等 XML resultType 路径不会触发 PhoneEncryptTypeHandler，
+                // 此时 customer.getPhone() 仍是密文，再次 mask 会得到 'vOR****AA==' 这种错误展示
+                .phoneMasked(customer.getPhoneMasked())
                 .visitCount(customer.getVisitCount())
                 .visitTime(customer.getVisitTime())
                 .allianceId(customer.getAllianceId())

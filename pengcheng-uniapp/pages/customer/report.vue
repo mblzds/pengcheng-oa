@@ -25,14 +25,12 @@
 					<text class="form-label">带看人数</text>
 					<input class="form-input" v-model="form.visitCount" type="number" placeholder="请输入带看人数" />
 				</view>
-				<view class="form-item">
+				<view class="form-item" @tap="openVisitPicker">
 					<text class="form-label">带看时间 <text class="required">*</text></text>
-					<picker mode="datetime" @change="onDateChange">
-						<view class="picker-value">
-							<text :class="{ placeholder: !form.visitTime }">{{ form.visitTime || '请选择日期时间' }}</text>
-							<u-icon name="arrow-right" color="#CCC" size="14"></u-icon>
-						</view>
-					</picker>
+					<view class="picker-value">
+						<text :class="{ placeholder: !form.visitTime }">{{ form.visitTime || '请选择日期时间' }}</text>
+						<u-icon name="arrow-right" color="#CCC" size="14"></u-icon>
+					</view>
 				</view>
 				<view class="form-item">
 					<text class="form-label">带看公司 <text class="required">*</text></text>
@@ -61,11 +59,26 @@
 				{{ submitting ? '提交中...' : '提交报备' }}
 			</button>
 		</view>
+
+		<u-datetime-picker
+			:show="showVisitPicker"
+			v-model="visitPickerValue"
+			mode="datetime"
+			@confirm="onVisitConfirm"
+			@cancel="showVisitPicker = false"
+			@close="showVisitPicker = false"
+		></u-datetime-picker>
 	</view>
 </template>
 
 <script>
 	import { reportCustomer, searchCustomerProjects, searchCustomerAlliances } from '../../utils/api.js'
+
+	const formatDateTime = (ts) => {
+		const d = new Date(ts)
+		const pad = n => String(n).padStart(2, '0')
+		return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:00`
+	}
 
 	export default {
 		data() {
@@ -86,6 +99,8 @@
 				allianceKeyword: '',
 				selectedProjectName: '',
 				selectedAllianceName: '',
+				showVisitPicker: false,
+				visitPickerValue: Date.now(),
 				submitting: false
 			}
 		},
@@ -122,8 +137,13 @@
 					this.selectedAllianceName = item.companyName
 				}
 			},
-			onDateChange(e) {
-				this.form.visitTime = e.detail.value
+			openVisitPicker() {
+				this.visitPickerValue = this.form.visitTime ? new Date(this.form.visitTime).getTime() : Date.now()
+				this.showVisitPicker = true
+			},
+			onVisitConfirm(e) {
+				this.form.visitTime = formatDateTime(e.value)
+				this.showVisitPicker = false
 			},
 			onProjectKeywordSearch() {
 				this.loadProjects(this.projectKeyword.trim())
