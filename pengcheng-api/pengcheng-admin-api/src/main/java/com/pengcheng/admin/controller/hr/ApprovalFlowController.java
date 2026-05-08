@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * 审批流模板配置（请假 / 调休）
+ * 审批流模板配置（请假 / 调休 / 报销）
  */
 @RestController
 @RequestMapping("/admin/approval-flow")
@@ -22,7 +22,7 @@ public class ApprovalFlowController {
 
     private final ApprovalFlowService approvalFlowService;
 
-    private static final Set<String> SUPPORTED_BUSINESS_TYPES = Set.of("leave", "compensate");
+    private static final Set<String> SUPPORTED_BUSINESS_TYPES = Set.of("leave", "compensate", "expense");
 
     /**
      * 获取某 business_type 的节点配置（按 seq 升序）

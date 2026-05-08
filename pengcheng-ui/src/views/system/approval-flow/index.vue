@@ -5,7 +5,7 @@
         <n-space justify="space-between" align="center">
           <span>审批流配置</span>
           <n-text depth="3" style="font-size: 12px">
-            按业务类型配置请假/调休的审批节点链；提交申请时按"开始时一次性快照"原则解析候选审批人，后续人事变动不影响在途流程。
+            按业务类型配置请假/调休/报销的审批节点链；提交申请时按"开始时一次性快照"原则解析候选审批人，后续人事变动不影响在途流程。
           </n-text>
         </n-space>
       </template>
@@ -13,6 +13,7 @@
       <n-tabs v-model:value="activeBusinessType" type="line" animated @update:value="onTabChange">
         <n-tab-pane name="leave" tab="请假审批流" />
         <n-tab-pane name="compensate" tab="调休审批流" />
+        <n-tab-pane name="expense" tab="报销审批流" />
       </n-tabs>
 
       <n-spin :show="loading">
