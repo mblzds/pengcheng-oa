@@ -206,34 +206,45 @@ const deptMap = computed(() => {
   return map
 })
 
-// 角色名包含以下关键字之一时，视为本人为该部门负责人，向上查找上级
-const LEADER_ROLE_KEYWORDS = ['经理', '主管', '总监', '负责人', '总裁', '董事长', 'CEO', 'CTO', 'CFO', 'COO']
+// 角色分档：top（顶层，无上级） / manager（部门主管，看父部门负责人） / regular（普通员工，看当前部门负责人）
+const TOP_ROLE_KEYWORDS = ['董事长', 'CEO']
+const MANAGER_ROLE_KEYWORDS = ['主管', '经理', '总监', '负责人']
 
-const isLeaderRole = computed(() => {
-  if (roleId.value == null) return false
+const roleCategory = computed<'top' | 'manager' | 'regular'>(() => {
+  if (roleId.value == null) return 'regular'
   const roleName = roleOptions.value.find(r => r.value === roleId.value)?.label || ''
   const lower = roleName.toLowerCase()
-  return LEADER_ROLE_KEYWORDS.some(k => lower.includes(k.toLowerCase()))
+  if (TOP_ROLE_KEYWORDS.some(k => lower.includes(k.toLowerCase()))) return 'top'
+  if (MANAGER_ROLE_KEYWORDS.some(k => lower.includes(k.toLowerCase()))) return 'manager'
+  return 'regular'
 })
 
-// 直接上级：所选部门负责人；若本人是该部门负责人（角色判定 / 编辑模式下姓名匹配）则向上查找；最顶层为空 → UI 灰显
+// 直接上级：按角色档位决定查找起点；编辑模式下姓名等于 leader 视为本人，跳过该层继续向上
 const directSupervisor = computed(() => {
+  const cat = roleCategory.value
+  if (cat === 'top') return ''
   if (!formData.deptId) return ''
-  const isSelf = (leader: string | undefined, isCurrentDept: boolean) => {
-    if (!leader) return false
-    if (isCurrentDept && isLeaderRole.value) return true
-    if (formData.id && (leader === formData.nickname || leader === formData.username)) return true
-    return false
+
+  const isSelf = (leader: string | undefined) => {
+    if (!leader || !formData.id) return false
+    return leader === formData.nickname || leader === formData.username
   }
-  let current: SysDept | undefined = deptMap.value.get(formData.deptId)
-  let isCurrentDept = true
-  while (current) {
-    if (current.leader && !isSelf(current.leader, isCurrentDept)) {
-      return current.leader
+
+  const currentDept = deptMap.value.get(formData.deptId)
+  if (!currentDept) return ''
+
+  // 普通员工从当前部门起步；部门主管从父部门起步
+  let pointer: SysDept | undefined = cat === 'manager'
+    ? (currentDept.parentId ? deptMap.value.get(currentDept.parentId) : undefined)
+    : currentDept
+
+  while (pointer) {
+    if (pointer.leader && !isSelf(pointer.leader)) {
+      return pointer.leader
     }
-    current = current.parentId ? deptMap.value.get(current.parentId) : undefined
-    isCurrentDept = false
+    pointer = pointer.parentId ? deptMap.value.get(pointer.parentId) : undefined
   }
+
   return ''
 })
 
