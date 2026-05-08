@@ -118,14 +118,6 @@
             default-expand-all
           />
         </n-form-item>
-        <n-form-item label="直接上级">
-          <n-input
-            :value="directSupervisor"
-            :readonly="!!directSupervisor"
-            :disabled="!directSupervisor"
-            placeholder="无（最上层负责人）"
-          />
-        </n-form-item>
         <n-form-item label="邮箱" path="email">
           <n-input v-model:value="formData.email" placeholder="请输入邮箱" />
         </n-form-item>
@@ -192,61 +184,6 @@ const hasPermission = (permission: string) => userStore.hasPermission(permission
 // ==================== 部门选择 ====================
 const deptOptions = ref<SysDept[]>([])
 const selectedDeptId = ref<number | undefined>(undefined)
-
-// 部门 id → 节点 映射，便于沿 parentId 向上遍历查找直接上级
-const deptMap = computed(() => {
-  const map = new Map<number, SysDept>()
-  const walk = (nodes: SysDept[]) => {
-    for (const n of nodes) {
-      if (n.id != null) map.set(n.id, n)
-      if (n.children?.length) walk(n.children)
-    }
-  }
-  walk(deptOptions.value || [])
-  return map
-})
-
-// 角色分档：top（顶层，无上级） / manager（部门主管，看父部门负责人） / regular（普通员工，看当前部门负责人）
-const TOP_ROLE_KEYWORDS = ['董事长', 'CEO']
-const MANAGER_ROLE_KEYWORDS = ['主管', '经理', '总监', '负责人']
-
-const roleCategory = computed<'top' | 'manager' | 'regular'>(() => {
-  if (roleId.value == null) return 'regular'
-  const roleName = roleOptions.value.find(r => r.value === roleId.value)?.label || ''
-  const lower = roleName.toLowerCase()
-  if (TOP_ROLE_KEYWORDS.some(k => lower.includes(k.toLowerCase()))) return 'top'
-  if (MANAGER_ROLE_KEYWORDS.some(k => lower.includes(k.toLowerCase()))) return 'manager'
-  return 'regular'
-})
-
-// 直接上级：按角色档位决定查找起点；编辑模式下姓名等于 leader 视为本人，跳过该层继续向上
-const directSupervisor = computed(() => {
-  const cat = roleCategory.value
-  if (cat === 'top') return ''
-  if (!formData.deptId) return ''
-
-  const isSelf = (leader: string | undefined) => {
-    if (!leader || !formData.id) return false
-    return leader === formData.nickname || leader === formData.username
-  }
-
-  const currentDept = deptMap.value.get(formData.deptId)
-  if (!currentDept) return ''
-
-  // 普通员工从当前部门起步；部门主管从父部门起步
-  let pointer: SysDept | undefined = cat === 'manager'
-    ? (currentDept.parentId ? deptMap.value.get(currentDept.parentId) : undefined)
-    : currentDept
-
-  while (pointer) {
-    if (pointer.leader && !isSelf(pointer.leader)) {
-      return pointer.leader
-    }
-    pointer = pointer.parentId ? deptMap.value.get(pointer.parentId) : undefined
-  }
-
-  return ''
-})
 
 // 加载部门树（用于下拉选择）
 async function loadDeptOptions() {
