@@ -110,6 +110,14 @@
             default-expand-all
           />
         </n-form-item>
+        <n-form-item label="角色" path="roleId">
+          <n-select
+            v-model:value="roleId"
+            :options="roleOptions"
+            placeholder="请选择角色"
+            clearable
+          />
+        </n-form-item>
         <n-form-item label="直接上级">
           <n-input
             :value="directSupervisor"
@@ -136,14 +144,6 @@
             v-model:value="formData.userType"
             :options="userTypeOptions"
             placeholder="请选择用户类型"
-          />
-        </n-form-item>
-        <n-form-item label="角色" path="roleId">
-          <n-select
-            v-model:value="roleId"
-            :options="roleOptions"
-            placeholder="请选择角色"
-            clearable
           />
         </n-form-item>
         <n-form-item label="岗位" path="postIds">
@@ -206,19 +206,33 @@ const deptMap = computed(() => {
   return map
 })
 
-// 直接上级：当前部门负责人；若本人就是该部门负责人则向上查找；最顶层为空 → UI 灰显
+// 角色名包含以下关键字之一时，视为本人为该部门负责人，向上查找上级
+const LEADER_ROLE_KEYWORDS = ['经理', '主管', '总监', '负责人', '总裁', '董事长', 'CEO', 'CTO', 'CFO', 'COO']
+
+const isLeaderRole = computed(() => {
+  if (roleId.value == null) return false
+  const roleName = roleOptions.value.find(r => r.value === roleId.value)?.label || ''
+  const lower = roleName.toLowerCase()
+  return LEADER_ROLE_KEYWORDS.some(k => lower.includes(k.toLowerCase()))
+})
+
+// 直接上级：所选部门负责人；若本人是该部门负责人（角色判定 / 编辑模式下姓名匹配）则向上查找；最顶层为空 → UI 灰显
 const directSupervisor = computed(() => {
   if (!formData.deptId) return ''
-  const isSelf = (leader?: string) => {
-    if (!leader || !formData.id) return false
-    return leader === formData.nickname || leader === formData.username
+  const isSelf = (leader: string | undefined, isCurrentDept: boolean) => {
+    if (!leader) return false
+    if (isCurrentDept && isLeaderRole.value) return true
+    if (formData.id && (leader === formData.nickname || leader === formData.username)) return true
+    return false
   }
   let current: SysDept | undefined = deptMap.value.get(formData.deptId)
+  let isCurrentDept = true
   while (current) {
-    if (current.leader && !isSelf(current.leader)) {
+    if (current.leader && !isSelf(current.leader, isCurrentDept)) {
       return current.leader
     }
     current = current.parentId ? deptMap.value.get(current.parentId) : undefined
+    isCurrentDept = false
   }
   return ''
 })
