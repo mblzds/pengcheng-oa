@@ -133,12 +133,12 @@
             placeholder="请选择用户类型"
           />
         </n-form-item>
-        <n-form-item label="角色" path="roleIds">
+        <n-form-item label="角色" path="roleId">
           <n-select
-            v-model:value="roleIds"
-            multiple
+            v-model:value="roleId"
             :options="roleOptions"
             placeholder="请选择角色"
+            clearable
           />
         </n-form-item>
         <n-form-item label="岗位" path="postIds">
@@ -365,7 +365,7 @@ const modalVisible = ref(false)
 const modalTitle = ref('新增用户')
 const formRef = ref<FormInst | null>(null)
 const submitLoading = ref(false)
-const roleIds = ref<number[]>([])
+const roleId = ref<number | null>(null)
 const postIds = ref<number[]>([])
 const postOptions = ref<Array<{ label: string; value: number }>>([])
 
@@ -397,11 +397,11 @@ const rules: FormRules = {
     { required: true, message: '请输入手机号', trigger: ['input', 'blur'] },
     { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号', trigger: ['input', 'blur'] }
   ],
-  roleIds: [
+  roleId: [
     {
       required: true,
       validator() {
-        if (!roleIds.value || roleIds.value.length === 0) {
+        if (roleId.value == null) {
           return new Error('请选择角色')
         }
         return true
@@ -496,7 +496,7 @@ function handleAdd() {
     userType: 'admin',
     remark: ''
   })
-  roleIds.value = []
+  roleId.value = null
   postIds.value = []
   modalVisible.value = true
 }
@@ -506,7 +506,7 @@ async function handleEdit(row: SysUser) {
   try {
     const res = await userApi.detail(row.id!)
     Object.assign(formData, res.user)
-    roleIds.value = res.roleIds
+    roleId.value = res.roleIds?.[0] ?? null
     postIds.value = res.postIds
     modalVisible.value = true
   } catch (error) {
@@ -525,7 +525,7 @@ async function handleSubmit() {
 
     const data = {
       user: { ...formData },
-      roleIds: roleIds.value,
+      roleIds: roleId.value != null ? [roleId.value] : [],
       postIds: postIds.value
     }
 
