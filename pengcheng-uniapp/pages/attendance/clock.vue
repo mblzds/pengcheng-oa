@@ -144,7 +144,9 @@
 						}]
 					},
 					fail: (err) => {
+						// 定位失败禁止打卡：必须先拿到位置后端才能判断是否在合规范围
 						this.canClock = false
+						this.markers = []
 						const msg = err && err.errMsg ? err.errMsg : ''
 						if (msg.includes('auth deny') || msg.includes('auth denied')) {
 							this.locationError = '请在设置中开启定位权限'

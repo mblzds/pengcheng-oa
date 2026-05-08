@@ -81,13 +81,18 @@ public class AttendanceServiceImpl implements AttendanceService {
     public Long clockIn(ClockInDTO dto) {
         if (dto.getUserId() == null) throw new IllegalArgumentException("员工ID不能为空");
         if (dto.getClockTime() == null) throw new IllegalArgumentException("打卡时间不能为空");
+        // 位置硬校验：开启位置校验且不在合规范围 → 直接拒绝，时间不入库
+        Integer locationStatus = checkLocation(dto.getLatitude(), dto.getLongitude());
+        if (locationStatus != null && locationStatus == LOCATION_OUT_OF_RANGE) {
+            throw new IllegalArgumentException("不在允许打卡范围，无法打卡");
+        }
         LocalDate today = dto.getClockTime().toLocalDate();
         AttendanceRecord record = getOrCreateRecord(dto.getUserId(), today);
         record.setClockInTime(dto.getClockTime());
         record.setClockInLocation(dto.getLocation());
         record.setClockInPhoto(dto.getPhotoUrl());
         record.setClockInStatus(determineClockInStatus(dto.getClockTime().toLocalTime()));
-        record.setLocationStatus(checkLocation(dto.getLatitude(), dto.getLongitude()));
+        record.setLocationStatus(locationStatus);
         String changeType = record.getId() == null ? "create" : "update";
         if (record.getId() == null) attendanceRecordMapper.insert(record);
         else attendanceRecordMapper.updateById(record);
@@ -100,13 +105,17 @@ public class AttendanceServiceImpl implements AttendanceService {
     public Long clockOut(ClockInDTO dto) {
         if (dto.getUserId() == null) throw new IllegalArgumentException("员工ID不能为空");
         if (dto.getClockTime() == null) throw new IllegalArgumentException("打卡时间不能为空");
+        // 位置硬校验：开启位置校验且不在合规范围 → 直接拒绝，时间不入库
+        Integer locationStatus = checkLocation(dto.getLatitude(), dto.getLongitude());
+        if (locationStatus != null && locationStatus == LOCATION_OUT_OF_RANGE) {
+            throw new IllegalArgumentException("不在允许打卡范围，无法打卡");
+        }
         LocalDate today = dto.getClockTime().toLocalDate();
         AttendanceRecord record = getOrCreateRecord(dto.getUserId(), today);
         record.setClockOutTime(dto.getClockTime());
         record.setClockOutLocation(dto.getLocation());
         record.setClockOutPhoto(dto.getPhotoUrl());
         record.setClockOutStatus(determineClockOutStatus(dto.getClockTime().toLocalTime()));
-        Integer locationStatus = checkLocation(dto.getLatitude(), dto.getLongitude());
         if (locationStatus != null) {
             record.setLocationStatus(locationStatus);
         }
