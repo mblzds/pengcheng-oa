@@ -278,7 +278,9 @@ const columns: DataTableColumns<SysUser> = [
       return h(NTag, { type: status.type, size: 'small' }, { default: () => status.label })
     }
   },
-  { title: '创建时间', key: 'createTime', width: 170 },
+  { title: '创建时间', key: 'createTime', width: 110, render(row) {
+    return row.createTime ? row.createTime.slice(0, 10) : '-'
+  }},
   {
     title: '操作',
     key: 'actions',
@@ -650,5 +652,29 @@ onMounted(() => {
 <style scoped>
 .user-list-card {
   height: calc(100vh - 160px);
+}
+
+/* 分页栏顺序：共N条 | 上一页 1 2 3 下一页 | 跳至N页 | N条/页（用 flex order 把 size-picker 推到最后并加分隔条） */
+.pagination-container :deep(.n-pagination) {
+  align-items: center;
+  gap: 0;
+}
+.pagination-container :deep(.n-pagination-prefix) {
+  padding-right: 16px;
+  border-right: 1px solid var(--n-divider-color, #e5e7eb);
+  margin-right: 16px;
+}
+.pagination-container :deep(.n-pagination-quick-jumper) {
+  order: 1;
+  padding-left: 16px;
+  border-left: 1px solid var(--n-divider-color, #e5e7eb);
+  margin-left: 16px;
+}
+.pagination-container :deep(.n-pagination-sizes),
+.pagination-container :deep(.n-pagination-size-picker) {
+  order: 2;
+  padding-left: 16px;
+  border-left: 1px solid var(--n-divider-color, #e5e7eb);
+  margin-left: 16px;
 }
 </style>

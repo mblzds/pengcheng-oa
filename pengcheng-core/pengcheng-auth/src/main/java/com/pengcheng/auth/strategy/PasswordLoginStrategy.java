@@ -160,8 +160,8 @@ public class PasswordLoginStrategy implements LoginStrategy {
             throw new BusinessException("您的注册申请未通过审核，如有疑问请联系管理员");
         }
         if (user.getStatus() != 1) {
-            loginHelper.recordFailLog(user.getUsername(), "用户已被禁用");
-            throw new BusinessException("用户已被禁用");
+            loginHelper.recordFailLog(user.getUsername(), "该账号已被禁用");
+            throw new BusinessException("该账号已被禁用");
         }
         if (user.getIsQuit() == 1) {
             loginHelper.recordFailLog(user.getUsername(), "用户已离职");
