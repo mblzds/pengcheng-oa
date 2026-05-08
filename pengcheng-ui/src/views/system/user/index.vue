@@ -384,7 +384,31 @@ const formData = reactive<SysUser>({
 })
 
 const rules: FormRules = {
-  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }]
+  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
+  deptId: [
+    {
+      required: true,
+      type: 'number',
+      message: '请选择归属部门',
+      trigger: ['change', 'blur']
+    }
+  ],
+  phone: [
+    { required: true, message: '请输入手机号', trigger: ['input', 'blur'] },
+    { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号', trigger: ['input', 'blur'] }
+  ],
+  roleIds: [
+    {
+      required: true,
+      validator() {
+        if (!roleIds.value || roleIds.value.length === 0) {
+          return new Error('请选择角色')
+        }
+        return true
+      },
+      trigger: ['change', 'blur']
+    }
+  ]
 }
 
 // ==================== 数据加载 ====================

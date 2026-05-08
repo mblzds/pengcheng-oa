@@ -27,4 +27,7 @@ public class AppClockDTO {
 
     /** 打卡时间 */
     private LocalDateTime clockTime;
+
+    /** 打卡照片URL（先上传获得，可为空） */
+    private String photoUrl;
 }

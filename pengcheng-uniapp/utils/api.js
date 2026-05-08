@@ -178,6 +178,9 @@ export const addCustomerDeal = (data) => post('/api/app/customer/deal', data)
 /** GPS 打卡 */
 export const clockAttendance = (data) => post('/api/app/attendance/clock', data)
 
+/** 上传打卡照片，返回照片 URL */
+export const uploadAttendancePhoto = (filePath) => upload('/api/app/attendance/upload-photo', filePath)
+
 /** 扫码签到 */
 export const signAttendance = (data) => post('/api/app/attendance/sign', data)
 

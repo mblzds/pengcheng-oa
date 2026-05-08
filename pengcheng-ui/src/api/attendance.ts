@@ -7,9 +7,11 @@ export interface AttendanceRecordItem {
   attendanceDate?: string
   clockInTime?: string
   clockInLocation?: string
+  clockInPhoto?: string
   clockInStatus?: number
   clockOutTime?: string
   clockOutLocation?: string
+  clockOutPhoto?: string
   clockOutStatus?: number
 }
 

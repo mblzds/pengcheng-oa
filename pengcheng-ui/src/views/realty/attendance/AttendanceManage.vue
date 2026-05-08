@@ -71,7 +71,7 @@
 
 <script setup lang="ts">
 import { h, onMounted, reactive, ref } from 'vue'
-import { NTag, type DataTableColumns } from 'naive-ui'
+import { NTag, NImage, type DataTableColumns } from 'naive-ui'
 import { userApi } from '@/api/system'
 import { attendanceApi, type AttendanceMonthlyVO, type AttendanceRecordItem, type CompensateRequestItem, type LeaveRequestItem } from '@/api/attendance'
 
@@ -149,7 +149,23 @@ const recordColumns: DataTableColumns<AttendanceRecordItem> = [
     render: row => renderClockStatus(row.clockOutStatus, false)
   },
   { title: '上班位置', key: 'clockInLocation' },
-  { title: '下班位置', key: 'clockOutLocation' }
+  {
+    title: '上班照片',
+    key: 'clockInPhoto',
+    width: 90,
+    render: row => row.clockInPhoto
+      ? h(NImage, { src: row.clockInPhoto, width: 60, height: 60, objectFit: 'cover', previewDisabled: false })
+      : '-'
+  },
+  { title: '下班位置', key: 'clockOutLocation' },
+  {
+    title: '下班照片',
+    key: 'clockOutPhoto',
+    width: 90,
+    render: row => row.clockOutPhoto
+      ? h(NImage, { src: row.clockOutPhoto, width: 60, height: 60, objectFit: 'cover', previewDisabled: false })
+      : '-'
+  }
 ]
 
 const leaveColumns: DataTableColumns<LeaveRequestItem> = [

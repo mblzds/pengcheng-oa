@@ -242,6 +242,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '考勤设置', icon: 'SettingsOutline' }
       },
       {
+        path: 'hr/approval-pending',
+        name: 'HrApprovalPending',
+        component: () => import('@/views/hr/approval/MyPending.vue'),
+        meta: { title: '我的待审批', icon: 'CheckmarkDoneOutline' }
+      },
+      {
         path: 'hr/performance',
         name: 'HrPerformance',
         component: () => import('@/views/hr/performance.vue'),
@@ -322,6 +328,12 @@ const routes: RouteRecordRaw[] = [
         name: 'SystemAutomation',
         component: () => import('@/views/system/automation/AutomationRule.vue'),
         meta: { title: '自动化规则', icon: 'FlashOutline' }
+      },
+      {
+        path: 'system/approval-flow',
+        name: 'SystemApprovalFlow',
+        component: () => import('@/views/system/approval-flow/index.vue'),
+        meta: { title: '审批流配置', icon: 'GitBranchOutline' }
       },
 
       // ========== 7. 系统监控 ==========
