@@ -32,70 +32,19 @@
 
           <n-divider title-placement="left">合规打卡位置</n-divider>
 
-          <n-form-item label="启用位置校验">
-            <n-switch v-model:value="form.enforceLocation" />
-            <span class="hint">关闭后任何位置打卡均视为合规</span>
-          </n-form-item>
-
-          <n-form-item label="百度地图 AK">
-            <n-input
-              v-model:value="form.baiduMapAk"
-              placeholder="https://lbsyun.baidu.com/ 申请 JS API AK"
-              clearable
-              style="max-width: 480px"
-            />
-          </n-form-item>
-
-          <n-form-item label="允许位置列表">
-            <div style="width: 100%">
-              <n-button type="primary" size="small" @click="addLocation" :disabled="!form.enforceLocation">
-                <template #icon>
-                  <n-icon><AddOutline /></n-icon>
-                </template>
-                新增位置
-              </n-button>
-
-              <n-empty
-                v-if="!form.allowedLocations.length"
-                description="暂无配置，添加至少一个位置后位置校验才会真正生效"
-                style="margin-top: 16px"
-              />
-
-              <n-list v-else bordered style="margin-top: 12px">
-                <n-list-item v-for="(loc, idx) in form.allowedLocations" :key="idx">
-                  <n-grid :cols="24" :x-gap="12" :y-gap="8">
-                    <n-gi :span="5">
-                      <n-input v-model:value="loc.name" placeholder="名称（如：总部）" size="small" />
-                    </n-gi>
-                    <n-gi :span="8">
-                      <n-input v-model:value="loc.address" placeholder="地址" size="small" readonly />
-                    </n-gi>
-                    <n-gi :span="3">
-                      <n-input-number v-model:value="loc.lat" placeholder="纬度" :precision="6" :show-button="false" size="small" readonly />
-                    </n-gi>
-                    <n-gi :span="3">
-                      <n-input-number v-model:value="loc.lng" placeholder="经度" :precision="6" :show-button="false" size="small" readonly />
-                    </n-gi>
-                    <n-gi :span="2">
-                      <n-input-number v-model:value="loc.radius" placeholder="半径(米)" :min="10" :max="10000" :show-button="false" size="small" />
-                    </n-gi>
-                    <n-gi :span="2">
-                      <n-button size="small" type="primary" ghost @click="openMapPicker(idx)">选点</n-button>
-                    </n-gi>
-                    <n-gi :span="1">
-                      <n-button quaternary type="error" size="small" @click="removeLocation(idx)">
-                        <template #icon><n-icon><TrashOutline /></n-icon></template>
-                      </n-button>
-                    </n-gi>
-                  </n-grid>
-                </n-list-item>
-              </n-list>
-
-              <n-alert v-if="form.enforceLocation && !form.allowedLocations.length" type="warning" style="margin-top: 12px">
-                已开启位置校验但未配置位置 — 当前所有打卡都会被标记为「位置异常」。
-              </n-alert>
-            </div>
-          </n-form-item>
+          <n-alert type="info" :bordered="false" style="margin-bottom: 16px">
+            <template #header>
+              <n-space align="center" justify="space-between" style="width: 100%">
+                <span>合规位置 / 百度地图 AK 已迁至「系统配置 → 考勤设置」统一管理</span>
+                <n-button size="small" type="primary" @click="goSystemConfig">前往设置</n-button>
+              </n-space>
+            </template>
+            当前位置校验状态：
+            <n-tag :type="form.enforceLocation ? 'success' : 'default'" size="small">
+              {{ form.enforceLocation ? '已启用' : '未启用' }}
+            </n-tag>
+            ，已配置 {{ form.allowedLocations.length }} 个合规位置。
+          </n-alert>
 
           <n-form-item label="">
             <n-space>
@@ -106,37 +55,14 @@
         </n-form>
       </n-spin>
     </n-card>
-
-    <n-modal
-      v-model:show="mapPickerVisible"
-      preset="card"
-      :title="`地图选点 — ${editingLocation?.name || '未命名位置'}`"
-      style="width: 760px; max-width: 90vw"
-      :mask-closable="false"
-    >
-      <BaiduMapPicker
-        v-if="mapPickerVisible"
-        :ak="form.baiduMapAk"
-        :model-value="pickedSnapshot"
-        :radius="editingLocation?.radius"
-        @update:model-value="onPicked"
-      />
-      <template #footer>
-        <n-space justify="end">
-          <n-button @click="mapPickerVisible = false">取消</n-button>
-          <n-button type="primary" @click="confirmMapPick" :disabled="!pickedSnapshot">确定使用此位置</n-button>
-        </n-space>
-      </template>
-    </n-modal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useMessage } from 'naive-ui'
-import { AddOutline, TrashOutline } from '@vicons/ionicons5'
 import { configGroupApi } from '@/api/org'
-import BaiduMapPicker from '@/components/BaiduMapPicker.vue'
 
 interface AllowedLocation {
   name: string
@@ -144,12 +70,6 @@ interface AllowedLocation {
   lat: number | null
   lng: number | null
   radius: number
-}
-
-interface PickedPoint {
-  lng: number
-  lat: number
-  address?: string
 }
 
 interface AttendanceConfig {
@@ -162,8 +82,13 @@ interface AttendanceConfig {
 }
 
 const message = useMessage()
+const router = useRouter()
 const loading = ref(false)
 const saving = ref(false)
+
+function goSystemConfig() {
+  router.push({ path: '/system/config', query: { tab: 'attendance' } })
+}
 
 const form = reactive<AttendanceConfig>({
   workStartTime: '09:00',
@@ -200,57 +125,10 @@ async function loadConfig() {
   }
 }
 
-function addLocation() {
-  form.allowedLocations.push({ name: '', address: '', lat: null, lng: null, radius: 500 })
-}
-
-function removeLocation(idx: number) {
-  form.allowedLocations.splice(idx, 1)
-}
-
-const mapPickerVisible = ref(false)
-const editingIdx = ref<number | null>(null)
-const pickedSnapshot = ref<PickedPoint | null>(null)
-const editingLocation = computed<AllowedLocation | null>(() =>
-  editingIdx.value != null ? form.allowedLocations[editingIdx.value] : null
-)
-
-function openMapPicker(idx: number) {
-  if (!form.baiduMapAk?.trim()) {
-    message.warning('请先在上方填入百度地图 AK 后再选点')
-    return
-  }
-  editingIdx.value = idx
-  const loc = form.allowedLocations[idx]
-  pickedSnapshot.value = (loc.lat != null && loc.lng != null)
-    ? { lat: loc.lat, lng: loc.lng, address: loc.address }
-    : null
-  mapPickerVisible.value = true
-}
-
-function onPicked(point: PickedPoint) {
-  pickedSnapshot.value = point
-}
-
-function confirmMapPick() {
-  if (!pickedSnapshot.value || editingIdx.value == null) return
-  const loc = form.allowedLocations[editingIdx.value]
-  loc.lat = pickedSnapshot.value.lat
-  loc.lng = pickedSnapshot.value.lng
-  if (pickedSnapshot.value.address) loc.address = pickedSnapshot.value.address
-  mapPickerVisible.value = false
-}
-
 async function handleSave() {
-  if (form.enforceLocation) {
-    for (const [i, loc] of form.allowedLocations.entries()) {
-      if (!loc.name?.trim()) return message.error(`第 ${i + 1} 个位置的名称必填`)
-      if (loc.lat == null || loc.lng == null) return message.error(`第 ${i + 1} 个位置的经纬度必填`)
-      if (!loc.radius || loc.radius < 10) return message.error(`第 ${i + 1} 个位置的半径必须 ≥ 10 米`)
-    }
-  }
   saving.value = true
   try {
+    // 全量保存（包含位置字段），防止覆盖「系统配置 → 考勤设置」tab 写入的位置数据
     await configGroupApi.save('attendance', { ...form })
     message.success('保存成功')
   } finally {

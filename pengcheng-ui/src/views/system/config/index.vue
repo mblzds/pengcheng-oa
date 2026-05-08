@@ -751,6 +751,97 @@
               </n-form>
             </template>
 
+            <!-- 考勤设置（合规位置 + 百度地图 AK；上下班时间在「系统管理 → 考勤设置」页编辑） -->
+            <template v-else-if="group.groupCode === 'attendance'">
+              <n-form :model="configs.attendance" label-placement="left" label-width="140">
+                <n-alert type="info" :bordered="false" style="margin-bottom: 16px">
+                  上下班时间设置仍在「系统管理 → 考勤设置」页面，本 tab 仅管理「合规打卡位置」与「百度地图 AK」。
+                </n-alert>
+
+                <n-form-item label="启用位置校验">
+                  <n-switch v-model:value="configs.attendance.enforceLocation" />
+                  <span class="form-hint">关闭后任何位置打卡均视为合规</span>
+                </n-form-item>
+
+                <n-form-item label="百度地图 AK">
+                  <n-input
+                    v-model:value="configs.attendance.baiduMapAk"
+                    placeholder="https://lbsyun.baidu.com/ 申请 JS API AK"
+                    clearable
+                    style="max-width: 480px"
+                  />
+                </n-form-item>
+
+                <n-form-item label="允许位置列表">
+                  <div style="width: 100%">
+                    <n-button type="primary" size="small" @click="addAttendanceLocation" :disabled="!configs.attendance.enforceLocation">
+                      <template #icon><n-icon><AddOutline /></n-icon></template>
+                      新增位置
+                    </n-button>
+                    <n-empty
+                      v-if="!configs.attendance.allowedLocations.length"
+                      description="暂无配置，添加至少一个位置后位置校验才会真正生效"
+                      style="margin-top: 16px"
+                    />
+                    <n-list v-else bordered style="margin-top: 12px">
+                      <n-list-item v-for="(loc, idx) in configs.attendance.allowedLocations" :key="idx">
+                        <n-grid :cols="24" :x-gap="12" :y-gap="8">
+                          <n-gi :span="5">
+                            <n-input v-model:value="loc.name" placeholder="名称（如：总部）" size="small" />
+                          </n-gi>
+                          <n-gi :span="8">
+                            <n-input v-model:value="loc.address" placeholder="地址" size="small" readonly />
+                          </n-gi>
+                          <n-gi :span="3">
+                            <n-input-number v-model:value="loc.lat" placeholder="纬度" :precision="6" :show-button="false" size="small" readonly />
+                          </n-gi>
+                          <n-gi :span="3">
+                            <n-input-number v-model:value="loc.lng" placeholder="经度" :precision="6" :show-button="false" size="small" readonly />
+                          </n-gi>
+                          <n-gi :span="2">
+                            <n-input-number v-model:value="loc.radius" placeholder="半径(米)" :min="10" :max="10000" :show-button="false" size="small" />
+                          </n-gi>
+                          <n-gi :span="2">
+                            <n-button size="small" type="primary" ghost @click="openAttendanceMapPicker(Number(idx))">选点</n-button>
+                          </n-gi>
+                          <n-gi :span="1">
+                            <n-button quaternary type="error" size="small" @click="removeAttendanceLocation(Number(idx))">
+                              <template #icon><n-icon><TrashOutline /></n-icon></template>
+                            </n-button>
+                          </n-gi>
+                        </n-grid>
+                      </n-list-item>
+                    </n-list>
+                    <n-alert v-if="configs.attendance.enforceLocation && !configs.attendance.allowedLocations.length" type="warning" style="margin-top: 12px">
+                      已开启位置校验但未配置位置 — 当前所有打卡都会被标记为「位置异常」。
+                    </n-alert>
+                  </div>
+                </n-form-item>
+              </n-form>
+
+              <n-modal
+                v-model:show="attendanceMapPickerVisible"
+                preset="card"
+                :title="`地图选点 — ${attendanceEditingLocation?.name || '未命名位置'}`"
+                style="width: 760px; max-width: 90vw"
+                :mask-closable="false"
+              >
+                <BaiduMapPicker
+                  v-if="attendanceMapPickerVisible"
+                  :ak="configs.attendance.baiduMapAk"
+                  :model-value="attendancePickedSnapshot"
+                  :radius="attendanceEditingLocation?.radius"
+                  @update:model-value="onAttendancePicked"
+                />
+                <template #footer>
+                  <n-space justify="end">
+                    <n-button @click="attendanceMapPickerVisible = false">取消</n-button>
+                    <n-button type="primary" @click="confirmAttendanceMapPick" :disabled="!attendancePickedSnapshot">确定使用此位置</n-button>
+                  </n-space>
+                </template>
+              </n-modal>
+            </template>
+
             <!-- 其他配置 -->
             <template v-else-if="group.groupCode === 'other'">
               <n-empty description="暂无其他配置项" />
@@ -774,12 +865,16 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useMessage, type UploadCustomRequestOptions } from 'naive-ui'
 import { ImageOutline, CloseOutline, AddOutline, TrashOutline } from '@vicons/ionicons5'
 import { configGroupApi, type SysConfigGroup } from '@/api/org'
 import { fileApi } from '@/api/system'
 import { wechatApi } from '@/api/wechat'
 import { useSiteStore } from '@/stores/site'
+import BaiduMapPicker from '@/components/BaiduMapPicker.vue'
+
+const route = useRoute()
 
 const message = useMessage()
 const siteStore = useSiteStore()
@@ -853,6 +948,14 @@ const configs = reactive<Record<string, any>>({
     tokenIsConcurrent: true, tokenIsShare: true, tokenStyle: 'uuid',
     tokenIsLog: false, tokenIsReadBody: false, tokenIsReadCookie: false,
     tokenIsReadHeader: true, tokenIsPrint: true, tokenIsWriteHeader: false
+  },
+  attendance: {
+    workStartTime: '09:00',
+    workEndTime: '18:00',
+    enforceTime: true,
+    enforceLocation: false,
+    allowedLocations: [] as Array<{ name: string; address?: string; lat: number | null; lng: number | null; radius: number }>,
+    baiduMapAk: ''
   },
   other: {}
 })
@@ -1281,12 +1384,58 @@ async function testPayment(type: 'wechat' | 'alipay') {
   }
 }
 
+// 考勤设置：合规位置选点相关状态
+const attendanceMapPickerVisible = ref(false)
+const attendanceEditingIdx = ref<number | null>(null)
+const attendancePickedSnapshot = ref<{ lng: number; lat: number; address?: string } | null>(null)
+const attendanceEditingLocation = computed(() =>
+  attendanceEditingIdx.value != null
+    ? configs.attendance.allowedLocations[attendanceEditingIdx.value]
+    : null
+)
+
+function addAttendanceLocation() {
+  configs.attendance.allowedLocations.push({ name: '', address: '', lat: null, lng: null, radius: 500 })
+}
+
+function removeAttendanceLocation(idx: number) {
+  configs.attendance.allowedLocations.splice(idx, 1)
+}
+
+function openAttendanceMapPicker(idx: number) {
+  if (!configs.attendance.baiduMapAk?.trim()) {
+    message.warning('请先在上方填入百度地图 AK 后再选点')
+    return
+  }
+  attendanceEditingIdx.value = idx
+  const loc = configs.attendance.allowedLocations[idx]
+  attendancePickedSnapshot.value = (loc.lat != null && loc.lng != null)
+    ? { lat: loc.lat, lng: loc.lng, address: loc.address }
+    : null
+  attendanceMapPickerVisible.value = true
+}
+
+function onAttendancePicked(point: { lng: number; lat: number; address?: string }) {
+  attendancePickedSnapshot.value = point
+}
+
+function confirmAttendanceMapPick() {
+  if (!attendancePickedSnapshot.value || attendanceEditingIdx.value == null) return
+  const loc = configs.attendance.allowedLocations[attendanceEditingIdx.value]
+  loc.lat = attendancePickedSnapshot.value.lat
+  loc.lng = attendancePickedSnapshot.value.lng
+  if (attendancePickedSnapshot.value.address) loc.address = attendancePickedSnapshot.value.address
+  attendanceMapPickerVisible.value = false
+}
+
 // 加载配置分组
 async function loadGroups() {
   try {
     configGroups.value = await configGroupApi.list()
     if (configGroups.value.length > 0) {
-      activeTab.value = configGroups.value[0].groupCode
+      const queryTab = typeof route.query.tab === 'string' ? route.query.tab : ''
+      const matched = queryTab && configGroups.value.find(g => g.groupCode === queryTab)
+      activeTab.value = matched ? queryTab : configGroups.value[0].groupCode
       await loadConfig(activeTab.value)
     }
   } catch (error) {
