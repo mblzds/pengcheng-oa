@@ -98,9 +98,6 @@
         <n-form-item v-if="!formData.id" label="密码" path="password">
           <n-input v-model:value="formData.password" type="password" placeholder="请输入密码，留空默认123456" show-password-on="click" />
         </n-form-item>
-        <n-form-item v-if="formData.id" label="昵称" path="nickname">
-          <n-input v-model:value="formData.nickname" placeholder="请输入昵称" />
-        </n-form-item>
         <n-form-item label="归属部门" path="deptId">
           <n-tree-select
             v-model:value="formData.deptId"
