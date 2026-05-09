@@ -4,11 +4,24 @@
       <n-card title="考勤记录">
         <div class="search-form">
           <n-form inline :model="recordFilter">
-            <n-form-item label="选择用户">
+            <n-form-item v-if="!isEmployeeOnly" label="选择用户">
               <n-select v-model:value="recordFilter.userId" :options="userOptions" label-field="nickname" value-field="id" filterable placeholder="选择用户" clearable style="width: 200px" />
             </n-form-item>
             <n-form-item label="日期范围">
-              <n-date-picker v-model:value="recordFilter.dateRange" type="daterange" clearable style="width: 280px" />
+              <n-date-picker
+                v-model:value="recordFilter.dateRange"
+                type="daterange"
+                clearable
+                :shortcuts="dateShortcuts"
+                style="width: 280px"
+              />
+            </n-form-item>
+            <n-form-item label="状态">
+              <n-select
+                v-model:value="recordFilter.statusFilter"
+                :options="statusFilterOptions"
+                style="width: 140px"
+              />
             </n-form-item>
             <n-form-item>
               <n-space>
@@ -19,7 +32,15 @@
           </n-form>
         </div>
 
-        <n-data-table :columns="recordColumns" :data="recordData" :loading="recordLoading" :pagination="false" />
+        <n-data-table
+          :columns="recordColumns"
+          :data="filteredRecordData"
+          :loading="recordLoading"
+          :pagination="recordPagination"
+        />
+        <div v-if="filteredRecordData.length > 200" class="table-tip">
+          数据较多，建议缩小日期范围或加状态筛选
+        </div>
       </n-card>
 
       <n-card title="月度考勤汇总报表">
@@ -127,7 +148,7 @@
 </template>
 
 <script setup lang="ts">
-import { h, onMounted, reactive, ref } from 'vue'
+import { computed, h, onMounted, reactive, ref } from 'vue'
 import { NTag, NImage, NButton, type DataTableColumns } from 'naive-ui'
 import { attendanceApi, type AttendanceMonthlyVO, type AttendanceRecordItem, type CompensateRequestItem, type LeaveRequestItem } from '@/api/attendance'
 
@@ -148,12 +169,75 @@ const leaveData = ref<LeaveRequestItem[]>([])
 const compensateData = ref<CompensateRequestItem[]>([])
 const monthlySummary = ref<AttendanceMonthlyVO | null>(null)
 
+// 默认日期 = 今天（避免打开就拉全月/全历史）
+function todayRange(): [number, number] {
+  const d = new Date()
+  const start = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+  return [start, start + 86400000 - 1]
+}
+
 const recordFilter = reactive<{
   userId: number | null
   dateRange: [number, number] | null
+  statusFilter: string  // 'all' | 'abnormal' | 'normal' | 'leave' | 'compensate'
 }>({
   userId: null,
-  dateRange: null
+  dateRange: todayRange(),
+  statusFilter: 'all'
+})
+
+const statusFilterOptions = [
+  { label: '全部', value: 'all' },
+  { label: '仅异常', value: 'abnormal' },
+  { label: '正常', value: 'normal' },
+  { label: '请假', value: 'leave' },
+  { label: '调休', value: 'compensate' }
+]
+
+// 日期范围快捷预设
+const dateShortcuts = {
+  '今天': () => todayRange(),
+  '本周': (): [number, number] => {
+    const d = new Date()
+    const day = d.getDay() || 7  // 周一=1, 周日转 7
+    const monday = new Date(d.getFullYear(), d.getMonth(), d.getDate() - day + 1).getTime()
+    return [monday, todayRange()[1]]
+  },
+  '本月': (): [number, number] => {
+    const d = new Date()
+    const first = new Date(d.getFullYear(), d.getMonth(), 1).getTime()
+    return [first, todayRange()[1]]
+  },
+  '上月': (): [number, number] => {
+    const d = new Date()
+    const first = new Date(d.getFullYear(), d.getMonth() - 1, 1).getTime()
+    const last = new Date(d.getFullYear(), d.getMonth(), 0, 23, 59, 59, 999).getTime()
+    return [first, last]
+  }
+}
+
+// 普通员工 = 后端 visible-users 只回自己一条
+const isEmployeeOnly = computed(() => userOptions.value.length === 1)
+
+// 前端按 statusFilter 过滤；状态由 deriveDayStatus 派生，不需要后端配合
+const filteredRecordData = computed(() => {
+  const f = recordFilter.statusFilter
+  if (f === 'all') return recordData.value
+  return recordData.value.filter(row => {
+    const s = deriveDayStatus(row)
+    if (f === 'abnormal') return s.type === 'error' || s.type === 'warning'
+    if (f === 'normal') return s.type === 'success'
+    if (f === 'leave') return s.label.startsWith('请假')
+    if (f === 'compensate') return s.label === '调休'
+    return true
+  })
+})
+
+// 表格分页（前端分页）
+const recordPagination = reactive({
+  pageSize: 20,
+  showSizePicker: true,
+  pageSizes: [10, 20, 50, 100]
 })
 
 const summaryFilter = reactive<{
@@ -198,39 +282,49 @@ const approvalStatusOptions = [
 ]
 
 const recordColumns: DataTableColumns<AttendanceRecordItem> = [
-  { title: '员工', key: 'userName', width: 200, render: row => renderEmployee(row) },
+  { title: '员工', key: 'userName', width: 220, render: row => renderEmployee(row) },
   {
     title: '日考勤状态',
     key: 'dayStatus',
-    width: 110,
+    width: 100,
+    align: 'center',
+    titleAlign: 'center',
     render: row => {
       const s = deriveDayStatus(row)
       return h(NTag, { size: 'small', type: s.type }, { default: () => s.label })
     }
   },
-  { title: '日期', key: 'attendanceDate', width: 100 },
+  { title: '日期', key: 'attendanceDate', width: 100, align: 'center', titleAlign: 'center' },
   {
     title: '上班打卡',
     key: 'clockInTime',
     width: 90,
+    align: 'center',
+    titleAlign: 'center',
     render: row => formatTimeOnly(row.clockInTime)
   },
   {
     title: '下班打卡',
     key: 'clockOutTime',
     width: 90,
+    align: 'center',
+    titleAlign: 'center',
     render: row => formatTimeOnly(row.clockOutTime)
   },
   {
     title: '工时',
     key: 'workHours',
     width: 80,
+    align: 'center',
+    titleAlign: 'center',
     render: row => calcWorkHours(row.clockInTime, row.clockOutTime)
   },
   {
     title: '操作',
     key: 'actions',
     width: 80,
+    align: 'center',
+    titleAlign: 'center',
     render: row => h(NButton, {
       size: 'small',
       quaternary: true,
@@ -408,8 +502,11 @@ async function loadAttendanceRecords() {
 }
 
 function resetRecordFilter() {
-  recordFilter.userId = null
-  recordFilter.dateRange = null
+  recordFilter.userId = isEmployeeOnly.value && userOptions.value.length === 1
+    ? userOptions.value[0].id
+    : null
+  recordFilter.dateRange = todayRange()
+  recordFilter.statusFilter = 'all'
   loadAttendanceRecords()
 }
 
@@ -473,5 +570,12 @@ onMounted(() => {
   margin-bottom: 8px;
   border-left: 3px solid #18a058;
   padding-left: 8px;
+}
+
+.table-tip {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #909399;
+  text-align: right;
 }
 </style>
