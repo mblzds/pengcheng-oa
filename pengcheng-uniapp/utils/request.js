@@ -45,6 +45,22 @@ const cachePendingSubmission = (options) => {
 }
 
 /**
+ * 剥离 data 对象里 undefined / null 的字段
+ * uni.request 在 GET 模式下把 data 序列化成 query string，undefined 会被转成
+ * 字符串 "undefined" 发出去，后端 Integer/Long 类型解析直接 500。
+ * 注意：这里只过滤顶层 undefined/null；POST 体里嵌套对象保持原样以避免误删。
+ */
+const stripUndefined = (data) => {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return data
+  const out = {}
+  for (const key of Object.keys(data)) {
+    const v = data[key]
+    if (v !== undefined && v !== null) out[key] = v
+  }
+  return out
+}
+
+/**
  * 通用请求方法
  */
 const request = (options) => {
@@ -61,7 +77,7 @@ const request = (options) => {
     uni.request({
       url: joinBaseUrl(options.url),
       method: options.method || 'GET',
-      data: options.data,
+      data: stripUndefined(options.data),
       header,
       success: (res) => {
         const rejectWith = (message, payload = {}) => {
