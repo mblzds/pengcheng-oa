@@ -122,9 +122,6 @@
             <div v-else-if="!leaderLoading && leaderOptions.length === 0" class="form-tip">本部门暂无成员；留空时审批流会自动走父部门负责人。</div>
           </div>
         </n-form-item>
-        <n-form-item label="显示排序" path="sort">
-          <n-input-number v-model:value="formData.sort" :min="0" style="width: 100%"/>
-        </n-form-item>
         <n-form-item label="状态" path="status">
           <n-switch v-model:value="formData.status" :checked-value="1" :unchecked-value="0">
             <template #checked>正常</template>
