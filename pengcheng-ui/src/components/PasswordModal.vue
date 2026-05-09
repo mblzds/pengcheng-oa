@@ -71,6 +71,17 @@ const formData = ref({
   confirmPassword: ''
 })
 
+const validateNewPassword = (_rule: FormItemRule, value: string): boolean | Error => {
+  if (!value) return new Error('请输入新密码')
+  const errors: string[] = []
+  if (value.length < 6 || value.length > 20) errors.push('长度需为 6-20 位')
+  if (!/[A-Z]/.test(value)) errors.push('需包含大写字母')
+  if (!/[a-z]/.test(value)) errors.push('需包含小写字母')
+  if (!/\d/.test(value)) errors.push('需包含数字')
+  if (errors.length) return new Error('新密码不符合要求：' + errors.join('；'))
+  return true
+}
+
 const validateConfirmPassword = (_rule: FormItemRule, value: string): boolean | Error => {
   if (value !== formData.value.newPassword) {
     return new Error('两次输入的密码不一致')
@@ -83,8 +94,7 @@ const rules: FormRules = {
     { required: true, message: '请输入当前密码', trigger: 'blur' }
   ],
   newPassword: [
-    { required: true, message: '请输入新密码', trigger: 'blur' },
-    { min: 6, max: 20, message: '密码长度为6-20个字符', trigger: 'blur' }
+    { required: true, validator: validateNewPassword, trigger: ['blur', 'input'] }
   ],
   confirmPassword: [
     { required: true, message: '请再次输入新密码', trigger: 'blur' },

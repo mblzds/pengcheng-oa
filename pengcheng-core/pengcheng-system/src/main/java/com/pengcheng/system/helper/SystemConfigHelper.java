@@ -239,7 +239,7 @@ public class SystemConfigHelper implements com.pengcheng.crypto.CryptoConfigProv
     }
 
     /**
-     * 验证密码规则
+     * 验证密码规则：一次性校验所有项，未通过的合并为一条错误信息返回
      */
     public void validatePassword(String password) {
         if (password == null || password.isEmpty()) {
@@ -248,24 +248,26 @@ public class SystemConfigHelper implements com.pengcheng.crypto.CryptoConfigProv
 
         int minLen = getPasswordMinLength();
         int maxLen = getPasswordMaxLength();
+        java.util.List<String> errors = new java.util.ArrayList<>();
 
-        if (password.length() < minLen) {
-            throw new RuntimeException("密码长度不能少于" + minLen + "位");
-        }
-        if (password.length() > maxLen) {
-            throw new RuntimeException("密码长度不能超过" + maxLen + "位");
+        if (password.length() < minLen || password.length() > maxLen) {
+            errors.add("长度需为 " + minLen + "-" + maxLen + " 位");
         }
         if (isPasswordRequireUppercase() && !password.matches(".*[A-Z].*")) {
-            throw new RuntimeException("密码必须包含大写字母");
+            errors.add("需包含大写字母");
         }
         if (isPasswordRequireLowercase() && !password.matches(".*[a-z].*")) {
-            throw new RuntimeException("密码必须包含小写字母");
+            errors.add("需包含小写字母");
         }
         if (isPasswordRequireNumber() && !password.matches(".*\\d.*")) {
-            throw new RuntimeException("密码必须包含数字");
+            errors.add("需包含数字");
         }
         if (isPasswordRequireSpecial() && !password.matches(".*[!@#$%^&*()_+\\-=\\[\\]{};':\"\\\\|,.<>/?].*")) {
-            throw new RuntimeException("密码必须包含特殊字符");
+            errors.add("需包含特殊字符");
+        }
+
+        if (!errors.isEmpty()) {
+            throw new RuntimeException("新密码不符合要求：" + String.join("；", errors));
         }
     }
 
