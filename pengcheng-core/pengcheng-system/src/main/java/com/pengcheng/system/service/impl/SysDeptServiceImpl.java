@@ -42,16 +42,20 @@ public class SysDeptServiceImpl extends ServiceImpl<SysDeptMapper, SysDept> impl
 
     @Override
     public void create(SysDept dept) {
-        validateLeader(dept);
         if (dept.getParentId() == null) {
             dept.setParentId(0L);
             dept.setAncestors("0");
-        } else if (dept.getParentId() > 0) {
+        }
+        validateSiblingName(dept.getDeptName(), dept.getParentId(), null);
+        validateLeader(dept);
+        if (dept.getParentId() > 0) {
             SysDept parent = this.getById(dept.getParentId());
             if (parent == null) {
                 throw new BusinessException("父部门不存在");
             }
             dept.setAncestors(parent.getAncestors() + "," + dept.getParentId());
+        } else {
+            dept.setAncestors("0");
         }
         this.save(dept);
     }
@@ -65,6 +69,8 @@ public class SysDeptServiceImpl extends ServiceImpl<SysDeptMapper, SysDept> impl
         if (dept.getParentId() != null && dept.getParentId().equals(dept.getId())) {
             throw new BusinessException("上级部门不能选择自己");
         }
+        Long effectiveParentId = dept.getParentId() != null ? dept.getParentId() : existDept.getParentId();
+        validateSiblingName(dept.getDeptName(), effectiveParentId, dept.getId());
         validateLeader(dept);
         // 更新祖级列表
         if (dept.getParentId() != null && !dept.getParentId().equals(existDept.getParentId())) {
@@ -82,12 +88,31 @@ public class SysDeptServiceImpl extends ServiceImpl<SysDeptMapper, SysDept> impl
     }
 
     /**
-     * 校验负责人：必填，且对应用户须存在；同步用 nickname 回填 leader 字段供显示
-     * 部门负责人是审批流 direct_supervisor 节点的兜底来源，缺失会让审批卡住，因此强制录入。
+     * 同父部门下 dept_name 不可重名（忽略首尾空格、忽略已删除）
+     */
+    private void validateSiblingName(String deptName, Long parentId, Long excludeId) {
+        if (!StringUtils.hasText(deptName)) {
+            throw new BusinessException("部门名称不能为空");
+        }
+        String trimmed = deptName.trim();
+        long count = this.count(new LambdaQueryWrapper<SysDept>()
+                .eq(SysDept::getParentId, parentId == null ? 0L : parentId)
+                .eq(SysDept::getDeptName, trimmed)
+                .ne(excludeId != null, SysDept::getId, excludeId));
+        if (count > 0) {
+            throw new BusinessException("同一上级部门下已存在同名部门");
+        }
+    }
+
+    /**
+     * 校验负责人：可选；填了则要求用户存在且启用，并用 nickname 回填 leader 字段。
+     * 留空允许：新建部门时通常还没成员可选，先建后再编辑。
      */
     private void validateLeader(SysDept dept) {
         if (dept.getLeaderId() == null) {
-            throw new BusinessException("请指定部门负责人（审批流必需）");
+            // 允许留空，但同步把 legacy 文本字段也清掉避免不一致
+            dept.setLeader(null);
+            return;
         }
         SysUser leader = userMapper.selectById(dept.getLeaderId());
         if (leader == null) {
@@ -96,7 +121,6 @@ public class SysDeptServiceImpl extends ServiceImpl<SysDeptMapper, SysDept> impl
         if (leader.getStatus() != null && leader.getStatus() != 1) {
             throw new BusinessException("所选负责人未启用，无法担任部门负责人");
         }
-        // 用昵称回填 leader 字段，避免界面显示与负责人 ID 不一致
         if (StringUtils.hasText(leader.getNickname())) {
             dept.setLeader(leader.getNickname());
         } else if (StringUtils.hasText(leader.getUsername())) {

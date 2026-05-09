@@ -57,18 +57,22 @@ public class SysUserController {
 
     /**
      * 用户下拉选项（用于部门负责人 / 任务指派等场景）
-     * 仅返回启用状态的用户，字段精简到 id / username / nickname / deptName
+     * 仅返回启用状态的用户，字段精简到 id / username / nickname / deptId / deptName
+     * 传 deptId 时仅返回该部门下成员（部门负责人选人场景）
      */
-    @Operation(summary = "用户下拉选项", description = "返回启用状态用户的精简列表，用于选人场景")
+    @Operation(summary = "用户下拉选项", description = "返回启用状态用户的精简列表；可按部门 ID 过滤")
     @GetMapping("/options")
-    public Result<List<Map<String, Object>>> options() {
+    public Result<List<Map<String, Object>>> options(
+            @Parameter(description = "部门 ID，传则只返回该部门成员") @RequestParam(required = false) Long deptId) {
         List<SysUser> users = userService.listAll();
         List<Map<String, Object>> options = users.stream()
+                .filter(u -> deptId == null || (u.getDeptId() != null && u.getDeptId().equals(deptId)))
                 .map(u -> {
                     Map<String, Object> m = new HashMap<>();
                     m.put("id", u.getId());
                     m.put("username", u.getUsername());
                     m.put("nickname", u.getNickname());
+                    m.put("deptId", u.getDeptId());
                     m.put("deptName", u.getDeptName());
                     return m;
                 })

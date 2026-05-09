@@ -108,20 +108,19 @@
           <n-input v-model:value="formData.deptName" placeholder="请输入部门名称"/>
         </n-form-item>
         <n-form-item label="负责人" path="leaderId">
-          <n-select
-              v-model:value="formData.leaderId"
-              :options="leaderOptions"
-              filterable
-              clearable
-              placeholder="请选择负责人（审批流必需）"
-              :loading="leaderLoading"
-          />
-        </n-form-item>
-        <n-form-item label="联系电话" path="phone">
-          <n-input v-model:value="formData.phone" placeholder="请输入联系电话"/>
-        </n-form-item>
-        <n-form-item label="邮箱" path="email">
-          <n-input v-model:value="formData.email" placeholder="请输入邮箱"/>
+          <div style="width: 100%">
+            <n-select
+                v-model:value="formData.leaderId"
+                :options="leaderOptions"
+                filterable
+                clearable
+                :placeholder="leaderPlaceholder"
+                :loading="leaderLoading"
+                :disabled="!formData.id"
+            />
+            <div v-if="!formData.id" class="form-tip">新建部门时尚无成员，请先建后再编辑指定负责人。</div>
+            <div v-else-if="!leaderLoading && leaderOptions.length === 0" class="form-tip">本部门暂无成员，请先到用户管理把员工调入本部门。</div>
+          </div>
         </n-form-item>
         <n-form-item label="显示排序" path="sort">
           <n-input-number v-model:value="formData.sort" :min="0" style="width: 100%"/>
@@ -339,31 +338,30 @@ const formData = reactive<SysDept>({
   sort: 0,
   leader: '',
   leaderId: null,
-  phone: '',
-  email: '',
   status: 1
 })
 const rules: FormRules = {
-  deptName: [{required: true, message: '请输入部门名称', trigger: 'blur'}],
-  leaderId: [{
-    required: true,
-    type: 'number',
-    message: '请选择负责人（审批流必需）',
-    trigger: ['change', 'blur']
-  }]
+  deptName: [{required: true, message: '请输入部门名称', trigger: 'blur'}]
 }
 
-// 负责人下拉选项
+// 负责人下拉选项（按本部门员工范围加载）
 const leaderLoading = ref(false)
 const leaderOptions = ref<Array<{ label: string; value: number }>>([])
+const leaderPlaceholder = computed(() => {
+  if (!formData.id) return '请先保存部门后再编辑指定'
+  if (leaderLoading.value) return '加载中...'
+  if (leaderOptions.value.length === 0) return '本部门暂无成员'
+  return '请选择部门负责人'
+})
 
-async function loadLeaderOptions() {
-  if (leaderOptions.value.length > 0) return
+async function loadLeaderOptions(deptId?: number) {
+  leaderOptions.value = []
+  if (!deptId) return
   leaderLoading.value = true
   try {
-    const list = await userApi.options()
+    const list = await userApi.options({deptId})
     leaderOptions.value = (list || []).map(u => ({
-      label: `${u.nickname || u.username}${u.deptName ? '（' + u.deptName + '）' : ''}`,
+      label: u.nickname || u.username,
       value: u.id
     }))
   } catch {
@@ -375,8 +373,8 @@ async function loadLeaderOptions() {
 
 function handleAdd(parentId: number = 0) {
   modalTitle.value = '新增部门'
-  Object.assign(formData, {id: undefined, parentId, deptName: '', sort: 0, leader: '', leaderId: null, phone: '', email: '', status: 1})
-  loadLeaderOptions()
+  Object.assign(formData, {id: undefined, parentId, deptName: '', sort: 0, leader: '', leaderId: null, status: 1})
+  leaderOptions.value = []
   modalVisible.value = true
 }
 
@@ -387,7 +385,7 @@ async function handleEditDept() {
     modalTitle.value = '编辑部门'
     Object.assign(formData, dept)
     if (formData.leaderId == null) formData.leaderId = null
-    loadLeaderOptions()
+    loadLeaderOptions(dept.id)
     modalVisible.value = true
   } catch (error) {
     console.error('获取部门详情失败:', error)
@@ -477,5 +475,12 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.form-tip {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #909399;
 }
 </style>
