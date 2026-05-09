@@ -45,4 +45,7 @@ public class LeaveRecordVO {
 
     /** 驳回原因（仅已驳回状态有值，取自首个 result=驳回 节点的 remark） */
     private String rejectReason;
+
+    /** 请假天数（按考勤工时折算，0.5 天精度；调休统一 1.0） */
+    private Double days;
 }

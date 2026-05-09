@@ -41,3 +41,8 @@ uploads/
 
 # Claude Code worktrees
 .claude/worktrees/
+
+# dev-restart.sh runtime artifacts
+.dev-app.pid
+.nginx.conf.original
+dev-app.log

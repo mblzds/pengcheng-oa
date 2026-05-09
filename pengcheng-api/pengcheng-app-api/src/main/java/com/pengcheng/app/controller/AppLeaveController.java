@@ -18,9 +18,13 @@ import com.pengcheng.hr.attendance.entity.LeaveRequest;
 import com.pengcheng.hr.attendance.mapper.CompensateRequestMapper;
 import com.pengcheng.hr.attendance.mapper.LeaveRequestMapper;
 import com.pengcheng.hr.attendance.service.AttendanceService;
+import com.pengcheng.hr.attendance.util.LeaveDaysUtil;
+import com.pengcheng.system.helper.SystemConfigHelper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -40,6 +44,9 @@ public class AppLeaveController {
     private final CompensateRequestMapper compensateRequestMapper;
     private final ApprovalFlowService approvalFlowService;
     private final ApprovalRecordNodeMapper approvalRecordNodeMapper;
+    private final SystemConfigHelper systemConfigHelper;
+
+    private static final DateTimeFormatter HHMM = DateTimeFormatter.ofPattern("HH:mm");
 
     /**
      * 提交请假申请
@@ -48,6 +55,18 @@ public class AppLeaveController {
     @PostMapping("/apply")
     public Result<Long> apply(@RequestBody AppLeaveDTO dto) {
         Long userId = StpUtil.getLoginIdAsLong();
+
+        // 服务端校验：起止时段必须落在配置的工作时段内（兜底前端校验）
+        LocalTime workStart = parseHHmm(systemConfigHelper.getAttendanceWorkStartTime(), LocalTime.of(9, 0));
+        LocalTime workEnd = parseHHmm(systemConfigHelper.getAttendanceWorkEndTime(), LocalTime.of(18, 0));
+        if (dto.getStartTime() != null && !inWorkHours(dto.getStartTime().toLocalTime(), workStart, workEnd)) {
+            return Result.fail(400, String.format("开始时间需在 %s~%s 之间",
+                    workStart.format(HHMM), workEnd.format(HHMM)));
+        }
+        if (dto.getEndTime() != null && !inWorkHours(dto.getEndTime().toLocalTime(), workStart, workEnd)) {
+            return Result.fail(400, String.format("结束时间需在 %s~%s 之间",
+                    workStart.format(HHMM), workEnd.format(HHMM)));
+        }
 
         LeaveRequestDTO requestDTO = LeaveRequestDTO.builder()
                 .userId(userId)
@@ -59,6 +78,10 @@ public class AppLeaveController {
 
         Long requestId = attendanceService.submitLeaveRequest(requestDTO);
         return Result.ok(requestId);
+    }
+
+    private static boolean inWorkHours(LocalTime t, LocalTime start, LocalTime end) {
+        return !t.isBefore(start) && !t.isAfter(end);
     }
 
     /**
@@ -95,6 +118,8 @@ public class AppLeaveController {
                 leaveWrapper.eq(LeaveRequest::getStatus, status);
             }
             List<LeaveRequest> leaveRequests = leaveRequestMapper.selectList(leaveWrapper);
+            LocalTime workStart = parseHHmm(systemConfigHelper.getAttendanceWorkStartTime(), LocalTime.of(9, 0));
+            LocalTime workEnd = parseHHmm(systemConfigHelper.getAttendanceWorkEndTime(), LocalTime.of(18, 0));
             for (LeaveRequest lr : leaveRequests) {
                 allRecords.add(LeaveRecordVO.builder()
                         .id(lr.getId())
@@ -107,6 +132,7 @@ public class AppLeaveController {
                         .createTime(lr.getCreateTime())
                         .currentNodeName(resolveCurrentNodeName(ApprovalConstants.BUSINESS_TYPE_LEAVE, lr.getId(), lr.getStatus()))
                         .rejectReason(resolveRejectReason(ApprovalConstants.BUSINESS_TYPE_LEAVE, lr.getId(), lr.getStatus()))
+                        .days(LeaveDaysUtil.calcDays(lr.getStartTime(), lr.getEndTime(), workStart, workEnd))
                         .build());
             }
         }
@@ -131,6 +157,7 @@ public class AppLeaveController {
                         .createTime(cr.getCreateTime())
                         .currentNodeName(resolveCurrentNodeName(ApprovalConstants.BUSINESS_TYPE_COMPENSATE, cr.getId(), cr.getStatus()))
                         .rejectReason(resolveRejectReason(ApprovalConstants.BUSINESS_TYPE_COMPENSATE, cr.getId(), cr.getStatus()))
+                        .days(1.0)
                         .build());
             }
         }
@@ -153,6 +180,15 @@ public class AppLeaveController {
     /**
      * 仅当业务单状态为「审批中」时返回当前节点名，便于列表页展示「等待 XX 审批」
      */
+    private LocalTime parseHHmm(String value, LocalTime fallback) {
+        if (value == null || value.isBlank()) return fallback;
+        try {
+            return LocalTime.parse(value, HHMM);
+        } catch (Exception e) {
+            return fallback;
+        }
+    }
+
     private String resolveCurrentNodeName(String businessType, Long businessId, Integer status) {
         if (status == null || status != ApprovalConstants.STATUS_PENDING) {
             return null;

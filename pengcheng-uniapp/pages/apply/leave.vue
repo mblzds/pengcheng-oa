@@ -25,6 +25,9 @@
 						<u-icon name="arrow-right" color="#CCC" size="14"></u-icon>
 					</view>
 				</view>
+				<view v-if="workStart && workEnd" class="hint-line">
+					上班时间 {{ workStart }} ~ {{ workEnd }}，请在此范围内选择
+				</view>
 				<view class="form-item">
 					<text class="form-label">请假原因 <text class="required">*</text></text>
 					<textarea class="form-textarea" v-model="form.reason" placeholder="请输入请假原因" maxlength="200"></textarea>
@@ -58,7 +61,7 @@
 </template>
 
 <script>
-	import { applyLeave } from '../../utils/api.js'
+	import { applyLeave, getWorkHours } from '../../utils/api.js'
 
 	const formatDateTime = (ts) => {
 		const d = new Date(ts)
@@ -81,10 +84,36 @@
 				showEndPicker: false,
 				startPickerValue: Date.now(),
 				endPickerValue: Date.now(),
-				submitting: false
+				submitting: false,
+				workStart: '',  // HH:mm，从后端拉
+				workEnd: ''
 			}
 		},
+		onLoad() {
+			this.loadWorkHours()
+		},
 		methods: {
+			async loadWorkHours() {
+				try {
+					const res = await getWorkHours()
+					const data = res?.data || res
+					if (data && data.workStartTime && data.workEndTime) {
+						this.workStart = data.workStartTime
+						this.workEnd = data.workEndTime
+					}
+				} catch (e) {
+					// 拿不到配置就不展示提示，提交时跳过校验，让后端兜底
+					console.warn('getWorkHours failed', e)
+				}
+			},
+			// 校验 "YYYY-MM-DD HH:mm:ss" 字符串的 HH:mm 是否在工作时段内
+			withinWorkHours(dateTimeStr) {
+				if (!this.workStart || !this.workEnd) return true  // 没配置就放过
+				const m = /\s(\d{2}):(\d{2})/.exec(dateTimeStr)
+				if (!m) return true
+				const hm = `${m[1]}:${m[2]}`
+				return hm >= this.workStart && hm <= this.workEnd
+			},
 			onLeaveTypeChange(e) {
 				const item = this.leaveTypes[e.detail.value]
 				if (!item) return
@@ -115,6 +144,12 @@
 				if (!this.form.endTime) return uni.showToast({ title: '请选择结束时间', icon: 'none' })
 				if (new Date(this.form.endTime).getTime() <= new Date(this.form.startTime).getTime()) {
 					return uni.showToast({ title: '结束时间必须晚于开始时间', icon: 'none' })
+				}
+				if (!this.withinWorkHours(this.form.startTime)) {
+					return uni.showToast({ title: `开始时间需在 ${this.workStart}~${this.workEnd} 之间`, icon: 'none' })
+				}
+				if (!this.withinWorkHours(this.form.endTime)) {
+					return uni.showToast({ title: `结束时间需在 ${this.workStart}~${this.workEnd} 之间`, icon: 'none' })
 				}
 				if (!this.form.reason.trim()) return uni.showToast({ title: '请输入请假原因', icon: 'none' })
 				this.submitting = true
@@ -147,6 +182,7 @@
 		font-size: 28rpx; color: #1A1A1A;
 	}
 	.placeholder { color: #C0C0C0; }
+	.hint-line { padding: 12rpx 0 4rpx; font-size: 24rpx; color: #FA8C16; }
 	.form-textarea {
 		width: 100%; min-height: 160rpx; font-size: 28rpx; color: #1A1A1A;
 		border: 1rpx solid #E8E8E8; border-radius: 8rpx; padding: 16rpx;

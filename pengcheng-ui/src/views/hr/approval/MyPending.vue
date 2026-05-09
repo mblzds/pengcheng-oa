@@ -258,18 +258,11 @@ const paymentColumns: DataTableColumns<ApprovalItem> = [
 ]
 
 // 默认（全部 / 佣金等）—— 通用混合列
-// 金额列：仅付款类/佣金类显示数值；请假/调休类显示空（无意义占位会让审批人误以为是缺数据）
+// 不放金额列：请假/调休行根本没金额，混在表格里会让审批人误读；付款类要看金额请切到对应筛选或点详情。
 const defaultColumns: DataTableColumns<ApprovalItem> = [
   colApplicant(),
   colTypeTag(),
-  { title: '摘要', key: 'summary', minWidth: 200, ellipsis: { tooltip: true } },
-  {
-    title: '金额', key: 'amount', width: 110,
-    render: row => {
-      if (row.type === 'leave' || row.type === 'compensate') return ''
-      return row.amount != null ? `¥ ${row.amount}` : '—'
-    }
-  },
+  { title: '摘要', key: 'summary', minWidth: 240, ellipsis: { tooltip: true } },
   colCurrentNode(),
   colApplyTime(),
   colActions()

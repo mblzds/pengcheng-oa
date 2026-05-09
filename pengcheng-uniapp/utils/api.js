@@ -190,6 +190,9 @@ export const getAttendanceRecords = (params) => get('/api/app/attendance/records
 /** 月度考勤汇总 */
 export const getAttendanceMonthly = (params) => get('/api/app/attendance/monthly', params)
 
+/** 上下班时间配置（请假/调休时段校验用） */
+export const getWorkHours = () => get('/api/app/attendance/work-hours')
+
 // ==================== 请假/调休 ====================
 
 /** 请假申请 */

@@ -15,6 +15,7 @@ import com.pengcheng.hr.attendance.entity.CompensateRequest;
 import com.pengcheng.hr.attendance.entity.LeaveRequest;
 import com.pengcheng.hr.attendance.mapper.CompensateRequestMapper;
 import com.pengcheng.hr.attendance.mapper.LeaveRequestMapper;
+import com.pengcheng.hr.attendance.util.LeaveDaysUtil;
 import com.pengcheng.realty.commission.dto.CommissionAuditDTO;
 import com.pengcheng.realty.commission.entity.Commission;
 import com.pengcheng.realty.commission.mapper.CommissionMapper;
@@ -31,9 +32,6 @@ import com.pengcheng.system.service.SysUserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.Duration;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -371,58 +369,14 @@ public class AdminApprovalController {
         return start + " ~ " + lr.getEndTime().format(MD_HM);
     }
 
-    private static final LocalTime LUNCH_START = LocalTime.of(12, 0);
-    private static final LocalTime LUNCH_END = LocalTime.of(13, 0);
-    private static final double FULL_DAY_HOURS = 8.0;
     private static final DateTimeFormatter HHMM = DateTimeFormatter.ofPattern("HH:mm");
 
-    /**
-     * 请假天数计算：按"考勤工时"折算（不是 wall-clock）。
-     * - 工作时段从 sys_config_group(attendance) 的 workStartTime / workEndTime 取（默认 09:00~18:00）
-     * - 跨日按"每个自然日的工作时段交集"累加，跳过非工作时段
-     * - 午休 12:00~13:00 自动扣除 1 小时（约定俗成，配置里没单独字段）
-     * - 1 天 = 8 小时，结果四舍五入到 0.5 天精度，最小 0.5 天
-     *
-     * 示例（默认 09:00~18:00 + 12:00~13:00 午休）：
-     *   09:00~12:00 → 3h → 0.5 天
-     *   14:00~18:00 → 4h → 0.5 天
-     *   09:00~18:00 → 8h（扣午休） → 1.0 天
-     *   5/9 09:00 ~ 5/11 18:00 → 24h → 3.0 天
-     */
+    /** 请假天数计算（按考勤工时）。详见 {@link LeaveDaysUtil}。 */
     private Double calcLeaveDays(LeaveRequest lr) {
-        if (lr.getStartTime() == null || lr.getEndTime() == null) return null;
-        if (!lr.getEndTime().isAfter(lr.getStartTime())) return 0.5;
-
+        if (lr == null) return null;
         LocalTime workStart = parseHHmm(systemConfigHelper.getAttendanceWorkStartTime(), LocalTime.of(9, 0));
         LocalTime workEnd = parseHHmm(systemConfigHelper.getAttendanceWorkEndTime(), LocalTime.of(18, 0));
-
-        LocalDateTime start = lr.getStartTime();
-        LocalDateTime end = lr.getEndTime();
-        LocalDate cursor = start.toLocalDate();
-        LocalDate endDate = end.toLocalDate();
-        double totalMinutes = 0;
-        while (!cursor.isAfter(endDate)) {
-            LocalDateTime dayWorkStart = LocalDateTime.of(cursor, workStart);
-            LocalDateTime dayWorkEnd = LocalDateTime.of(cursor, workEnd);
-            LocalDateTime overlapStart = maxDt(start, dayWorkStart);
-            LocalDateTime overlapEnd = minDt(end, dayWorkEnd);
-            if (overlapEnd.isAfter(overlapStart)) {
-                long minutes = Duration.between(overlapStart, overlapEnd).toMinutes();
-                LocalDateTime lunchStart = LocalDateTime.of(cursor, LUNCH_START);
-                LocalDateTime lunchEnd = LocalDateTime.of(cursor, LUNCH_END);
-                LocalDateTime lunchOverlapStart = maxDt(overlapStart, lunchStart);
-                LocalDateTime lunchOverlapEnd = minDt(overlapEnd, lunchEnd);
-                if (lunchOverlapEnd.isAfter(lunchOverlapStart)) {
-                    minutes -= Duration.between(lunchOverlapStart, lunchOverlapEnd).toMinutes();
-                }
-                totalMinutes += minutes;
-            }
-            cursor = cursor.plusDays(1);
-        }
-
-        double rawDays = totalMinutes / 60.0 / FULL_DAY_HOURS;
-        double rounded = Math.round(rawDays * 2.0) / 2.0;
-        return rounded < 0.5 ? 0.5 : rounded;
+        return LeaveDaysUtil.calcDays(lr.getStartTime(), lr.getEndTime(), workStart, workEnd);
     }
 
     private LocalTime parseHHmm(String value, LocalTime fallback) {
@@ -432,14 +386,6 @@ public class AdminApprovalController {
         } catch (Exception e) {
             return fallback;
         }
-    }
-
-    private static LocalDateTime maxDt(LocalDateTime a, LocalDateTime b) {
-        return a.isAfter(b) ? a : b;
-    }
-
-    private static LocalDateTime minDt(LocalDateTime a, LocalDateTime b) {
-        return a.isBefore(b) ? a : b;
     }
 
     private String buildPaymentSummary(PaymentRequest pr) {

@@ -17,6 +17,7 @@ import com.pengcheng.hr.attendance.mapper.AttendanceRecordMapper;
 import com.pengcheng.hr.attendance.service.AttendanceService;
 import com.pengcheng.realty.project.entity.Project;
 import com.pengcheng.realty.project.mapper.ProjectMapper;
+import com.pengcheng.system.helper.SystemConfigHelper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -25,6 +26,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.List;
+import java.util.Map;
 
 /**
  * App端考勤控制器
@@ -40,6 +42,19 @@ public class AppAttendanceController {
     private final AttendanceRecordMapper attendanceRecordMapper;
     private final ProjectMapper projectMapper;
     private final SysFileService fileService;
+    private final SystemConfigHelper systemConfigHelper;
+
+    /**
+     * 上下班时间配置（请假/调休等场景前端预校验用）
+     * 返回 { workStartTime: "09:00", workEndTime: "18:00" }
+     */
+    @GetMapping("/work-hours")
+    public Result<Map<String, String>> workHours() {
+        return Result.ok(Map.of(
+                "workStartTime", systemConfigHelper.getAttendanceWorkStartTime(),
+                "workEndTime", systemConfigHelper.getAttendanceWorkEndTime()
+        ));
+    }
 
     /**
      * GPS打卡（上班/下班）

@@ -189,14 +189,11 @@
 						// 紧凑时间："05-09 09:00 → 05-10 18:00"
 						const compact = (s) => s ? s.slice(5) : ''
 						const rangeText = end ? `${compact(start)} → ${compact(end)}` : compact(start)
-						// 请假天数（结束-开始，向上取 0.5 天精度）
+						// 请假天数：直接用后端按考勤工时算好的 days 字段
+						// （旧版按 24h wall-clock 算 5/9 00:00~18:30 会得 0.8 天，明显不符直觉）
 						let daysText = ''
-						if (r.type === 'leave' && r.startTime && r.endTime) {
-							const ms = new Date(r.endTime).getTime() - new Date(r.startTime).getTime()
-							if (ms > 0) {
-								const days = ms / 86400000
-								daysText = `${days >= 1 ? days.toFixed(days % 1 ? 1 : 0) : days.toFixed(1)}天`
-							}
+						if (r.type === 'leave' && typeof r.days === 'number') {
+							daysText = `${r.days}天`
 						}
 						rows.push({
 							id: `l-${r.type}-${r.id}`,
