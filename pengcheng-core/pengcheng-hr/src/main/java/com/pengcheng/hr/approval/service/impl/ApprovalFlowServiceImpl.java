@@ -181,6 +181,15 @@ public class ApprovalFlowServiceImpl implements ApprovalFlowService {
         };
     }
 
+    /**
+     * 直接上级解析顺序（与「单一数据源 + 向上兜底」设计一致）：
+     *   1) 申请人所在部门 dept.leader_id 命中即返回
+     *   2) 沿 dept.ancestors 自下而上找最近一个有 leader_id 的祖先部门
+     *   3) 仍未命中 → 返回空，由 start() 抛"无可用审批人"
+     *
+     * 历史字段 user.leader_id 仍作为最高优先级兜底（极少数跨部门汇报的覆盖场景），
+     * 避免因 ancestor 兜底丢掉显式指定的特例。
+     */
     private List<Long> resolveDirectSupervisor(Long applicantId) {
         if (applicantId == null) {
             return Collections.emptyList();
@@ -189,13 +198,39 @@ public class ApprovalFlowServiceImpl implements ApprovalFlowService {
         if (user == null) {
             return Collections.emptyList();
         }
+        // 0) 显式指定的直接上级（一般为空，仅特例）
         if (user.getLeaderId() != null) {
             return List.of(user.getLeaderId());
         }
-        if (user.getDeptId() != null) {
-            SysDept dept = deptMapper.selectById(user.getDeptId());
-            if (dept != null && dept.getLeaderId() != null) {
-                return List.of(dept.getLeaderId());
+        if (user.getDeptId() == null) {
+            return Collections.emptyList();
+        }
+        // 1) 本部门负责人
+        SysDept dept = deptMapper.selectById(user.getDeptId());
+        if (dept == null) {
+            return Collections.emptyList();
+        }
+        if (dept.getLeaderId() != null) {
+            return List.of(dept.getLeaderId());
+        }
+        // 2) 沿 ancestors 向上回溯，找到最近一个有负责人的祖先部门
+        String ancestors = dept.getAncestors();
+        if (ancestors == null || ancestors.isEmpty()) {
+            return Collections.emptyList();
+        }
+        // ancestors 形如 "0,1,200"，从右往左是「最近的祖先 → 根」
+        String[] parts = ancestors.split(",");
+        for (int i = parts.length - 1; i >= 0; i--) {
+            String token = parts[i].trim();
+            if (token.isEmpty() || "0".equals(token)) continue;
+            try {
+                Long ancestorId = Long.parseLong(token);
+                SysDept ancestor = deptMapper.selectById(ancestorId);
+                if (ancestor != null && ancestor.getLeaderId() != null) {
+                    return List.of(ancestor.getLeaderId());
+                }
+            } catch (NumberFormatException ignored) {
+                // 容错：ancestors 数据脏跳过即可
             }
         }
         return Collections.emptyList();
