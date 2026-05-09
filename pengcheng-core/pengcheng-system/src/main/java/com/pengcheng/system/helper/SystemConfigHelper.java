@@ -239,6 +239,13 @@ public class SystemConfigHelper implements com.pengcheng.crypto.CryptoConfigProv
     }
 
     /**
+     * 是否必须包含字母（大小写均可）
+     */
+    public boolean isPasswordRequireLetter() {
+        return getBoolean(GROUP_PASSWORD, "requireLetter");
+    }
+
+    /**
      * 验证密码规则：一次性校验所有项，未通过的合并为一条错误信息返回
      */
     public void validatePassword(String password) {
@@ -252,6 +259,9 @@ public class SystemConfigHelper implements com.pengcheng.crypto.CryptoConfigProv
 
         if (password.length() < minLen || password.length() > maxLen) {
             errors.add("长度需为 " + minLen + "-" + maxLen + " 位");
+        }
+        if (isPasswordRequireLetter() && !password.matches(".*[A-Za-z].*")) {
+            errors.add("需包含字母");
         }
         if (isPasswordRequireUppercase() && !password.matches(".*[A-Z].*")) {
             errors.add("需包含大写字母");

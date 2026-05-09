@@ -23,12 +23,15 @@
         />
       </n-form-item>
       <n-form-item label="新密码" path="newPassword">
-        <n-input
-          v-model:value="formData.newPassword"
-          type="password"
-          show-password-on="click"
-          placeholder="请输入新密码"
-        />
+        <div style="width: 100%">
+          <n-input
+            v-model:value="formData.newPassword"
+            type="password"
+            show-password-on="click"
+            placeholder="请输入新密码"
+          />
+          <div class="password-tip">密码应为 8-20 位，必须同时包含字母和数字。</div>
+        </div>
       </n-form-item>
       <n-form-item label="确认新密码" path="confirmPassword">
         <n-input
@@ -74,9 +77,8 @@ const formData = ref({
 const validateNewPassword = (_rule: FormItemRule, value: string): boolean | Error => {
   if (!value) return new Error('请输入新密码')
   const errors: string[] = []
-  if (value.length < 6 || value.length > 20) errors.push('长度需为 6-20 位')
-  if (!/[A-Z]/.test(value)) errors.push('需包含大写字母')
-  if (!/[a-z]/.test(value)) errors.push('需包含小写字母')
+  if (value.length < 8 || value.length > 20) errors.push('长度需为 8-20 位')
+  if (!/[A-Za-z]/.test(value)) errors.push('需包含字母')
   if (!/\d/.test(value)) errors.push('需包含数字')
   if (errors.length) return new Error('新密码不符合要求：' + errors.join('；'))
   return true
@@ -148,3 +150,12 @@ async function handleSubmit() {
   }
 }
 </script>
+
+<style scoped>
+.password-tip {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #909399;
+}
+</style>
