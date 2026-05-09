@@ -26,7 +26,7 @@
         </n-space>
 
         <n-data-table
-          :columns="columns"
+          :columns="activeColumns"
           :data="filteredRows"
           :loading="loading"
           :pagination="{ pageSize: 10 }"
@@ -48,9 +48,29 @@
             size="small"
           >
             <n-descriptions-item label="申请人">{{ detail.applicantName }}</n-descriptions-item>
-            <n-descriptions-item label="摘要">{{ detail.summary }}</n-descriptions-item>
+            <!-- 假期专属字段 -->
+            <n-descriptions-item v-if="detail.leaveTypeLabel" label="假期类型">
+              {{ detail.leaveTypeLabel }}
+            </n-descriptions-item>
+            <n-descriptions-item v-if="detail.startTime" label="开始时间">
+              {{ formatTime(detail.startTime) }}
+            </n-descriptions-item>
+            <n-descriptions-item v-if="detail.endTime" label="结束时间">
+              {{ formatTime(detail.endTime) }}
+            </n-descriptions-item>
+            <n-descriptions-item v-if="detail.days != null" label="天数">
+              {{ detail.days }} 天
+            </n-descriptions-item>
+            <n-descriptions-item v-if="detail.reason" label="原因">
+              {{ detail.reason }}
+            </n-descriptions-item>
+            <!-- 付款类才显示金额；假期类隐藏 -->
             <n-descriptions-item v-if="detail.amount != null" label="金额">
               ¥ {{ detail.amount }}
+            </n-descriptions-item>
+            <!-- 假期类已经把信息拆开展示，摘要冗余可隐；非假期保留 -->
+            <n-descriptions-item v-if="!detail.leaveTypeLabel" label="摘要">
+              {{ detail.summary }}
             </n-descriptions-item>
             <n-descriptions-item label="申请时间">
               {{ formatTime(detail.applyTime) }}
@@ -188,57 +208,71 @@ function historyContent(h: { approverName: string; remark?: string | null; resul
   return parts.join('\n')
 }
 
-const columns: DataTableColumns<ApprovalItem> = [
-  {
-    title: '申请人',
-    key: 'applicantName',
-    width: 110
-  },
-  {
-    title: '类型',
-    key: 'type',
-    width: 110,
-    render: row => h(NTag, { type: typeTagType(row.type), size: 'small', bordered: false }, { default: () => typeLabel(row.type) })
-  },
-  {
-    title: '摘要',
-    key: 'summary',
-    minWidth: 200,
-    ellipsis: { tooltip: true }
-  },
-  {
-    title: '金额',
-    key: 'amount',
-    width: 120,
-    render: row => row.amount != null ? `¥ ${row.amount}` : '—'
-  },
-  {
-    title: '当前节点',
-    key: 'currentNodeName',
-    width: 130,
-    render: row => row.currentNodeName || '—'
-  },
-  {
-    title: '申请时间',
-    key: 'applyTime',
-    width: 170,
-    render: row => formatTime(row.applyTime)
-  },
-  {
-    title: '操作',
-    key: 'actions',
-    width: 240,
-    fixed: 'right',
-    render: row =>
-      h(NSpace, { size: 'small' }, {
-        default: () => [
-          h(NButton, { size: 'small', type: 'primary', secondary: true, onClick: () => openDetail(row) }, { default: () => '详情' }),
-          h(NButton, { size: 'small', type: 'primary', onClick: () => openAction(row, true) }, { default: () => '通过' }),
-          h(NButton, { size: 'small', type: 'error', ghost: true, onClick: () => openAction(row, false) }, { default: () => '驳回' })
-        ]
-      })
-  }
+// 通用列定义工厂（避免在多套列里重复写）
+const colApplicant = (): DataTableColumns<ApprovalItem>[number] => ({ title: '申请人', key: 'applicantName', width: 100 })
+const colTypeTag = (): DataTableColumns<ApprovalItem>[number] => ({
+  title: '类型', key: 'type', width: 90,
+  render: row => h(NTag, { type: typeTagType(row.type), size: 'small', bordered: false }, { default: () => typeLabel(row.type) })
+})
+const colCurrentNode = (): DataTableColumns<ApprovalItem>[number] => ({
+  title: '当前节点', key: 'currentNodeName', width: 110,
+  render: row => row.currentNodeName || '—'
+})
+const colApplyTime = (): DataTableColumns<ApprovalItem>[number] => ({
+  title: '申请时间', key: 'applyTime', width: 160,
+  render: row => formatTime(row.applyTime)
+})
+const colActions = (): DataTableColumns<ApprovalItem>[number] => ({
+  title: '操作', key: 'actions', width: 240, fixed: 'right',
+  render: row =>
+    h(NSpace, { size: 'small' }, {
+      default: () => [
+        h(NButton, { size: 'small', type: 'primary', secondary: true, onClick: () => openDetail(row) }, { default: () => '详情' }),
+        h(NButton, { size: 'small', type: 'primary', onClick: () => openAction(row, true) }, { default: () => '通过' }),
+        h(NButton, { size: 'small', type: 'error', ghost: true, onClick: () => openAction(row, false) }, { default: () => '驳回' })
+      ]
+    })
+})
+
+// 假期类型（leave / compensate）—— 拆分字段，无金额列
+const leaveColumns: DataTableColumns<ApprovalItem> = [
+  colApplicant(),
+  { title: '假期类型', key: 'leaveTypeLabel', width: 90, render: row => row.leaveTypeLabel || '—' },
+  { title: '起止', key: 'dateRange', width: 200, render: row => row.dateRange || '—' },
+  { title: '天数', key: 'days', width: 80, render: row => row.days != null ? `${row.days} 天` : '—' },
+  { title: '原因', key: 'reason', minWidth: 180, ellipsis: { tooltip: true }, render: row => row.reason || '—' },
+  colCurrentNode(),
+  colApplyTime(),
+  colActions()
 ]
+
+// 付款类（expense / advance / prepay）—— 摘要 + 金额
+const paymentColumns: DataTableColumns<ApprovalItem> = [
+  colApplicant(),
+  colTypeTag(),
+  { title: '摘要', key: 'summary', minWidth: 220, ellipsis: { tooltip: true } },
+  { title: '金额', key: 'amount', width: 120, render: row => row.amount != null ? `¥ ${row.amount}` : '—' },
+  colCurrentNode(),
+  colApplyTime(),
+  colActions()
+]
+
+// 默认（全部 / 佣金等）—— 通用混合列
+const defaultColumns: DataTableColumns<ApprovalItem> = [
+  colApplicant(),
+  colTypeTag(),
+  { title: '摘要', key: 'summary', minWidth: 200, ellipsis: { tooltip: true } },
+  { title: '金额', key: 'amount', width: 110, render: row => row.amount != null ? `¥ ${row.amount}` : '—' },
+  colCurrentNode(),
+  colApplyTime(),
+  colActions()
+]
+
+const activeColumns = computed<DataTableColumns<ApprovalItem>>(() => {
+  if (typeFilter.value === 'leave' || typeFilter.value === 'compensate') return leaveColumns
+  if (typeFilter.value === 'expense' || typeFilter.value === 'advance' || typeFilter.value === 'prepay') return paymentColumns
+  return defaultColumns
+})
 
 async function loadList() {
   loading.value = true

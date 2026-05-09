@@ -30,6 +30,8 @@ import com.pengcheng.system.service.SysUserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Duration;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -164,6 +166,11 @@ public class AdminApprovalController {
                 .summary(buildLeaveSummary(lr))
                 .status(lr.getStatus())
                 .applyTime(lr.getCreateTime())
+                .leaveTypeLabel(resolveLeaveTypeLabel(lr.getLeaveType()))
+                .startTime(lr.getStartTime())
+                .endTime(lr.getEndTime())
+                .days(calcLeaveDays(lr))
+                .reason(lr.getReason())
                 .histories(buildFlowHistories(ApprovalConstants.BUSINESS_TYPE_LEAVE, id))
                 .build();
     }
@@ -178,6 +185,9 @@ public class AdminApprovalController {
                 .summary("调休申请 - " + cr.getCompensateDate())
                 .status(cr.getStatus())
                 .applyTime(cr.getCreateTime())
+                .leaveTypeLabel("调休")
+                .days(1.0)
+                .reason(cr.getReason())
                 .histories(buildFlowHistories(ApprovalConstants.BUSINESS_TYPE_COMPENSATE, id))
                 .build();
     }
@@ -294,6 +304,10 @@ public class AdminApprovalController {
                     .summary(buildLeaveSummary(lr))
                     .applyTime(lr.getCreateTime())
                     .currentNodeName(node.getNodeName())
+                    .leaveTypeLabel(resolveLeaveTypeLabel(lr.getLeaveType()))
+                    .dateRange(buildLeaveDateRange(lr))
+                    .days(calcLeaveDays(lr))
+                    .reason(lr.getReason())
                     .build();
         }
         if (ApprovalConstants.BUSINESS_TYPE_COMPENSATE.equals(node.getBusinessType())) {
@@ -306,6 +320,10 @@ public class AdminApprovalController {
                     .summary("调休申请 - " + cr.getCompensateDate())
                     .applyTime(cr.getCreateTime())
                     .currentNodeName(node.getNodeName())
+                    .leaveTypeLabel("调休")
+                    .dateRange(cr.getCompensateDate() != null ? cr.getCompensateDate().toString() : null)
+                    .days(1.0)
+                    .reason(cr.getReason())
                     .build();
         }
         return null;
@@ -318,7 +336,16 @@ public class AdminApprovalController {
     }
 
     private String buildLeaveSummary(LeaveRequest lr) {
-        String typeLabel = switch (lr.getLeaveType()) {
+        return resolveLeaveTypeLabel(lr.getLeaveType())
+                + " " + lr.getStartTime().toLocalDate()
+                + " ~ " + lr.getEndTime().toLocalDate();
+    }
+
+    private static final DateTimeFormatter MD_HM = DateTimeFormatter.ofPattern("M/d HH:mm");
+
+    private String resolveLeaveTypeLabel(Integer leaveType) {
+        if (leaveType == null) return "其他";
+        return switch (leaveType) {
             case 1 -> "事假";
             case 2 -> "病假";
             case 3 -> "年假";
@@ -327,7 +354,32 @@ public class AdminApprovalController {
             case 6 -> "调休";
             default -> "其他";
         };
-        return typeLabel + " " + lr.getStartTime().toLocalDate() + " ~ " + lr.getEndTime().toLocalDate();
+    }
+
+    /** 起止格式："5/9 09:00 ~ 5/11 18:00"；同一天则简化为 "5/9 09:00~12:00" */
+    private String buildLeaveDateRange(LeaveRequest lr) {
+        if (lr.getStartTime() == null || lr.getEndTime() == null) return null;
+        String start = lr.getStartTime().format(MD_HM);
+        if (lr.getStartTime().toLocalDate().equals(lr.getEndTime().toLocalDate())) {
+            return start + "~" + lr.getEndTime().format(DateTimeFormatter.ofPattern("HH:mm"));
+        }
+        return start + " ~ " + lr.getEndTime().format(MD_HM);
+    }
+
+    /**
+     * 请假天数计算：按工时折算，1 天 = 8 小时，最小粒度 0.5 天。
+     * - 同日 09:00~12:00 (3h) → 0.5 天
+     * - 同日 09:00~18:00 (9h) → 1.0 天（去掉午休 1h 的近似）
+     * - 跨日按总小时除 8 取整数
+     */
+    private Double calcLeaveDays(LeaveRequest lr) {
+        if (lr.getStartTime() == null || lr.getEndTime() == null) return null;
+        long minutes = Duration.between(lr.getStartTime(), lr.getEndTime()).toMinutes();
+        if (minutes <= 0) return 0.5;
+        double rawDays = minutes / 60.0 / 8.0;
+        // 同日：保留 0.5 精度；跨日：四舍五入到 0.5
+        double rounded = Math.round(rawDays * 2.0) / 2.0;
+        return rounded < 0.5 ? 0.5 : rounded;
     }
 
     private String buildPaymentSummary(PaymentRequest pr) {

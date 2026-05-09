@@ -27,6 +27,13 @@ public class AdminApprovalDetailVO {
     private LocalDateTime applyTime;
     private List<ApprovalHistory> histories;
 
+    /** 假期专属：类型显示名 / 起 / 止 / 天数 / 原因；非假期为 null */
+    private String leaveTypeLabel;
+    private LocalDateTime startTime;
+    private LocalDateTime endTime;
+    private Double days;
+    private String reason;
+
     @Data
     @Builder
     @NoArgsConstructor

@@ -11,7 +11,9 @@ import java.time.LocalDateTime;
 /**
  * 后台「我的待审批」表格行 VO
  *
- * 列规划：申请人 / 类型 / 摘要 / 金额 / 提交时间 / 当前节点 / 操作
+ * 通用字段（所有类型都有）：id / type / applicantName / applyTime / currentNodeName / summary
+ * 假期专属字段（leave / compensate 才有值）：leaveTypeLabel / dateRange / days / reason
+ * 付款专属字段（expense / advance / prepay / commission 才有值）：amount
  */
 @Data
 @Builder
@@ -19,24 +21,20 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class AdminApprovalItemVO {
 
-    /** 业务单 ID（leave_request.id / compensate_request.id / payment_request.id / commission.id） */
     private Long id;
-
-    /** 审批类型：leave / compensate / expense / advance / prepay / commission */
     private String type;
-
-    /** 申请人姓名 */
     private String applicantName;
-
-    /** 摘要描述 */
     private String summary;
-
-    /** 金额（付款/佣金类有值，请假/调休为 null） */
     private BigDecimal amount;
-
-    /** 申请时间 */
     private LocalDateTime applyTime;
-
-    /** 当前节点名（请假/调休 流程节点名；其他类型为业务节点描述如「财务审批」） */
     private String currentNodeName;
+
+    /** 假期类型显示名（病假/事假/年假/调休...）；非假期类型为 null */
+    private String leaveTypeLabel;
+    /** 起止/日期文案（请假: "5/9 09:00~5/11 18:00"；调休: "5/9"）；非假期类型为 null */
+    private String dateRange;
+    /** 天数；非假期类型为 null */
+    private Double days;
+    /** 申请原因；付款类摘要里已包含金额，仅假期类填此字段 */
+    private String reason;
 }

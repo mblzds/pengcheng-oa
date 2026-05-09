@@ -35,6 +35,11 @@ export interface ApprovalItem {
   amount?: number | null
   applyTime: string
   currentNodeName?: string | null
+  /** 假期专属字段（leave/compensate 才有） */
+  leaveTypeLabel?: string | null
+  dateRange?: string | null
+  days?: number | null
+  reason?: string | null
 }
 
 export interface ApprovalHistory {
@@ -55,6 +60,12 @@ export interface ApprovalDetail {
   status?: number | null
   applyTime: string
   histories: ApprovalHistory[]
+  /** 假期专属 */
+  leaveTypeLabel?: string | null
+  startTime?: string | null
+  endTime?: string | null
+  days?: number | null
+  reason?: string | null
 }
 
 export interface ApproveDTO {
