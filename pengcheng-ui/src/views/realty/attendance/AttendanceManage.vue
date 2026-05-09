@@ -286,8 +286,27 @@ function calcWorkHours(clockIn?: string, clockOut?: string) {
   return ((end - start) / 3600000).toFixed(1) + 'h'
 }
 
-/** 由上下班打卡情况推导日考勤状态汇总 */
-function deriveDayStatus(row: AttendanceRecordItem): { label: string; type: 'success' | 'warning' | 'error' } {
+/**
+ * 由打卡情况 + 豁免原因推导日考勤状态汇总
+ * 豁免（请假 / 调休）优先级高于打卡判定：当天请假即使没打卡也不算缺卡
+ */
+function deriveDayStatus(row: AttendanceRecordItem): { label: string; type: 'success' | 'warning' | 'error' | 'info' } {
+  // ① 优先看豁免原因：请假/调休审批通过会联动写入 exemptReason
+  if (row.exemptReason) {
+    if (row.exemptReason.startsWith('leave-')) {
+      const sub = row.exemptReason.slice(6)
+      return { label: sub ? '请假·' + sub : '请假', type: 'info' }
+    }
+    if (row.exemptReason.startsWith('leave')) {
+      return { label: '请假', type: 'info' }
+    }
+    if (row.exemptReason === 'compensate') {
+      return { label: '调休', type: 'info' }
+    }
+    // 兜底：未知豁免原因原样展示，方便后续扩展
+    return { label: row.exemptReason, type: 'info' }
+  }
+  // ② 打卡判定
   if (!row.clockInTime && !row.clockOutTime) return { label: '缺勤', type: 'error' }
   if (!row.clockInTime || !row.clockOutTime) return { label: '缺卡', type: 'error' }
   const inLate = row.clockInStatus !== 1

@@ -16,6 +16,8 @@ export interface AttendanceRecordItem {
   clockOutLocation?: string
   clockOutPhoto?: string
   clockOutStatus?: number
+  /** 考勤豁免原因：请假/调休审批通过联动写入。如 "leave-病假" / "compensate" */
+  exemptReason?: string
 }
 
 /** 月度汇总（与后端 AttendanceMonthlyVO 对应） */
