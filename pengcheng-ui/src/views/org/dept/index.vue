@@ -24,6 +24,7 @@
               :default-expand-all="true"
               :selected-keys="selectedDeptKeys"
               :node-props="deptNodeProps"
+              :render-suffix="renderDeptSuffix"
               key-field="id"
               label-field="deptName"
               children-field="children"
@@ -176,6 +177,14 @@ const deptOptions = computed(() => [
   {id: 0, deptName: '主目录', children: tableData.value}
 ])
 
+// 停用部门的尾标
+const renderDeptSuffix = ({option}: { option: TreeOption }) => {
+  if ((option as any).status === 0) {
+    return h(NTag, {size: 'tiny', type: 'warning'}, {default: () => '停用'})
+  }
+  return null
+}
+
 const deptNodeProps = ({option}: { option: TreeOption }): HTMLAttributes => {
   return {
     onClick() {
@@ -196,7 +205,8 @@ const deptNodeProps = ({option}: { option: TreeOption }): HTMLAttributes => {
 
 async function loadData() {
   try {
-    tableData.value = await deptApi.tree()
+    // 部门管理页要看全量（含停用），其他场景默认只取启用部门
+    tableData.value = await deptApi.tree({ includeDisabled: true })
   } catch (error) {
     console.error('加载部门树失败:', error)
   }

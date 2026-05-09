@@ -29,8 +29,14 @@ public class SysDeptController {
     @SaCheckPermission("sys:dept:list")
     public Result<List<SysDept>> tree(
             @RequestParam(required = false) String deptName,
-            @RequestParam(required = false) Integer status) {
-        return Result.ok(deptService.tree(deptName, status));
+            @RequestParam(required = false) Integer status,
+            @RequestParam(defaultValue = "false") Boolean includeDisabled) {
+        // 默认只返回启用部门；部门管理页传 includeDisabled=true 看全量
+        Integer effectiveStatus = status;
+        if (effectiveStatus == null && !Boolean.TRUE.equals(includeDisabled)) {
+            effectiveStatus = 1;
+        }
+        return Result.ok(deptService.tree(deptName, effectiveStatus));
     }
 
     /**

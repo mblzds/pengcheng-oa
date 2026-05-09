@@ -205,15 +205,16 @@ public class ApprovalFlowServiceImpl implements ApprovalFlowService {
         if (user.getDeptId() == null) {
             return Collections.emptyList();
         }
-        // 1) 本部门负责人
+        // 1) 本部门负责人（部门必须启用）
         SysDept dept = deptMapper.selectById(user.getDeptId());
         if (dept == null) {
             return Collections.emptyList();
         }
-        if (dept.getLeaderId() != null) {
+        if (isActive(dept) && dept.getLeaderId() != null) {
             return List.of(dept.getLeaderId());
         }
-        // 2) 沿 ancestors 向上回溯，找到最近一个有负责人的祖先部门
+        // 2) 沿 ancestors 向上回溯，找到最近一个「启用 + 有负责人」的祖先部门
+        //    停用部门跳过，避免审批流转到不再生效的部门负责人
         String ancestors = dept.getAncestors();
         if (ancestors == null || ancestors.isEmpty()) {
             return Collections.emptyList();
@@ -226,7 +227,7 @@ public class ApprovalFlowServiceImpl implements ApprovalFlowService {
             try {
                 Long ancestorId = Long.parseLong(token);
                 SysDept ancestor = deptMapper.selectById(ancestorId);
-                if (ancestor != null && ancestor.getLeaderId() != null) {
+                if (ancestor != null && isActive(ancestor) && ancestor.getLeaderId() != null) {
                     return List.of(ancestor.getLeaderId());
                 }
             } catch (NumberFormatException ignored) {
@@ -234,6 +235,10 @@ public class ApprovalFlowServiceImpl implements ApprovalFlowService {
             }
         }
         return Collections.emptyList();
+    }
+
+    private boolean isActive(SysDept dept) {
+        return dept.getStatus() != null && dept.getStatus() == 1;
     }
 
     private List<Long> resolveRoleApprovers(String approverValue) {

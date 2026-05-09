@@ -19,7 +19,7 @@ export interface SysDept {
 }
 
 export const deptApi = {
-  tree(params?: { deptName?: string; status?: number }): Promise<SysDept[]> {
+  tree(params?: { deptName?: string; status?: number; includeDisabled?: boolean }): Promise<SysDept[]> {
     return request({ url: '/sys/dept/tree', method: 'get', params })
   },
   list(): Promise<SysDept[]> {
