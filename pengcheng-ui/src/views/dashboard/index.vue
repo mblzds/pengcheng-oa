@@ -86,46 +86,35 @@
           </div>
         </div>
 
-        <!-- AI 洞察 -->
-        <div v-if="aiInsights.length > 0" class="section-card ai-insights">
-          <div class="section-header">
-            <span class="title">🤖 AI 洞察</span>
-          </div>
-          <div class="insight-list">
-            <div v-for="(insight, idx) in aiInsights" :key="idx" class="insight-item" :class="insight.level">
-              <div class="insight-icon">{{ insight.icon }}</div>
-              <div class="insight-content">{{ insight.content }}</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 我的待办 -->
+        <!-- 我的待办（按角色取不同数据源） -->
         <div class="section-card todo-list">
           <div class="section-header">
-            <span class="title">我的待办</span>
-            <n-button text size="small" type="primary" @click="router.push('/smart-table')">更多</n-button>
+            <span class="title">{{ todoTitle }}</span>
+            <n-button text size="small" type="primary" @click="router.push(todoMoreRoute)">更多</n-button>
           </div>
           <n-list hoverable clickable>
-            <n-list-item v-for="task in todos" :key="task.id">
-              <template #prefix>
+            <n-list-item v-for="task in todos" :key="task.id" @click="handleTodoClick(task)">
+              <template v-if="!task.approvalType" #prefix>
                 <n-checkbox :checked="task.status === 'done'" @update:checked="toggleTask(task)" />
               </template>
               <div class="task-content" :class="{ done: task.status === 'done' }">
                 <div class="task-title">{{ task.title }}</div>
                 <div class="task-meta">
-                  <n-tag :type="getPriorityType(task.priority)" size="tiny" round>{{ getPriorityText(task.priority) }}</n-tag>
-                  <span class="task-date" :class="{ overdue: isOverdue(task.dueDate) }">
+                  <n-tag v-if="task.approvalType" type="warning" size="tiny" round>{{ getApprovalTypeLabel(task.approvalType) }}</n-tag>
+                  <n-tag v-else :type="getPriorityType(task.priority)" size="tiny" round>{{ getPriorityText(task.priority) }}</n-tag>
+                  <span v-if="task.subtitle" class="task-date">{{ task.subtitle }}</span>
+                  <span v-else class="task-date" :class="{ overdue: isOverdue(task.dueDate) }">
                     截止: {{ formatDate(task.dueDate) }}
                   </span>
                 </div>
               </div>
-              <template #suffix>
+              <template v-if="!task.approvalType" #suffix>
                 <n-button size="tiny" quaternary circle>
                   <template #icon><n-icon><EllipsisHorizontalOutline /></n-icon></template>
                 </n-button>
               </template>
             </n-list-item>
-            <n-empty v-if="todos.length === 0" description="暂无待办任务" />
+            <n-empty v-if="todos.length === 0" :description="todoEmptyText" />
           </n-list>
         </div>
 
@@ -151,19 +140,32 @@
           </n-list>
         </div>
 
-        <!-- 最近文档 -->
+        <!-- 最近申请记录 -->
         <div class="section-card recent-files">
           <div class="section-header">
-            <span class="title">最近文档</span>
-            <n-button text size="small" type="primary" @click="router.push('/system/file')">更多</n-button>
+            <span class="title">最近申请记录</span>
+            <n-button text size="small" type="primary" @click="router.push('/realty/payment')">更多</n-button>
           </div>
           <n-data-table
-            :columns="fileColumns"
-            :data="recentFiles"
+            :columns="applicationColumns"
+            :data="recentApplications"
             :pagination="false"
             size="small"
             :bordered="false"
           />
+        </div>
+
+        <!-- AI 洞察（最下列） -->
+        <div v-if="aiInsights.length > 0" class="section-card ai-insights">
+          <div class="section-header">
+            <span class="title">🤖 AI 洞察</span>
+          </div>
+          <div class="insight-list">
+            <div v-for="(insight, idx) in aiInsights" :key="idx" class="insight-item" :class="insight.level">
+              <div class="insight-icon">{{ insight.icon }}</div>
+              <div class="insight-content">{{ insight.content }}</div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -264,7 +266,6 @@ import {
   ShareOutline,
   SettingsOutline,
   QrCodeOutline,
-  DocumentTextOutline,
   PeopleOutline,
   BusinessOutline,
   CashOutline,
@@ -325,11 +326,17 @@ interface AppItem {
   badge?: number
 }
 
-const baseApps: AppItem[] = [
+// 固定置顶的 4 个常用入口（顺序固定）
+const pinnedApps = computed<AppItem[]>(() => [
   { name: '消息中心', route: '/message/chat', icon: ChatbubbleOutline, style: 'background:#e8f5e9;color:#18a058', badge: messageStore.totalUnread },
+  { name: '会议日程', route: '/meeting', icon: CalendarOutline, style: 'background:#fff3e0;color:#ff9800' },
+  { name: '考勤打卡', route: '/realty/attendance', icon: TimeOutline, style: 'background:#fbe9e7;color:#ff5722' },
+  { name: '报销申请', route: '/realty/payment', icon: WalletOutline, style: 'background:#e8eaf6;color:#3f51b5' },
+])
+
+const otherBaseApps: AppItem[] = [
   { name: '智能表格', route: '/smart-table', icon: GridOutline, style: 'background:#e3f2fd;color:#2196f3' },
   { name: '项目管理', route: '/project', icon: ClipboardOutline, style: 'background:#e8eaf6;color:#3f51b5' },
-  { name: '会议日程', route: '/meeting', icon: CalendarOutline, style: 'background:#fff3e0;color:#ff9800' },
   { name: '云文档', route: '/system/file', icon: FolderOpenOutline, style: 'background:#f3e5f5;color:#9c27b0' },
   { name: '通讯录', route: '/contacts', icon: BookOutline, style: 'background:#e0f2f1;color:#673ab7' },
 ]
@@ -338,13 +345,11 @@ const salesApps: AppItem[] = [
   { name: '客户管理', route: '/realty/customer', icon: PeopleOutline, style: 'background:#e8f5e9;color:#18a058', badge: bizStats.value.pendingFollowUp },
   { name: '项目楼盘', route: '/realty/project', icon: BusinessOutline, style: 'background:#e3f2fd;color:#2196f3' },
   { name: '成交佣金', route: '/realty/commission', icon: CashOutline, style: 'background:#fff3e0;color:#ff9800' },
-  { name: '考勤打卡', route: '/realty/attendance', icon: TimeOutline, style: 'background:#fbe9e7;color:#ff5722' },
   { name: 'AI 助手', route: '/ai/chat', icon: SparklesOutline, style: 'background:#ede7f6;color:#673ab7' },
 ]
 
 const managerApps: AppItem[] = [
   { name: '数据统计', route: '/realty/stats', icon: StatsChartOutline, style: 'background:#e8f5e9;color:#18a058' },
-  { name: '付款审批', route: '/realty/payment', icon: WalletOutline, style: 'background:#e8eaf6;color:#3f51b5', badge: bizStats.value.pendingApproval },
   { name: '客户管理', route: '/realty/customer', icon: PeopleOutline, style: 'background:#e3f2fd;color:#2196f3' },
   { name: '联盟商', route: '/realty/alliance', icon: BusinessOutline, style: 'background:#fff3e0;color:#ff9800' },
   { name: 'AI 洞察', route: '/ai/chat', icon: SparklesOutline, style: 'background:#ede7f6;color:#673ab7' },
@@ -368,7 +373,15 @@ const adminApps: AppItem[] = [
 
 const roleApps = computed(() => {
   const specialApps = { admin: adminApps, manager: managerApps, hr: hrApps, sales: salesApps }[userRole.value] || salesApps
-  return [...baseApps, ...specialApps]
+  // 置顶 4 个 + 其余基础应用 + 角色专属应用，按 route 去重保持顺序
+  const seen = new Set<string>()
+  const result: AppItem[] = []
+  for (const app of [...pinnedApps.value, ...otherBaseApps, ...specialApps]) {
+    if (seen.has(app.route)) continue
+    seen.add(app.route)
+    result.push(app)
+  }
+  return result
 })
 
 function formatAmount(amount: number): string {
@@ -425,7 +438,32 @@ function updateTime() {
 const todos = ref<any[]>([])
 const myTasks = ref<any[]>([])
 
+// 角色对应的待办标题、空态文案、"更多"跳转
+const isApprover = computed(() => ['admin', 'manager', 'hr'].includes(userRole.value))
+const todoTitle = computed(() => isApprover.value ? '待我审批' : '我的待办')
+const todoMoreRoute = computed(() => isApprover.value ? '/hr/approval-pending' : '/smart-table')
+const todoEmptyText = computed(() => isApprover.value ? '暂无待审批事项' : '暂无待办任务')
+
 async function loadTodos() {
+  if (isApprover.value) {
+    // 审批角色：拉取待我审批列表
+    try {
+      const { approvalApi } = await import('@/api/approval')
+      const list = await approvalApi.pending()
+      const items = Array.isArray(list) ? list : []
+      todos.value = items.slice(0, 5).map((it: any) => ({
+        id: `${it.type}-${it.id}`,
+        approvalId: it.id,
+        approvalType: it.type,
+        title: it.summary || `${getApprovalTypeLabel(it.type)}申请`,
+        subtitle: `${it.applicantName || '-'} · ${formatDateTime(it.applyTime)}${it.amount ? ' · ¥' + it.amount : ''}`,
+        status: 'todo',
+      }))
+      todoCount.value = items.length
+    } catch { todos.value = []; todoCount.value = 0 }
+    return
+  }
+  // 普通角色：保留原有 /todo/list 行为
   try {
     const { request } = await import('@/utils/request')
     const res = await request({ url: '/todo/list', method: 'get', params: { status: 0 } })
@@ -437,6 +475,31 @@ async function loadTodos() {
     }))
     todoCount.value = list.length
   } catch { /* 接口暂未可用 */ }
+}
+
+function handleTodoClick(task: any) {
+  if (task.approvalType) {
+    router.push('/hr/approval-pending')
+  }
+}
+
+function getApprovalTypeLabel(type: string) {
+  return ({
+    leave: '请假',
+    compensate: '调休',
+    expense: '费用报销',
+    advance: '垫佣',
+    prepay: '预付佣',
+    commission: '佣金',
+  } as Record<string, string>)[type] || '审批'
+}
+
+function formatDateTime(s?: string | number | null) {
+  if (!s) return ''
+  const d = new Date(s)
+  if (isNaN(d.getTime())) return ''
+  return d.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' }) +
+    ' ' + d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
 }
 
 async function loadMyTasks() {
@@ -479,45 +542,109 @@ async function loadTodayMeetings() {
   }
 }
 
-// 最近文件（由 loadRecentFiles 从 /sys/file/page 拉取）
-const recentFiles = ref<Array<{ id: number; name: string; size: string; time: string; type: string }>>([])
+// 最近申请记录（合并请假/调休 + 付款类申请，按提交时间倒序取前 5 条）
+interface RecentApplication {
+  id: string
+  type: string
+  typeLabel: string
+  summary: string
+  status: number
+  statusLabel: string
+  statusType: 'success' | 'warning' | 'error' | 'default' | 'info'
+  time: string
+}
+const recentApplications = ref<RecentApplication[]>([])
 
-function formatFileSize(bytes: number): string {
-  if (bytes >= 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + ' MB'
-  if (bytes >= 1024) return (bytes / 1024).toFixed(0) + ' KB'
-  return bytes + ' B'
+const PAYMENT_REQUEST_TYPES: Record<number, string> = { 1: '费用报销', 2: '垫佣申请', 3: '预付佣申请' }
+
+function statusOf(status: number | null | undefined): { label: string; type: RecentApplication['statusType'] } {
+  // 0 待审批 / 1 通过 / 2 驳回（与后端一致）
+  if (status === 1) return { label: '已通过', type: 'success' }
+  if (status === 2) return { label: '已驳回', type: 'error' }
+  return { label: '审批中', type: 'warning' }
 }
 
-async function loadRecentFiles() {
+async function loadRecentApplications() {
   try {
-    const { fileApi } = await import('@/api/system')
-    const res = await fileApi.page({ page: 1, pageSize: 5 })
-    const list = res?.list ?? []
-    recentFiles.value = list.map((f: any) => ({
-      id: f.id,
-      name: f.originalName || f.fileName || '',
-      size: formatFileSize(f.fileSize || 0),
-      time: f.createTime ? formatRelativeTime(new Date(f.createTime).getTime()) : '-',
-      type: (f.fileSuffix || f.fileType || 'file').replace('.', '')
-    }))
+    const { request } = await import('@/utils/request')
+    const [leaveRes, payRes] = await Promise.allSettled([
+      request({ url: '/app/leave/list', method: 'get', params: { page: 1, pageSize: 10 } }),
+      request({ url: '/app/payment/list', method: 'get', params: { page: 1, pageSize: 10 } }),
+    ])
+
+    const items: RecentApplication[] = []
+
+    if (leaveRes.status === 'fulfilled') {
+      const list = (leaveRes.value as any)?.list ?? leaveRes.value ?? []
+      for (const r of list) {
+        const type = r.type === 'compensate' ? 'compensate' : 'leave'
+        const typeLabel = type === 'compensate' ? '调休' : '请假'
+        const s = statusOf(r.status)
+        items.push({
+          id: `${type}-${r.id}`,
+          type, typeLabel,
+          summary: r.reason || typeLabel + '申请',
+          status: r.status, statusLabel: s.label, statusType: s.type,
+          time: r.createTime || ''
+        })
+      }
+    }
+    if (payRes.status === 'fulfilled') {
+      const list = (payRes.value as any)?.list ?? payRes.value ?? []
+      for (const r of list) {
+        const typeLabel = PAYMENT_REQUEST_TYPES[r.requestType] || '付款申请'
+        const s = statusOf(r.status)
+        items.push({
+          id: `pay-${r.id}`,
+          type: 'payment', typeLabel,
+          summary: r.description || typeLabel,
+          status: r.status, statusLabel: s.label, statusType: s.type,
+          time: r.createTime || ''
+        })
+      }
+    }
+
+    recentApplications.value = items
+      .sort((a, b) => (new Date(b.time).getTime() || 0) - (new Date(a.time).getTime() || 0))
+      .slice(0, 5)
   } catch {
-    recentFiles.value = []
+    recentApplications.value = []
   }
 }
 
-const fileColumns = [
+const applicationColumns = [
   {
-    title: '文件名',
-    key: 'name',
-    render(row: any) {
-      return h('div', { style: 'display: flex; align-items: center; gap: 8px;' }, [
-        h(NButton, { size: 'tiny', quaternary: true, circle: true, type: 'primary' }, { icon: () => h(DocumentTextOutline) }),
-        h('span', row.name)
-      ])
+    title: '类型',
+    key: 'typeLabel',
+    width: 90,
+    render(row: RecentApplication) {
+      return h(NTag, { size: 'small', type: 'info', round: true }, { default: () => row.typeLabel })
     }
   },
-  { title: '大小', key: 'size', width: 80 },
-  { title: '修改时间', key: 'time', width: 100 }
+  {
+    title: '内容',
+    key: 'summary',
+    ellipsis: { tooltip: true },
+    render(row: RecentApplication) {
+      return h('span', { style: 'color: #333;' }, row.summary || '-')
+    }
+  },
+  {
+    title: '状态',
+    key: 'statusLabel',
+    width: 80,
+    render(row: RecentApplication) {
+      return h(NTag, { size: 'small', type: row.statusType }, { default: () => row.statusLabel })
+    }
+  },
+  {
+    title: '提交时间',
+    key: 'time',
+    width: 110,
+    render(row: RecentApplication) {
+      return row.time ? new Date(row.time).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' }) : '-'
+    }
+  }
 ]
 
 // 今日会议（由 loadTodayMeetings 从 /calendar/today 接口拉取）
@@ -606,7 +733,7 @@ onMounted(() => {
   loadMyTasks()
   loadTodayMeetings()
   loadNotices()
-  loadRecentFiles()
+  loadRecentApplications()
 })
 
 onUnmounted(() => {
