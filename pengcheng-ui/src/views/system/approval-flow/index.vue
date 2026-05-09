@@ -68,10 +68,10 @@
                 <n-gi :span="3" class="field-label">审批人</n-gi>
                 <n-gi :span="21">
                   <n-text v-if="node.approverType === 'direct_supervisor'" depth="3">
-                    自动解析为申请人 user.leader_id（缺失时回退 dept.leader_id，沿祖先回溯，自动跳过申请人本人）
+                    自动解析：优先 user.leader_id，缺失时回退 dept.leader_id，沿父部门回溯，自动跳过申请人本人。部门负责人申请时会自动找上级部门负责人。
                   </n-text>
                   <n-text v-else-if="node.approverType === 'applicant_dept_manager'" depth="3">
-                    自动解析为申请人所在部门的负责人（自我排除 + 沿父部门回溯，忽略 user.leader_id 跨部门覆盖）
+                    （历史遗留类型，已合并入"直接上级"，不建议新建）自动解析为申请人所在部门的负责人，自我排除 + 沿父部门回溯。
                   </n-text>
                   <n-select
                     v-else-if="node.approverType === 'role'"
@@ -164,7 +164,6 @@ const saving = ref(false)
 
 const approverTypeOptions = [
   { label: '直接上级', value: 'direct_supervisor' },
-  { label: '本部门负责人', value: 'applicant_dept_manager' },
   { label: '指定角色', value: 'role' },
   { label: '指定用户', value: 'user' }
 ]
@@ -172,7 +171,6 @@ const approverTypeOptions = [
 // 节点名常用建议（n-auto-complete 直接接收 string[]）
 const nodeNameSuggestions = [
   '直接上级',
-  '本部门负责人',
   '部门经理审批',
   'HR 备案',
   'HR 审批',
@@ -183,8 +181,7 @@ const nodeNameSuggestions = [
 
 // 切换审批人来源时的智能默认节点名
 const defaultNodeNameByType: Record<string, string> = {
-  direct_supervisor: '直接上级',
-  applicant_dept_manager: '本部门负责人'
+  direct_supervisor: '直接上级'
 }
 
 const roleOptions = ref<{ label: string; value: number }[]>([])
