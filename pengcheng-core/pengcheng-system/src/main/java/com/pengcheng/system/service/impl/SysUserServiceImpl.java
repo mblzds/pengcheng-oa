@@ -23,8 +23,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -46,29 +48,37 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     public PageResult<SysUser> page(Integer page, Integer pageSize, String username, Integer status, String userType, Long deptId, Long postId, Long roleId) {
         Page<SysUser> pageParam = new Page<>(page, pageSize);
         LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<>();
-        wrapper.apply("u.deleted = 0");
+        // sys_user u LEFT JOIN sys_dept d 后，status / create_time / deleted 等列在两表都存在，
+        // 必须显式加 u. 前缀，否则 MySQL 会抛 "Column 'X' is ambiguous"
+        wrapper.apply("u.deleted = 0")
+                .apply(status != null, "u.status = {0}", status);
         wrapper.like(StringUtils.hasText(username), SysUser::getUsername, username)
-                .eq(status != null, SysUser::getStatus, status)
                 .eq(StringUtils.hasText(userType), SysUser::getUserType, userType)
                 .eq(deptId != null, SysUser::getDeptId, deptId);
 
+        // 按岗位 / 按角色：取关联用户 ID 的交集后注入 IN
+        // 用字符串拼接而非 {0} 占位符 —— 后者会被 MP 当作单个参数绑定，IN ('1,2,3') 永远不匹配多 ID
+        Set<Long> filterUserIds = null;
         if (postId != null) {
-            List<Long> userIds = userPostMapper.selectUserIdsByPostId(postId);
-            if (userIds.isEmpty()) {
-                return PageResult.empty();
-            }
-            wrapper.apply("u.id IN ({0})", userIds.stream().map(String::valueOf).collect(Collectors.joining(",")));
+            filterUserIds = new HashSet<>(userPostMapper.selectUserIdsByPostId(postId));
         }
-
         if (roleId != null) {
-            List<Long> userIds = userRoleMapper.selectUserIdsByRoleId(roleId);
-            if (userIds.isEmpty()) {
+            List<Long> roleUserIds = userRoleMapper.selectUserIdsByRoleId(roleId);
+            if (filterUserIds == null) {
+                filterUserIds = new HashSet<>(roleUserIds);
+            } else {
+                filterUserIds.retainAll(roleUserIds);
+            }
+        }
+        if (filterUserIds != null) {
+            if (filterUserIds.isEmpty()) {
                 return PageResult.empty();
             }
-            wrapper.apply("u.id IN ({0})", userIds.stream().map(String::valueOf).collect(Collectors.joining(",")));
+            String idList = filterUserIds.stream().map(String::valueOf).collect(Collectors.joining(","));
+            wrapper.apply("u.id IN (" + idList + ")");
         }
 
-        wrapper.orderByDesc(SysUser::getCreateTime);
+        wrapper.last("ORDER BY u.create_time DESC");
 
         // 切换到自定义 @DataScope 拦截器
         IPage<SysUser> result = baseMapper.selectUserPage(pageParam, wrapper);
