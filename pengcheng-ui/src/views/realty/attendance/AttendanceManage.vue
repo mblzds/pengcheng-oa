@@ -66,12 +66,69 @@
         </n-tabs>
       </n-card>
     </n-space>
+
+    <!-- 考勤详情抽屉：把主表删掉的字段（上班/下班 状态 / 位置 / 照片 + 豁免原因）集中到这里 -->
+    <n-drawer v-model:show="detailVisible" :width="520" placement="right">
+      <n-drawer-content title="考勤详情" closable>
+        <template v-if="detailRow">
+          <n-descriptions label-placement="left" :column="1" bordered size="small">
+            <n-descriptions-item label="员工">
+              {{ detailRow.userName || '-' }}
+              <span v-if="detailRow.employeeNo" style="color:#999;margin-left:6px">{{ detailRow.employeeNo }}</span>
+              <span v-if="detailRow.deptName" style="color:#999;margin-left:6px">· {{ detailRow.deptName }}</span>
+            </n-descriptions-item>
+            <n-descriptions-item label="日期">{{ detailRow.attendanceDate || '-' }}</n-descriptions-item>
+            <n-descriptions-item label="日考勤状态">
+              <n-tag size="small" :type="deriveDayStatus(detailRow).type">{{ deriveDayStatus(detailRow).label }}</n-tag>
+            </n-descriptions-item>
+            <n-descriptions-item v-if="detailRow.exemptReason" label="豁免原因">
+              {{ detailRow.exemptReason }}
+            </n-descriptions-item>
+          </n-descriptions>
+
+          <div class="detail-section">
+            <div class="detail-section-title">上班打卡</div>
+            <n-descriptions label-placement="left" :column="1" bordered size="small">
+              <n-descriptions-item label="时间">{{ formatDateTime(detailRow.clockInTime) }}</n-descriptions-item>
+              <n-descriptions-item label="状态">
+                <component :is="renderClockStatus(detailRow.clockInStatus, true)" />
+              </n-descriptions-item>
+              <n-descriptions-item label="位置">{{ detailRow.clockInLocation || '-' }}</n-descriptions-item>
+              <n-descriptions-item label="照片">
+                <n-image v-if="detailRow.clockInPhoto" :src="detailRow.clockInPhoto" width="180" />
+                <span v-else>-</span>
+              </n-descriptions-item>
+            </n-descriptions>
+          </div>
+
+          <div class="detail-section">
+            <div class="detail-section-title">下班打卡</div>
+            <n-descriptions label-placement="left" :column="1" bordered size="small">
+              <n-descriptions-item label="时间">{{ formatDateTime(detailRow.clockOutTime) }}</n-descriptions-item>
+              <n-descriptions-item label="状态">
+                <component :is="renderClockStatus(detailRow.clockOutStatus, false)" />
+              </n-descriptions-item>
+              <n-descriptions-item label="位置">{{ detailRow.clockOutLocation || '-' }}</n-descriptions-item>
+              <n-descriptions-item label="照片">
+                <n-image v-if="detailRow.clockOutPhoto" :src="detailRow.clockOutPhoto" width="180" />
+                <span v-else>-</span>
+              </n-descriptions-item>
+            </n-descriptions>
+          </div>
+
+          <div class="detail-section">
+            <div class="detail-section-title">工时</div>
+            <div>{{ calcWorkHours(detailRow.clockInTime, detailRow.clockOutTime) }}</div>
+          </div>
+        </template>
+      </n-drawer-content>
+    </n-drawer>
   </div>
 </template>
 
 <script setup lang="ts">
 import { h, onMounted, reactive, ref } from 'vue'
-import { NTag, NImage, type DataTableColumns } from 'naive-ui'
+import { NTag, NImage, NButton, type DataTableColumns } from 'naive-ui'
 import { attendanceApi, type AttendanceMonthlyVO, type AttendanceRecordItem, type CompensateRequestItem, type LeaveRequestItem } from '@/api/attendance'
 
 const userOptions = ref<any[]>([])
@@ -79,6 +136,14 @@ const recordLoading = ref(false)
 const approvalLoading = ref(false)
 
 const recordData = ref<AttendanceRecordItem[]>([])
+
+// 详情抽屉
+const detailVisible = ref(false)
+const detailRow = ref<AttendanceRecordItem | null>(null)
+function openDetail(row: AttendanceRecordItem) {
+  detailRow.value = row
+  detailVisible.value = true
+}
 const leaveData = ref<LeaveRequestItem[]>([])
 const compensateData = ref<CompensateRequestItem[]>([])
 const monthlySummary = ref<AttendanceMonthlyVO | null>(null)
@@ -151,22 +216,10 @@ const recordColumns: DataTableColumns<AttendanceRecordItem> = [
     render: row => formatTimeOnly(row.clockInTime)
   },
   {
-    title: '上班状态',
-    key: 'clockInStatus',
-    width: 90,
-    render: row => renderClockStatus(row.clockInStatus, true)
-  },
-  {
     title: '下班打卡',
     key: 'clockOutTime',
     width: 90,
     render: row => formatTimeOnly(row.clockOutTime)
-  },
-  {
-    title: '下班状态',
-    key: 'clockOutStatus',
-    width: 90,
-    render: row => renderClockStatus(row.clockOutStatus, false)
   },
   {
     title: '工时',
@@ -175,32 +228,15 @@ const recordColumns: DataTableColumns<AttendanceRecordItem> = [
     render: row => calcWorkHours(row.clockInTime, row.clockOutTime)
   },
   {
-    title: '上班位置',
-    key: 'clockInLocation',
-    width: 180,
-    ellipsis: { tooltip: true }
-  },
-  {
-    title: '上班照片',
-    key: 'clockInPhoto',
+    title: '操作',
+    key: 'actions',
     width: 80,
-    render: row => row.clockInPhoto
-      ? h(NImage, { src: row.clockInPhoto, width: 50, height: 50, objectFit: 'cover', previewDisabled: false })
-      : '-'
-  },
-  {
-    title: '下班位置',
-    key: 'clockOutLocation',
-    width: 180,
-    ellipsis: { tooltip: true }
-  },
-  {
-    title: '下班照片',
-    key: 'clockOutPhoto',
-    width: 80,
-    render: row => row.clockOutPhoto
-      ? h(NImage, { src: row.clockOutPhoto, width: 50, height: 50, objectFit: 'cover', previewDisabled: false })
-      : '-'
+    render: row => h(NButton, {
+      size: 'small',
+      quaternary: true,
+      type: 'primary',
+      onClick: () => openDetail(row)
+    }, { default: () => '详情' })
   }
 ]
 
@@ -424,5 +460,18 @@ onMounted(() => {
 
 .approval-filter {
   margin-bottom: 12px;
+}
+
+.detail-section {
+  margin-top: 16px;
+}
+
+.detail-section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 8px;
+  border-left: 3px solid #18a058;
+  padding-left: 8px;
 }
 </style>
