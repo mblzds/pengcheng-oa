@@ -57,11 +57,19 @@ public class ApprovalFlowServiceImpl implements ApprovalFlowService {
             throw new IllegalStateException("未配置 " + businessType + " 的审批流，请联系管理员");
         }
         // 提交时一次性快照所有节点的候选审批人，避免后续人员变动影响已提交流程
+        // P1：节点级剔除申请人本人；过滤后为空则跳过该节点（不抛错）
+        //     场景：部门负责人请假 → "部门负责人"节点候选只剩自己 → 跳过；
+        //          HR 总监请假 → "HR 审"候选剔除自己后还有其他 HR → 正常入库；
+        //          老总请假 → "总经理"节点候选只剩自己 → 跳过；最后所有节点都跳完 → 自动通过
+        int insertedCount = 0;
         for (ApprovalFlowNode tmpl : templates) {
-            List<Long> approvers = resolveApprovers(tmpl.getApproverType(), tmpl.getApproverValue(), applicantId);
+            List<Long> raw = resolveApprovers(tmpl.getApproverType(), tmpl.getApproverValue(), applicantId);
+            List<Long> approvers = raw.stream()
+                    .filter(id -> id != null && !id.equals(applicantId))
+                    .distinct()
+                    .collect(Collectors.toList());
             if (approvers.isEmpty()) {
-                throw new IllegalStateException(
-                        "节点【" + tmpl.getNodeName() + "】无可用审批人，请联系管理员检查审批流配置");
+                continue;
             }
             ApprovalRecordNode node = new ApprovalRecordNode();
             node.setBusinessType(businessType);
@@ -70,6 +78,11 @@ public class ApprovalFlowServiceImpl implements ApprovalFlowService {
             node.setNodeName(tmpl.getNodeName());
             node.setCandidateApproverIds(approvers.stream().map(String::valueOf).collect(Collectors.joining(",")));
             recordNodeMapper.insert(node);
+            insertedCount++;
+        }
+        // 所有节点都被跳过（如老总请假，整条链候选都是自己）→ 自动通过
+        if (insertedCount == 0) {
+            finalizeBusiness(businessType, businessId, true);
         }
     }
 
@@ -175,6 +188,7 @@ public class ApprovalFlowServiceImpl implements ApprovalFlowService {
         }
         return switch (approverType) {
             case ApprovalConstants.APPROVER_TYPE_DIRECT_SUPERVISOR -> resolveDirectSupervisor(applicantId);
+            case ApprovalConstants.APPROVER_TYPE_APPLICANT_DEPT_MANAGER -> resolveApplicantDeptManager(applicantId);
             case ApprovalConstants.APPROVER_TYPE_USER -> parseIds(approverValue);
             case ApprovalConstants.APPROVER_TYPE_ROLE -> resolveRoleApprovers(approverValue);
             default -> Collections.emptyList();
@@ -198,23 +212,45 @@ public class ApprovalFlowServiceImpl implements ApprovalFlowService {
         if (user == null) {
             return Collections.emptyList();
         }
-        // 0) 显式指定的直接上级（一般为空，仅特例）
-        if (user.getLeaderId() != null) {
+        // 0) 显式指定的直接上级（极少数跨部门汇报的特例；同样排除自我闭环）
+        if (user.getLeaderId() != null && !user.getLeaderId().equals(applicantId)) {
             return List.of(user.getLeaderId());
         }
+        return resolveByDeptChain(user, applicantId);
+    }
+
+    /**
+     * 申请人所在部门的负责人（自我排除 + 沿祖先回溯）。
+     * 与 direct_supervisor 区别：忽略 user.leader_id 这一"私有上级"，始终走部门负责人线，
+     * 适用于"必须由部门管理者审批"的节点配置。
+     */
+    private List<Long> resolveApplicantDeptManager(Long applicantId) {
+        if (applicantId == null) {
+            return Collections.emptyList();
+        }
+        SysUser user = userService.getById(applicantId);
+        if (user == null) {
+            return Collections.emptyList();
+        }
+        return resolveByDeptChain(user, applicantId);
+    }
+
+    /**
+     * 沿"申请人所在部门 → 父部门 → 祖父部门 …"链向上找第一个
+     * 「启用 + 有 leader_id 且 leader_id != 申请人本人」的部门，返回其 leader_id。
+     * 申请人自己就是部门负责人时，自动跳到上级部门，避免"自己审自己"。
+     */
+    private List<Long> resolveByDeptChain(SysUser user, Long applicantId) {
         if (user.getDeptId() == null) {
             return Collections.emptyList();
         }
-        // 1) 本部门负责人（部门必须启用）
         SysDept dept = deptMapper.selectById(user.getDeptId());
         if (dept == null) {
             return Collections.emptyList();
         }
-        if (isActive(dept) && dept.getLeaderId() != null) {
+        if (isActive(dept) && isValidApprover(dept.getLeaderId(), applicantId)) {
             return List.of(dept.getLeaderId());
         }
-        // 2) 沿 ancestors 向上回溯，找到最近一个「启用 + 有负责人」的祖先部门
-        //    停用部门跳过，避免审批流转到不再生效的部门负责人
         String ancestors = dept.getAncestors();
         if (ancestors == null || ancestors.isEmpty()) {
             return Collections.emptyList();
@@ -227,7 +263,7 @@ public class ApprovalFlowServiceImpl implements ApprovalFlowService {
             try {
                 Long ancestorId = Long.parseLong(token);
                 SysDept ancestor = deptMapper.selectById(ancestorId);
-                if (ancestor != null && isActive(ancestor) && ancestor.getLeaderId() != null) {
+                if (ancestor != null && isActive(ancestor) && isValidApprover(ancestor.getLeaderId(), applicantId)) {
                     return List.of(ancestor.getLeaderId());
                 }
             } catch (NumberFormatException ignored) {
@@ -239,6 +275,10 @@ public class ApprovalFlowServiceImpl implements ApprovalFlowService {
 
     private boolean isActive(SysDept dept) {
         return dept.getStatus() != null && dept.getStatus() == 1;
+    }
+
+    private boolean isValidApprover(Long candidateId, Long applicantId) {
+        return candidateId != null && !candidateId.equals(applicantId);
     }
 
     private List<Long> resolveRoleApprovers(String approverValue) {

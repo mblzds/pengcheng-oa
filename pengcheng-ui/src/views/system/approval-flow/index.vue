@@ -50,7 +50,11 @@
                 <n-gi :span="12">
                   <!-- 直接上级：无需配置 -->
                   <n-text v-if="node.approverType === 'direct_supervisor'" depth="3">
-                    自动解析为申请人 sys_user.leader_id（缺失时回退 sys_dept.leader_id）
+                    自动解析为申请人 sys_user.leader_id（缺失时回退 sys_dept.leader_id，沿祖先回溯，自动跳过申请人本人）
+                  </n-text>
+                  <!-- 本部门负责人：无需配置 -->
+                  <n-text v-else-if="node.approverType === 'applicant_dept_manager'" depth="3">
+                    自动解析为申请人所在部门的负责人（自我排除 + 沿父部门回溯，忽略 user.leader_id 跨部门覆盖）
                   </n-text>
                   <!-- 角色 -->
                   <n-select
@@ -132,6 +136,7 @@ const saving = ref(false)
 
 const approverTypeOptions = [
   { label: '直接上级', value: 'direct_supervisor' },
+  { label: '本部门负责人', value: 'applicant_dept_manager' },
   { label: '指定角色', value: 'role' },
   { label: '指定用户', value: 'user' }
 ]

@@ -13,6 +13,9 @@ public final class ApprovalConstants {
 
     // 审批人解析方式
     public static final String APPROVER_TYPE_DIRECT_SUPERVISOR = "direct_supervisor";
+    /** 申请人所在部门的负责人（自我排除 + 沿祖先回溯）；和 direct_supervisor 区别在于
+     *  忽略 user.leader_id（避免被跨部门汇报的"私有上级"覆盖），始终走部门负责人线 */
+    public static final String APPROVER_TYPE_APPLICANT_DEPT_MANAGER = "applicant_dept_manager";
     public static final String APPROVER_TYPE_ROLE = "role";
     public static final String APPROVER_TYPE_USER = "user";
 
