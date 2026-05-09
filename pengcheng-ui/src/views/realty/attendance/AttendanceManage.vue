@@ -134,47 +134,72 @@ const approvalStatusOptions = [
 
 const recordColumns: DataTableColumns<AttendanceRecordItem> = [
   { title: '员工', key: 'userName', width: 200, render: row => renderEmployee(row) },
-  { title: '考勤日期', key: 'attendanceDate', width: 120 },
+  {
+    title: '日考勤状态',
+    key: 'dayStatus',
+    width: 110,
+    render: row => {
+      const s = deriveDayStatus(row)
+      return h(NTag, { size: 'small', type: s.type }, { default: () => s.label })
+    }
+  },
+  { title: '日期', key: 'attendanceDate', width: 100 },
   {
     title: '上班打卡',
     key: 'clockInTime',
-    width: 170,
-    render: row => formatDateTime(row.clockInTime)
+    width: 90,
+    render: row => formatTimeOnly(row.clockInTime)
   },
   {
     title: '上班状态',
     key: 'clockInStatus',
-    width: 100,
+    width: 90,
     render: row => renderClockStatus(row.clockInStatus, true)
   },
   {
     title: '下班打卡',
     key: 'clockOutTime',
-    width: 170,
-    render: row => formatDateTime(row.clockOutTime)
+    width: 90,
+    render: row => formatTimeOnly(row.clockOutTime)
   },
   {
     title: '下班状态',
     key: 'clockOutStatus',
-    width: 100,
+    width: 90,
     render: row => renderClockStatus(row.clockOutStatus, false)
   },
-  { title: '上班位置', key: 'clockInLocation' },
+  {
+    title: '工时',
+    key: 'workHours',
+    width: 80,
+    render: row => calcWorkHours(row.clockInTime, row.clockOutTime)
+  },
+  {
+    title: '上班位置',
+    key: 'clockInLocation',
+    width: 180,
+    ellipsis: { tooltip: true }
+  },
   {
     title: '上班照片',
     key: 'clockInPhoto',
-    width: 90,
+    width: 80,
     render: row => row.clockInPhoto
-      ? h(NImage, { src: row.clockInPhoto, width: 60, height: 60, objectFit: 'cover', previewDisabled: false })
+      ? h(NImage, { src: row.clockInPhoto, width: 50, height: 50, objectFit: 'cover', previewDisabled: false })
       : '-'
   },
-  { title: '下班位置', key: 'clockOutLocation' },
+  {
+    title: '下班位置',
+    key: 'clockOutLocation',
+    width: 180,
+    ellipsis: { tooltip: true }
+  },
   {
     title: '下班照片',
     key: 'clockOutPhoto',
-    width: 90,
+    width: 80,
     render: row => row.clockOutPhoto
-      ? h(NImage, { src: row.clockOutPhoto, width: 60, height: 60, objectFit: 'cover', previewDisabled: false })
+      ? h(NImage, { src: row.clockOutPhoto, width: 50, height: 50, objectFit: 'cover', previewDisabled: false })
       : '-'
   }
 ]
@@ -242,6 +267,35 @@ function formatDateTime(value?: string) {
   const minute = String(date.getMinutes()).padStart(2, '0')
   const second = String(date.getSeconds()).padStart(2, '0')
   return `${year}-${month}-${day} ${hour}:${minute}:${second}`
+}
+
+/** 仅显示 HH:mm，考勤记录列表的"日期"列已经显示了日期，打卡时间无需重复 */
+function formatTimeOnly(value?: string) {
+  if (!value) return '-'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+}
+
+/** 计算工时（小时，保留 1 位小数）；任一打卡缺失返回 '-' */
+function calcWorkHours(clockIn?: string, clockOut?: string) {
+  if (!clockIn || !clockOut) return '-'
+  const start = new Date(clockIn).getTime()
+  const end = new Date(clockOut).getTime()
+  if (Number.isNaN(start) || Number.isNaN(end) || end <= start) return '-'
+  return ((end - start) / 3600000).toFixed(1) + 'h'
+}
+
+/** 由上下班打卡情况推导日考勤状态汇总 */
+function deriveDayStatus(row: AttendanceRecordItem): { label: string; type: 'success' | 'warning' | 'error' } {
+  if (!row.clockInTime && !row.clockOutTime) return { label: '缺勤', type: 'error' }
+  if (!row.clockInTime || !row.clockOutTime) return { label: '缺卡', type: 'error' }
+  const inLate = row.clockInStatus !== 1
+  const outEarly = row.clockOutStatus !== 1
+  if (inLate && outEarly) return { label: '迟到+早退', type: 'error' }
+  if (inLate) return { label: '迟到', type: 'warning' }
+  if (outEarly) return { label: '早退', type: 'warning' }
+  return { label: '正常', type: 'success' }
 }
 
 function toDateString(ms: number) {
