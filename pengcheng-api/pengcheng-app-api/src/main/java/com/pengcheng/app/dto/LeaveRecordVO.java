@@ -42,4 +42,7 @@ public class LeaveRecordVO {
 
     /** 当前审批节点名（仅审批中状态有值，如「直接上级」/「HR 审批」） */
     private String currentNodeName;
+
+    /** 驳回原因（仅已驳回状态有值，取自首个 result=驳回 节点的 remark） */
+    private String rejectReason;
 }

@@ -24,8 +24,8 @@
 			</view>
 			<view class="record-item" v-for="item in list" :key="item.id">
 				<view class="record-top">
-					<text class="record-type">{{ item.typeName }}</text>
-					<view class="record-status" :class="'s-' + item.status">
+					<text class="record-type">{{ item.typeName }}<text v-if="item.daysText" class="record-days">  {{ item.daysText }}</text></text>
+					<view v-if="!statusFilter" class="record-status" :class="'s-' + item.status">
 						<text>{{ getStatusText(item.status) }}</text>
 					</view>
 				</view>
@@ -35,7 +35,10 @@
 				<view class="record-info" v-if="item.rangeText">
 					<text class="info-text">{{ item.rangeText }}</text>
 				</view>
-				<view class="record-info" v-if="item.currentNodeName && item.status === 1">
+				<view class="record-info" v-if="item.reason">
+						<text class="info-text">原因：{{ item.reason }}</text>
+					</view>
+					<view class="record-info" v-if="item.currentNodeName && item.status === 1">
 					<text class="info-text node-text">当前节点：{{ item.currentNodeName }}</text>
 				</view>
 				<view class="record-info reject-row" v-if="item.status === 4 && item.rejectReason">
@@ -171,18 +174,41 @@
 						pageSize: this.pageSize
 					}).catch(() => ({ data: { list: [] } }))
 					const leaveRows = leaveRes.data?.list || []
+					const leaveSubTypeMap = { 1: '事假', 2: '病假', 3: '年假', 4: '婚假', 5: '产假' }
+					const showLeavePrefix = type === 'all'  // 在"全部类型"tab 才显示"请假·"前缀
 					leaveRows.forEach(r => {
-						const typeName = r.type === 'compensate' ? '调休申请' : '请假申请'
+						let typeName
+						if (r.type === 'compensate') {
+							typeName = showLeavePrefix ? '调休申请' : '调休'
+						} else {
+							const sub = leaveSubTypeMap[r.leaveType] || '请假'
+							typeName = showLeavePrefix ? `请假·${sub}` : sub
+						}
 						const start = r.startTime ? String(r.startTime).replace('T', ' ').slice(0, 16) : ''
 						const end = r.endTime ? String(r.endTime).replace('T', ' ').slice(0, 16) : ''
+						// 紧凑时间："05-09 09:00 → 05-10 18:00"
+						const compact = (s) => s ? s.slice(5) : ''
+						const rangeText = end ? `${compact(start)} → ${compact(end)}` : compact(start)
+						// 请假天数（结束-开始，向上取 0.5 天精度）
+						let daysText = ''
+						if (r.type === 'leave' && r.startTime && r.endTime) {
+							const ms = new Date(r.endTime).getTime() - new Date(r.startTime).getTime()
+							if (ms > 0) {
+								const days = ms / 86400000
+								daysText = `${days >= 1 ? days.toFixed(days % 1 ? 1 : 0) : days.toFixed(1)}天`
+							}
+						}
 						rows.push({
 							id: `l-${r.type}-${r.id}`,
 							typeName,
+							daysText,
 							status: r.status === 2 ? 3 : (r.status === 3 ? 4 : 1),
 							amount: null,
-							rangeText: end ? `${start} ~ ${end}` : start,
+							rangeText,
+							reason: r.reason || '',
 							createTime: r.createTime,
-							currentNodeName: r.currentNodeName || ''
+							currentNodeName: r.currentNodeName || '',
+							rejectReason: r.rejectReason || ''
 						})
 					})
 				}
@@ -211,9 +237,11 @@
 							rows.push({
 								id: `p-${r.id}-${r.status}`,
 								typeName: typeNameMap[r.requestType] || '付款申请',
+								daysText: '',
 								status: r.status,
 								amount: r.amount,
 								rangeText: '',
+								reason: r.description || '',
 								createTime: r.createTime,
 								rejectReason
 							})
@@ -269,6 +297,7 @@
 	}
 	.record-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12rpx; }
 	.record-type { font-size: 28rpx; font-weight: 600; color: #1A1A1A; }
+	.record-days { font-size: 24rpx; font-weight: 400; color: #666; margin-left: 8rpx; }
 	.record-status {
 		padding: 4rpx 16rpx; border-radius: 20rpx; font-size: 20rpx;
 		&.s-pending, &.s-1, &.s-2 { background: #FFF7E6; color: #FA8C16; }

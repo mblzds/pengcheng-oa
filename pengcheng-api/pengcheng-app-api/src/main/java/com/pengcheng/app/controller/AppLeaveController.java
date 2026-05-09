@@ -10,6 +10,7 @@ import com.pengcheng.common.result.PageResult;
 import com.pengcheng.common.result.Result;
 import com.pengcheng.hr.approval.constant.ApprovalConstants;
 import com.pengcheng.hr.approval.entity.ApprovalRecordNode;
+import com.pengcheng.hr.approval.mapper.ApprovalRecordNodeMapper;
 import com.pengcheng.hr.approval.service.ApprovalFlowService;
 import com.pengcheng.hr.attendance.dto.LeaveRequestDTO;
 import com.pengcheng.hr.attendance.entity.CompensateRequest;
@@ -38,6 +39,7 @@ public class AppLeaveController {
     private final LeaveRequestMapper leaveRequestMapper;
     private final CompensateRequestMapper compensateRequestMapper;
     private final ApprovalFlowService approvalFlowService;
+    private final ApprovalRecordNodeMapper approvalRecordNodeMapper;
 
     /**
      * 提交请假申请
@@ -104,6 +106,7 @@ public class AppLeaveController {
                         .status(lr.getStatus())
                         .createTime(lr.getCreateTime())
                         .currentNodeName(resolveCurrentNodeName(ApprovalConstants.BUSINESS_TYPE_LEAVE, lr.getId(), lr.getStatus()))
+                        .rejectReason(resolveRejectReason(ApprovalConstants.BUSINESS_TYPE_LEAVE, lr.getId(), lr.getStatus()))
                         .build());
             }
         }
@@ -127,6 +130,7 @@ public class AppLeaveController {
                         .status(cr.getStatus())
                         .createTime(cr.getCreateTime())
                         .currentNodeName(resolveCurrentNodeName(ApprovalConstants.BUSINESS_TYPE_COMPENSATE, cr.getId(), cr.getStatus()))
+                        .rejectReason(resolveRejectReason(ApprovalConstants.BUSINESS_TYPE_COMPENSATE, cr.getId(), cr.getStatus()))
                         .build());
             }
         }
@@ -155,5 +159,22 @@ public class AppLeaveController {
         }
         ApprovalRecordNode current = approvalFlowService.getCurrentNode(businessType, businessId);
         return current == null ? null : current.getNodeName();
+    }
+
+    /**
+     * 仅当业务单状态为「已驳回」时返回驳回原因（首个 result=驳回 节点的 remark）
+     */
+    private String resolveRejectReason(String businessType, Long businessId, Integer status) {
+        if (status == null || status != ApprovalConstants.STATUS_REJECTED) {
+            return null;
+        }
+        ApprovalRecordNode rejected = approvalRecordNodeMapper.selectOne(
+                new LambdaQueryWrapper<ApprovalRecordNode>()
+                        .eq(ApprovalRecordNode::getBusinessType, businessType)
+                        .eq(ApprovalRecordNode::getBusinessId, businessId)
+                        .eq(ApprovalRecordNode::getResult, ApprovalConstants.RESULT_REJECTED)
+                        .orderByAsc(ApprovalRecordNode::getSeq)
+                        .last("LIMIT 1"));
+        return rejected == null ? null : rejected.getRemark();
     }
 }
