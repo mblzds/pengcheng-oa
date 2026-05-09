@@ -135,6 +135,13 @@ public class SysDeptServiceImpl extends ServiceImpl<SysDeptMapper, SysDept> impl
         if (count > 0) {
             throw new BusinessException("存在子部门，无法删除");
         }
+        // 检查是否有成员，避免软删除后留下"鬼魂部门"（用户 dept_id 指向已删除部门）
+        long memberCount = userMapper.selectCount(
+                new LambdaQueryWrapper<SysUser>().eq(SysUser::getDeptId, id));
+        if (memberCount > 0) {
+            throw new BusinessException("部门下还有 " + memberCount
+                    + " 名成员，请先到用户管理把这些成员转移到其他部门后再删除");
+        }
         this.removeById(id);
     }
 

@@ -395,7 +395,7 @@ function handleDeleteDept() {
   if (!selectedDeptId.value) return
   dialog.warning({
     title: '提示',
-    content: `确定要删除部门"${selectedDeptName.value}"吗？`,
+    content: `确定要删除部门"${selectedDeptName.value}"吗？删除前请确保该部门下无子部门、无成员。`,
     positiveText: '确定',
     negativeText: '取消',
     onPositiveClick: async () => {
@@ -408,6 +408,8 @@ function handleDeleteDept() {
         loadData()
         loadUserData()
       } catch (error) {
+        // 后端会返回"部门下还有 N 名成员，请先到用户管理把这些成员转移..."等明确文案，
+        // 全局拦截器会以 message.error 形式弹出，这里无需额外处理。
         console.error('删除部门失败:', error)
       }
     }
