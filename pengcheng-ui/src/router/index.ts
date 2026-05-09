@@ -282,6 +282,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '用户管理', icon: 'PersonOutline' }
       },
       {
+        path: 'system/roster-import',
+        name: 'SystemRosterImport',
+        component: () => import('@/views/system/roster-import/index.vue'),
+        meta: { title: '员工导入', icon: 'CloudUploadOutline' }
+      },
+      {
         path: 'system/role',
         name: 'SystemRole',
         component: () => import('@/views/system/role/index.vue'),

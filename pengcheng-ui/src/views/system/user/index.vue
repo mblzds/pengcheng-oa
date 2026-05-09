@@ -56,10 +56,16 @@
 
       <!-- 工具栏 -->
       <div class="table-toolbar">
-        <n-button v-if="hasPermission('sys:user:add')" type="primary" @click="handleAdd">
-          <template #icon><n-icon><AddOutline /></n-icon></template>
-          新增用户
-        </n-button>
+        <n-space>
+          <n-button v-if="hasPermission('sys:user:add')" type="primary" @click="handleAdd">
+            <template #icon><n-icon><AddOutline /></n-icon></template>
+            新增用户
+          </n-button>
+          <n-button v-if="hasPermission('sys:user:add')" @click="goRosterImport">
+            <template #icon><n-icon><CloudUploadOutline /></n-icon></template>
+            批量导入
+          </n-button>
+        </n-space>
       </div>
 
       <!-- 表格 -->
@@ -199,9 +205,9 @@
 
 <script setup lang="ts">
 import { ref, reactive, h, onMounted, computed, type HTMLAttributes } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { NButton, NTag, NSpace, NDropdown, NPagination, useMessage, useDialog, type DataTableColumns, type FormInst, type FormRules, type TreeOption } from 'naive-ui'
-import { SearchOutline, RefreshOutline, AddOutline, ChevronDownOutline } from '@vicons/ionicons5'
+import { SearchOutline, RefreshOutline, AddOutline, ChevronDownOutline, CloudUploadOutline } from '@vicons/ionicons5'
 import { userApi, roleApi, postApi, type SysUser, type SysRole } from '@/api/system'
 import { deptApi, type SysDept } from '@/api/org'
 import { useUserStore } from '@/stores/user'
@@ -210,6 +216,8 @@ const message = useMessage()
 const dialog = useDialog()
 const userStore = useUserStore()
 const route = useRoute()
+const router = useRouter()
+function goRosterImport() { router.push('/system/roster-import') }
 
 // 权限检查
 const hasPermission = (permission: string) => userStore.hasPermission(permission)
