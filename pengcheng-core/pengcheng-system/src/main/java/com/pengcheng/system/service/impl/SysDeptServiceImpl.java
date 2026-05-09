@@ -4,7 +4,9 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.pengcheng.common.exception.BusinessException;
 import com.pengcheng.system.entity.SysDept;
+import com.pengcheng.system.entity.SysUser;
 import com.pengcheng.system.mapper.SysDeptMapper;
+import com.pengcheng.system.mapper.SysUserMapper;
 import com.pengcheng.system.service.SysDeptService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -20,6 +22,8 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class SysDeptServiceImpl extends ServiceImpl<SysDeptMapper, SysDept> implements SysDeptService {
+
+    private final SysUserMapper userMapper;
 
     @Override
     public List<SysDept> tree(String deptName, Integer status) {
@@ -38,6 +42,7 @@ public class SysDeptServiceImpl extends ServiceImpl<SysDeptMapper, SysDept> impl
 
     @Override
     public void create(SysDept dept) {
+        validateLeader(dept);
         if (dept.getParentId() == null) {
             dept.setParentId(0L);
             dept.setAncestors("0");
@@ -60,6 +65,7 @@ public class SysDeptServiceImpl extends ServiceImpl<SysDeptMapper, SysDept> impl
         if (dept.getParentId() != null && dept.getParentId().equals(dept.getId())) {
             throw new BusinessException("上级部门不能选择自己");
         }
+        validateLeader(dept);
         // 更新祖级列表
         if (dept.getParentId() != null && !dept.getParentId().equals(existDept.getParentId())) {
             if (dept.getParentId() == 0) {
@@ -73,6 +79,29 @@ public class SysDeptServiceImpl extends ServiceImpl<SysDeptMapper, SysDept> impl
             }
         }
         this.updateById(dept);
+    }
+
+    /**
+     * 校验负责人：必填，且对应用户须存在；同步用 nickname 回填 leader 字段供显示
+     * 部门负责人是审批流 direct_supervisor 节点的兜底来源，缺失会让审批卡住，因此强制录入。
+     */
+    private void validateLeader(SysDept dept) {
+        if (dept.getLeaderId() == null) {
+            throw new BusinessException("请指定部门负责人（审批流必需）");
+        }
+        SysUser leader = userMapper.selectById(dept.getLeaderId());
+        if (leader == null) {
+            throw new BusinessException("所选负责人不存在或已删除");
+        }
+        if (leader.getStatus() != null && leader.getStatus() != 1) {
+            throw new BusinessException("所选负责人未启用，无法担任部门负责人");
+        }
+        // 用昵称回填 leader 字段，避免界面显示与负责人 ID 不一致
+        if (StringUtils.hasText(leader.getNickname())) {
+            dept.setLeader(leader.getNickname());
+        } else if (StringUtils.hasText(leader.getUsername())) {
+            dept.setLeader(leader.getUsername());
+        }
     }
 
     @Override

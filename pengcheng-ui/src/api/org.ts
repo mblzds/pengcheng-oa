@@ -9,6 +9,8 @@ export interface SysDept {
   deptName: string
   sort: number
   leader?: string
+  /** 负责人用户 ID（审批流 direct_supervisor 节点的 fallback；必填） */
+  leaderId?: number | null
   phone?: string
   email?: string
   status: number

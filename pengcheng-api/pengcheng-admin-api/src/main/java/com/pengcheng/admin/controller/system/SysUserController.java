@@ -56,6 +56,27 @@ public class SysUserController {
     }
 
     /**
+     * 用户下拉选项（用于部门负责人 / 任务指派等场景）
+     * 仅返回启用状态的用户，字段精简到 id / username / nickname / deptName
+     */
+    @Operation(summary = "用户下拉选项", description = "返回启用状态用户的精简列表，用于选人场景")
+    @GetMapping("/options")
+    public Result<List<Map<String, Object>>> options() {
+        List<SysUser> users = userService.listAll();
+        List<Map<String, Object>> options = users.stream()
+                .map(u -> {
+                    Map<String, Object> m = new HashMap<>();
+                    m.put("id", u.getId());
+                    m.put("username", u.getUsername());
+                    m.put("nickname", u.getNickname());
+                    m.put("deptName", u.getDeptName());
+                    return m;
+                })
+                .collect(Collectors.toList());
+        return Result.ok(options);
+    }
+
+    /**
      * 获取详情
      */
     @Operation(summary = "获取用户详情", description = "包含用户基本信息、角色列表、岗位列表")

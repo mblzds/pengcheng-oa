@@ -107,8 +107,15 @@
         <n-form-item label="部门名称" path="deptName">
           <n-input v-model:value="formData.deptName" placeholder="请输入部门名称"/>
         </n-form-item>
-        <n-form-item label="负责人" path="leader">
-          <n-input v-model:value="formData.leader" placeholder="请输入负责人"/>
+        <n-form-item label="负责人" path="leaderId">
+          <n-select
+              v-model:value="formData.leaderId"
+              :options="leaderOptions"
+              filterable
+              clearable
+              placeholder="请选择负责人（审批流必需）"
+              :loading="leaderLoading"
+          />
         </n-form-item>
         <n-form-item label="联系电话" path="phone">
           <n-input v-model:value="formData.phone" placeholder="请输入联系电话"/>
@@ -331,17 +338,45 @@ const formData = reactive<SysDept>({
   deptName: '',
   sort: 0,
   leader: '',
+  leaderId: null,
   phone: '',
   email: '',
   status: 1
 })
 const rules: FormRules = {
-  deptName: [{required: true, message: '请输入部门名称', trigger: 'blur'}]
+  deptName: [{required: true, message: '请输入部门名称', trigger: 'blur'}],
+  leaderId: [{
+    required: true,
+    type: 'number',
+    message: '请选择负责人（审批流必需）',
+    trigger: ['change', 'blur']
+  }]
+}
+
+// 负责人下拉选项
+const leaderLoading = ref(false)
+const leaderOptions = ref<Array<{ label: string; value: number }>>([])
+
+async function loadLeaderOptions() {
+  if (leaderOptions.value.length > 0) return
+  leaderLoading.value = true
+  try {
+    const list = await userApi.options()
+    leaderOptions.value = (list || []).map(u => ({
+      label: `${u.nickname || u.username}${u.deptName ? '（' + u.deptName + '）' : ''}`,
+      value: u.id
+    }))
+  } catch {
+    leaderOptions.value = []
+  } finally {
+    leaderLoading.value = false
+  }
 }
 
 function handleAdd(parentId: number = 0) {
   modalTitle.value = '新增部门'
-  Object.assign(formData, {id: undefined, parentId, deptName: '', sort: 0, leader: '', phone: '', email: '', status: 1})
+  Object.assign(formData, {id: undefined, parentId, deptName: '', sort: 0, leader: '', leaderId: null, phone: '', email: '', status: 1})
+  loadLeaderOptions()
   modalVisible.value = true
 }
 
@@ -351,6 +386,8 @@ async function handleEditDept() {
     const dept = await deptApi.detail(selectedDeptId.value)
     modalTitle.value = '编辑部门'
     Object.assign(formData, dept)
+    if (formData.leaderId == null) formData.leaderId = null
+    loadLeaderOptions()
     modalVisible.value = true
   } catch (error) {
     console.error('获取部门详情失败:', error)

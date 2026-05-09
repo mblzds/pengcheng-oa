@@ -49,9 +49,21 @@ export interface UserDetailResult {
   postIds: number[]
 }
 
+export interface UserOption {
+  id: number
+  username: string
+  nickname: string
+  deptName?: string | null
+}
+
 export const userApi = {
   page(params: { page: number; pageSize: number; username?: string; status?: number; userType?: string; deptId?: number; postId?: number; roleId?: number }): Promise<PageResult<SysUser>> {
     return request({ url: '/sys/user/page', method: 'get', params })
+  },
+
+  /** 启用状态用户的精简列表，用于选人下拉（部门负责人 / 任务指派等） */
+  options(): Promise<UserOption[]> {
+    return request({ url: '/sys/user/options', method: 'get' })
   },
   
   detail(id: number): Promise<UserDetailResult> {
