@@ -43,7 +43,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     private static final String DEFAULT_PASSWORD = "123456";
 
     @Override
-    public PageResult<SysUser> page(Integer page, Integer pageSize, String username, Integer status, String userType, Long deptId, Long postId) {
+    public PageResult<SysUser> page(Integer page, Integer pageSize, String username, Integer status, String userType, Long deptId, Long postId, Long roleId) {
         Page<SysUser> pageParam = new Page<>(page, pageSize);
         LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<>();
         wrapper.apply("u.deleted = 0");
@@ -54,6 +54,14 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
 
         if (postId != null) {
             List<Long> userIds = userPostMapper.selectUserIdsByPostId(postId);
+            if (userIds.isEmpty()) {
+                return PageResult.empty();
+            }
+            wrapper.apply("u.id IN ({0})", userIds.stream().map(String::valueOf).collect(Collectors.joining(",")));
+        }
+
+        if (roleId != null) {
+            List<Long> userIds = userRoleMapper.selectUserIdsByRoleId(roleId);
             if (userIds.isEmpty()) {
                 return PageResult.empty();
             }

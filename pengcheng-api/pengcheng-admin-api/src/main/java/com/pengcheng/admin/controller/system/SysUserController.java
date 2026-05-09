@@ -39,7 +39,7 @@ public class SysUserController {
     /**
      * 分页查询
      */
-    @Operation(summary = "分页查询用户", description = "支持按用户名、状态、用户类型、部门、岗位筛选")
+    @Operation(summary = "分页查询用户", description = "支持按用户名、状态、用户类型、部门、岗位、角色筛选")
     @GetMapping("/page")
     @SaCheckPermission("sys:user:list")
     @EncryptResponse
@@ -50,8 +50,9 @@ public class SysUserController {
             @Parameter(description = "状态 (0-禁用 1-启用)") @RequestParam(required = false) Integer status,
             @Parameter(description = "用户类型") @RequestParam(required = false) String userType,
             @Parameter(description = "部门 ID") @RequestParam(required = false) Long deptId,
-            @Parameter(description = "岗位 ID") @RequestParam(required = false) Long postId) {
-        return Result.ok(userService.page(page, pageSize, username, status, userType, deptId, postId));
+            @Parameter(description = "岗位 ID") @RequestParam(required = false) Long postId,
+            @Parameter(description = "角色 ID") @RequestParam(required = false) Long roleId) {
+        return Result.ok(userService.page(page, pageSize, username, status, userType, deptId, postId, roleId));
     }
 
     /**

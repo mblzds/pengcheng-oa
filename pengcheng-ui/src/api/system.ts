@@ -50,7 +50,7 @@ export interface UserDetailResult {
 }
 
 export const userApi = {
-  page(params: { page: number; pageSize: number; username?: string; status?: number; userType?: string; deptId?: number; postId?: number }): Promise<PageResult<SysUser>> {
+  page(params: { page: number; pageSize: number; username?: string; status?: number; userType?: string; deptId?: number; postId?: number; roleId?: number }): Promise<PageResult<SysUser>> {
     return request({ url: '/sys/user/page', method: 'get', params })
   },
   

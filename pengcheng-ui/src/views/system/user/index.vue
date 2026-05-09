@@ -8,13 +8,17 @@
           <n-form-item label="用户名">
             <n-input v-model:value="searchForm.username" placeholder="请输入用户名" clearable />
           </n-form-item>
-          <n-form-item label="用户类型">
-            <n-select
-              v-model:value="searchForm.userType"
-              placeholder="请选择用户类型"
-              :options="userTypeOptions"
+          <n-form-item label="部门">
+            <n-tree-select
+              v-model:value="searchForm.deptId"
+              :options="deptOptions"
+              key-field="id"
+              label-field="deptName"
+              children-field="children"
+              placeholder="请选择部门"
               clearable
-              style="width: 140px"
+              default-expand-all
+              style="width: 180px"
             />
           </n-form-item>
           <n-form-item label="状态">
@@ -24,6 +28,15 @@
               :options="statusOptions"
               clearable
               style="width: 120px"
+            />
+          </n-form-item>
+          <n-form-item label="角色">
+            <n-select
+              v-model:value="searchForm.roleId"
+              placeholder="请选择角色"
+              :options="roleOptions"
+              clearable
+              style="width: 160px"
             />
           </n-form-item>
           <n-form-item>
@@ -203,7 +216,6 @@ const hasPermission = (permission: string) => userStore.hasPermission(permission
 
 // ==================== 部门选择 ====================
 const deptOptions = ref<SysDept[]>([])
-const selectedDeptId = ref<number | undefined>(undefined)
 
 // 加载部门树（用于下拉选择）
 async function loadDeptOptions() {
@@ -219,7 +231,8 @@ async function loadDeptOptions() {
 const searchForm = reactive({
   username: '',
   status: null as number | null,
-  userType: null as string | null
+  deptId: null as number | null,
+  roleId: null as number | null
 })
 
 const statusOptions = [
@@ -456,8 +469,8 @@ async function loadData() {
       pageSize: pagination.pageSize,
       username: searchForm.username || undefined,
       status: searchForm.status ?? undefined,
-      userType: searchForm.userType || undefined,
-      deptId: selectedDeptId.value
+      deptId: searchForm.deptId ?? undefined,
+      roleId: searchForm.roleId ?? undefined
     })
     tableData.value = res.list
     pagination.itemCount = Number(res.total)
@@ -501,8 +514,8 @@ function handleSearch() {
 function handleReset() {
   searchForm.username = ''
   searchForm.status = null
-  searchForm.userType = null
-  selectedDeptId.value = undefined
+  searchForm.deptId = null
+  searchForm.roleId = null
   handleSearch()
 }
 
@@ -677,7 +690,7 @@ function handleToggleQuit(row: SysUser) {
 onMounted(() => {
   const deptId = route.query.deptId
   if (deptId) {
-    selectedDeptId.value = Number(deptId)
+    searchForm.deptId = Number(deptId)
   }
   loadDeptOptions()
   loadData()
