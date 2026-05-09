@@ -7,6 +7,7 @@ import com.pengcheng.hr.attendance.entity.LeaveRequest;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 考勤/请假/调休/签到服务（公司级假勤）
@@ -27,9 +28,20 @@ public interface AttendanceService {
 
     List<AttendanceRecord> listAttendanceRecords(Long userId, LocalDate startDate, LocalDate endDate);
 
+    /**
+     * 带数据范围的考勤记录查询
+     * @param userId         指定查某个用户；为 null 时按 allowedUserIds 限制范围
+     * @param allowedUserIds null = 不限（全公司）；非空集合 = 仅这些用户；空集合 = 直接返回空
+     */
+    List<AttendanceRecord> listAttendanceRecords(Long userId, Set<Long> allowedUserIds, LocalDate startDate, LocalDate endDate);
+
     List<LeaveRequest> listLeaveRequests(Long userId, Integer status);
 
+    List<LeaveRequest> listLeaveRequests(Long userId, Set<Long> allowedUserIds, Integer status);
+
     List<CompensateRequest> listCompensateRequests(Long userId, Integer status);
+
+    List<CompensateRequest> listCompensateRequests(Long userId, Set<Long> allowedUserIds, Integer status);
 
     /** 判定上班是否迟到 */
     int determineClockInStatus(java.time.LocalTime clockInTime);

@@ -72,7 +72,6 @@
 <script setup lang="ts">
 import { h, onMounted, reactive, ref } from 'vue'
 import { NTag, NImage, type DataTableColumns } from 'naive-ui'
-import { userApi } from '@/api/system'
 import { attendanceApi, type AttendanceMonthlyVO, type AttendanceRecordItem, type CompensateRequestItem, type LeaveRequestItem } from '@/api/attendance'
 
 const userOptions = ref<any[]>([])
@@ -108,11 +107,23 @@ const approvalFilter = reactive<{
   status: null
 })
 
-function loadUserOptions() {
-  userApi.page({ page: 1, pageSize: 500 }).then((res: any) => {
-    const list = res?.list ?? res?.data?.records ?? res?.records ?? []
+async function loadUserOptions() {
+  try {
+    const { request } = await import('@/utils/request')
+    // 走考勤专用的可见用户接口（HR 全部 / 主管本部门+下级 / 员工仅自己），
+    // 后端按当前登录角色过滤；员工只会拿到自己一条，下拉自然只能选自己。
+    const list: any = await request({ url: '/admin/attendance/visible-users', method: 'get' })
     userOptions.value = Array.isArray(list) ? list : []
-  }).catch(() => { userOptions.value = [] })
+    // 员工只有自己 → 自动锁定到本人，省去手动选
+    if (userOptions.value.length === 1) {
+      const onlyId = userOptions.value[0].id
+      recordFilter.userId = onlyId
+      summaryFilter.userId = onlyId
+      approvalFilter.userId = onlyId
+    }
+  } catch {
+    userOptions.value = []
+  }
 }
 
 const approvalStatusOptions = [

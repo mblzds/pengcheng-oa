@@ -217,8 +217,18 @@ public class AttendanceServiceImpl implements AttendanceService {
 
     @Override
     public List<AttendanceRecord> listAttendanceRecords(Long userId, LocalDate startDate, LocalDate endDate) {
+        return listAttendanceRecords(userId, null, startDate, endDate);
+    }
+
+    @Override
+    public List<AttendanceRecord> listAttendanceRecords(Long userId, Set<Long> allowedUserIds, LocalDate startDate, LocalDate endDate) {
+        if (allowedUserIds != null && allowedUserIds.isEmpty()) return Collections.emptyList();
         LambdaQueryWrapper<AttendanceRecord> wrapper = new LambdaQueryWrapper<>();
-        if (userId != null) wrapper.eq(AttendanceRecord::getUserId, userId);
+        if (userId != null) {
+            wrapper.eq(AttendanceRecord::getUserId, userId);
+        } else if (allowedUserIds != null) {
+            wrapper.in(AttendanceRecord::getUserId, allowedUserIds);
+        }
         if (startDate != null) wrapper.ge(AttendanceRecord::getAttendanceDate, startDate);
         if (endDate != null) wrapper.le(AttendanceRecord::getAttendanceDate, endDate);
         wrapper.orderByDesc(AttendanceRecord::getAttendanceDate);
@@ -233,8 +243,18 @@ public class AttendanceServiceImpl implements AttendanceService {
 
     @Override
     public List<LeaveRequest> listLeaveRequests(Long userId, Integer status) {
+        return listLeaveRequests(userId, null, status);
+    }
+
+    @Override
+    public List<LeaveRequest> listLeaveRequests(Long userId, Set<Long> allowedUserIds, Integer status) {
+        if (allowedUserIds != null && allowedUserIds.isEmpty()) return Collections.emptyList();
         LambdaQueryWrapper<LeaveRequest> wrapper = new LambdaQueryWrapper<>();
-        if (userId != null) wrapper.eq(LeaveRequest::getUserId, userId);
+        if (userId != null) {
+            wrapper.eq(LeaveRequest::getUserId, userId);
+        } else if (allowedUserIds != null) {
+            wrapper.in(LeaveRequest::getUserId, allowedUserIds);
+        }
         if (status != null) wrapper.eq(LeaveRequest::getStatus, status);
         wrapper.orderByDesc(LeaveRequest::getCreateTime);
         List<LeaveRequest> list = leaveRequestMapper.selectList(wrapper);
@@ -248,8 +268,18 @@ public class AttendanceServiceImpl implements AttendanceService {
 
     @Override
     public List<CompensateRequest> listCompensateRequests(Long userId, Integer status) {
+        return listCompensateRequests(userId, null, status);
+    }
+
+    @Override
+    public List<CompensateRequest> listCompensateRequests(Long userId, Set<Long> allowedUserIds, Integer status) {
+        if (allowedUserIds != null && allowedUserIds.isEmpty()) return Collections.emptyList();
         LambdaQueryWrapper<CompensateRequest> wrapper = new LambdaQueryWrapper<>();
-        if (userId != null) wrapper.eq(CompensateRequest::getUserId, userId);
+        if (userId != null) {
+            wrapper.eq(CompensateRequest::getUserId, userId);
+        } else if (allowedUserIds != null) {
+            wrapper.in(CompensateRequest::getUserId, allowedUserIds);
+        }
         if (status != null) wrapper.eq(CompensateRequest::getStatus, status);
         wrapper.orderByDesc(CompensateRequest::getCreateTime);
         List<CompensateRequest> list = compensateRequestMapper.selectList(wrapper);
