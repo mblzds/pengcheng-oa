@@ -29,6 +29,10 @@ public class ApprovalFlowNode extends BaseEntity {
     /** role/user 时填 ID 列表（逗号分隔）；direct_supervisor 时为 NULL */
     private String approverValue;
 
+    /** 适用申请人角色 ID 列表（逗号分隔）；空 = 全员适用；
+     *  非空时仅当申请人持有任一角色时该节点才生效，否则被引擎跳过 */
+    private String appliesToRoleIds;
+
     /** 0 禁用 1 启用 */
     private Integer enabled;
 }

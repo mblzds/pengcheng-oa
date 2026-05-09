@@ -20,5 +20,7 @@ public class ApprovalFlowNodeVO {
     private String nodeName;
     private String approverType;
     private String approverValue;
+    /** 适用申请人角色 ID 列表（逗号分隔）；空 = 全员适用 */
+    private String appliesToRoleIds;
     private Integer enabled;
 }

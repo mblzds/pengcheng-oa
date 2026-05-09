@@ -5,10 +5,12 @@ export interface ApprovalFlowNodeVO {
   businessType: string
   seq?: number
   nodeName: string
-  /** direct_supervisor / role / user */
+  /** direct_supervisor / applicant_dept_manager / role / user */
   approverType: string
-  /** role/user 时为逗号分隔的 ID 列表；direct_supervisor 时为空 */
+  /** role/user 时为逗号分隔的 ID 列表；direct_supervisor / applicant_dept_manager 时为空 */
   approverValue?: string | null
+  /** 适用申请人角色 ID 列表（逗号分隔）；空 = 全员适用 */
+  appliesToRoleIds?: string | null
   enabled?: number
 }
 

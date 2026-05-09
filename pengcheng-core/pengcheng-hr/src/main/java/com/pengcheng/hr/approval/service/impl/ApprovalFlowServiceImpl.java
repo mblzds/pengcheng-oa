@@ -32,6 +32,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -57,12 +58,19 @@ public class ApprovalFlowServiceImpl implements ApprovalFlowService {
             throw new IllegalStateException("未配置 " + businessType + " 的审批流，请联系管理员");
         }
         // 提交时一次性快照所有节点的候选审批人，避免后续人员变动影响已提交流程
-        // P1：节点级剔除申请人本人；过滤后为空则跳过该节点（不抛错）
-        //     场景：部门负责人请假 → "部门负责人"节点候选只剩自己 → 跳过；
-        //          HR 总监请假 → "HR 审"候选剔除自己后还有其他 HR → 正常入库；
-        //          老总请假 → "总经理"节点候选只剩自己 → 跳过；最后所有节点都跳完 → 自动通过
+        // 跳过节点的两种情况：
+        //   ① 节点配置了 applies_to_role_ids 且申请人不持有任一指定角色 → 该节点对此申请人不生效
+        //      场景：普通员工请假，"总经理"节点 applies_to=管理岗，员工不属管理岗 → 跳过
+        //   ② 候选人列表（剔除申请人本人后）为空
+        //      场景：部门负责人请假 → "部门负责人"节点候选只剩自己 → 跳过；
+        //           老总请假 → "总经理"节点候选只剩自己 → 跳过；
+        //           所有节点都跳完 → 整单自动通过
+        Set<Long> applicantRoleIds = loadApplicantRoleIds(applicantId);
         int insertedCount = 0;
         for (ApprovalFlowNode tmpl : templates) {
+            if (!matchesApplicantRole(tmpl.getAppliesToRoleIds(), applicantRoleIds)) {
+                continue;
+            }
             List<Long> raw = resolveApprovers(tmpl.getApproverType(), tmpl.getApproverValue(), applicantId);
             List<Long> approvers = raw.stream()
                     .filter(id -> id != null && !id.equals(applicantId))
@@ -281,6 +289,34 @@ public class ApprovalFlowServiceImpl implements ApprovalFlowService {
         return candidateId != null && !candidateId.equals(applicantId);
     }
 
+    /** 节点 applies_to_role_ids 与申请人角色匹配判定：空 = 全员适用 */
+    private boolean matchesApplicantRole(String appliesToRoleIds, Set<Long> applicantRoleIds) {
+        if (appliesToRoleIds == null || appliesToRoleIds.isBlank()) {
+            return true; // 未配置 = 全员适用
+        }
+        List<Long> targetRoleIds = parseIds(appliesToRoleIds);
+        if (targetRoleIds.isEmpty()) {
+            return true;
+        }
+        if (applicantRoleIds == null || applicantRoleIds.isEmpty()) {
+            return false;
+        }
+        for (Long rid : targetRoleIds) {
+            if (applicantRoleIds.contains(rid)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** 加载申请人持有的所有角色 ID（用于节点 applies_to 匹配） */
+    private Set<Long> loadApplicantRoleIds(Long applicantId) {
+        if (applicantId == null) return Collections.emptySet();
+        List<SysUserRole> rels = userRoleMapper.selectList(
+                new LambdaQueryWrapper<SysUserRole>().eq(SysUserRole::getUserId, applicantId));
+        return rels.stream().map(SysUserRole::getRoleId).collect(Collectors.toSet());
+    }
+
     private List<Long> resolveRoleApprovers(String approverValue) {
         List<Long> roleIds = parseIds(approverValue);
         if (roleIds.isEmpty()) {
@@ -311,6 +347,7 @@ public class ApprovalFlowServiceImpl implements ApprovalFlowService {
             n.setNodeName(vo.getNodeName());
             n.setApproverType(vo.getApproverType());
             n.setApproverValue(vo.getApproverValue());
+            n.setAppliesToRoleIds(vo.getAppliesToRoleIds());
             n.setEnabled(vo.getEnabled() == null ? 1 : vo.getEnabled());
             flowNodeMapper.insert(n);
         }
@@ -390,6 +427,7 @@ public class ApprovalFlowServiceImpl implements ApprovalFlowService {
                 .nodeName(n.getNodeName())
                 .approverType(n.getApproverType())
                 .approverValue(n.getApproverValue())
+                .appliesToRoleIds(n.getAppliesToRoleIds())
                 .enabled(n.getEnabled())
                 .build();
     }

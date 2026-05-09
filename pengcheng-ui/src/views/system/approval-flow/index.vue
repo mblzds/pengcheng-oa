@@ -77,6 +77,20 @@
                     @update:value="(v) => node.approverValue = (v || []).join(',')"
                   />
                 </n-gi>
+                <n-gi :span="6">
+                  <n-text depth="3" style="font-size: 12px">适用申请人角色</n-text>
+                </n-gi>
+                <n-gi :span="18">
+                  <n-select
+                    :value="parseIds(node.appliesToRoleIds)"
+                    multiple
+                    filterable
+                    clearable
+                    :options="roleOptions"
+                    placeholder="留空 = 全员适用；选了角色 = 仅持有任一角色的申请人触发该节点"
+                    @update:value="(v) => node.appliesToRoleIds = (v && v.length) ? v.join(',') : null"
+                  />
+                </n-gi>
               </n-grid>
             </div>
 
