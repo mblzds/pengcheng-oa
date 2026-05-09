@@ -281,7 +281,11 @@ const userColumns: DataTableColumns<SysUser> = [
       return h(NTag, {type: status.type, size: 'small'}, {default: () => status.label})
     }
   },
-  {title: '创建时间', key: 'createTime', width: 170}
+  {
+    title: '创建时间', key: 'createTime', width: 110, render(row) {
+      return row.createTime ? row.createTime.slice(0, 10) : '-'
+    }
+  }
 ]
 
 async function loadUserData() {
