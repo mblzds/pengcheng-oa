@@ -13,7 +13,11 @@
                 type="daterange"
                 clearable
                 :shortcuts="dateShortcuts"
-                style="width: 280px"
+                :update-value-on-close="false"
+                format="yyyy-MM-dd"
+                start-placeholder="开始日期"
+                end-placeholder="结束日期"
+                style="width: 320px"
               />
             </n-form-item>
             <n-form-item label="状态">
