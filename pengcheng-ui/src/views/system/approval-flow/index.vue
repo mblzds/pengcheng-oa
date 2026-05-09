@@ -2,13 +2,21 @@
   <div class="approval-flow-container">
     <n-card>
       <template #header>
-        <n-space justify="space-between" align="center">
-          <span>审批流配置</span>
-          <n-text depth="3" style="font-size: 12px">
-            按业务类型配置请假/调休/报销的审批节点链；提交申请时按"开始时一次性快照"原则解析候选审批人，后续人事变动不影响在途流程。
-          </n-text>
-        </n-space>
+        <span>审批流配置</span>
       </template>
+
+      <!-- 顶部使用说明（可折叠） -->
+      <n-collapse :default-expanded-names="['intro']" style="margin-bottom: 12px">
+        <n-collapse-item title="📖 配置说明（首次使用请展开）" name="intro">
+          <ul class="intro-list">
+            <li>节点按从上到下顺序<strong>串行审批</strong>，前一节点通过才进入下一节</li>
+            <li>保存后立即对<strong>新提交</strong>的申请生效；已在审批中的单不受影响（提交时已快照审批人）</li>
+            <li><strong>「审批人来源」</strong>决定 <em>谁来审</em>；<strong>「适用申请人角色」</strong>决定 <em>谁的单触发本节点</em>，留空 = 全员适用</li>
+            <li>"适用申请人角色"是 <strong>加严</strong> 用的——只在"少数岗位才走"的节点上选；普通员工的链路 = 全员节点的并集，不需要专门为他们配</li>
+            <li>配完想验证：在小程序提交一条对应类型的申请，进"申请记录"看实际流转</li>
+          </ul>
+        </n-collapse-item>
+      </n-collapse>
 
       <n-tabs v-model:value="activeBusinessType" type="line" animated @update:value="onTabChange">
         <n-tab-pane name="leave" tab="请假审批流" />
@@ -18,6 +26,11 @@
 
       <n-spin :show="loading">
         <n-space vertical :size="12">
+          <!-- 报销 tab 警告：当前不走通用引擎 -->
+          <n-alert v-if="activeBusinessType === 'expense'" type="warning" title="本页对报销暂不生效">
+            当前报销/垫佣/预付佣的审批由付款专用引擎处理，<strong>这里改了不会影响线上行为</strong>。待统一切到通用审批引擎后才会接管。
+          </n-alert>
+
           <n-alert v-if="nodes.length === 0" type="info" :show-icon="false">
             尚未配置任何节点，提交申请会失败。请添加至少一个节点。
           </n-alert>
@@ -28,66 +41,67 @@
             class="node-row"
           >
             <div class="node-seq">
-              <n-tag type="info" round>{{ idx + 1 }}</n-tag>
+              <n-tag type="info" round>节点 {{ idx + 1 }}</n-tag>
             </div>
 
             <div class="node-fields">
-              <n-grid :cols="24" :x-gap="12" :y-gap="8">
-                <n-gi :span="6">
-                  <n-input
+              <n-grid :cols="24" :x-gap="12" :y-gap="10">
+                <!-- Row 1: 节点名 + 审批人来源 -->
+                <n-gi :span="3" class="field-label">节点名</n-gi>
+                <n-gi :span="9">
+                  <n-auto-complete
                     v-model:value="node.nodeName"
-                    placeholder="节点名（如 直接上级）"
-                    maxlength="32"
+                    :options="nodeNameSuggestions"
+                    placeholder="如：直接上级 / HR 备案 / 总经理签字"
+                    :input-props="{ maxlength: 32 }"
                   />
                 </n-gi>
-                <n-gi :span="6">
+                <n-gi :span="3" class="field-label">审批人来源</n-gi>
+                <n-gi :span="9">
                   <n-select
                     v-model:value="node.approverType"
                     :options="approverTypeOptions"
                     @update:value="onApproverTypeChange(node)"
                   />
                 </n-gi>
-                <n-gi :span="12">
-                  <!-- 直接上级：无需配置 -->
+                <!-- Row 2: 审批人值 -->
+                <n-gi :span="3" class="field-label">审批人</n-gi>
+                <n-gi :span="21">
                   <n-text v-if="node.approverType === 'direct_supervisor'" depth="3">
-                    自动解析为申请人 sys_user.leader_id（缺失时回退 sys_dept.leader_id，沿祖先回溯，自动跳过申请人本人）
+                    自动解析为申请人 user.leader_id（缺失时回退 dept.leader_id，沿祖先回溯，自动跳过申请人本人）
                   </n-text>
-                  <!-- 本部门负责人：无需配置 -->
                   <n-text v-else-if="node.approverType === 'applicant_dept_manager'" depth="3">
                     自动解析为申请人所在部门的负责人（自我排除 + 沿父部门回溯，忽略 user.leader_id 跨部门覆盖）
                   </n-text>
-                  <!-- 角色 -->
                   <n-select
                     v-else-if="node.approverType === 'role'"
                     :value="parseIds(node.approverValue)"
                     multiple
                     filterable
                     :options="roleOptions"
-                    placeholder="选择角色"
+                    placeholder="选一个或多个角色，任一角色持有人都可审批"
                     @update:value="(v) => node.approverValue = (v || []).join(',')"
                   />
-                  <!-- 用户 -->
                   <n-select
                     v-else-if="node.approverType === 'user'"
                     :value="parseIds(node.approverValue)"
                     multiple
                     filterable
                     :options="userOptions"
-                    placeholder="选择审批人"
+                    placeholder="指定一个或多个具体用户审批"
                     @update:value="(v) => node.approverValue = (v || []).join(',')"
                   />
                 </n-gi>
-                <n-gi :span="6">
-                  <n-text depth="3" style="font-size: 12px">适用申请人角色</n-text>
-                </n-gi>
-                <n-gi :span="18">
+                <!-- Row 3: 适用申请人角色 -->
+                <n-gi :span="3" class="field-label">适用申请人</n-gi>
+                <n-gi :span="21">
                   <n-select
                     :value="parseIds(node.appliesToRoleIds)"
                     multiple
                     filterable
                     clearable
                     :options="roleOptions"
-                    placeholder="留空 = 全员适用；选了角色 = 仅持有任一角色的申请人触发该节点"
+                    placeholder="留空 = 全员都走本节点；选角色 = 仅持有任一角色的申请人才触发"
                     @update:value="(v) => node.appliesToRoleIds = (v && v.length) ? v.join(',') : null"
                   />
                 </n-gi>
@@ -154,6 +168,24 @@ const approverTypeOptions = [
   { label: '指定角色', value: 'role' },
   { label: '指定用户', value: 'user' }
 ]
+
+// 节点名常用建议（n-auto-complete 直接接收 string[]）
+const nodeNameSuggestions = [
+  '直接上级',
+  '本部门负责人',
+  '部门经理审批',
+  'HR 备案',
+  'HR 审批',
+  '财务审核',
+  '总经理签字',
+  '总经理审批'
+]
+
+// 切换审批人来源时的智能默认节点名
+const defaultNodeNameByType: Record<string, string> = {
+  direct_supervisor: '直接上级',
+  applicant_dept_manager: '本部门负责人'
+}
 
 const roleOptions = ref<{ label: string; value: number }[]>([])
 const userOptions = ref<{ label: string; value: number }[]>([])
@@ -225,6 +257,11 @@ function moveDown(idx: number) {
 function onApproverTypeChange(node: ApprovalFlowNodeVO) {
   // 切换审批人类型时清空旧值，避免脏数据落库
   node.approverValue = null
+  // 节点名为空时按类型给个建议默认值，让新手不用想"该叫啥"
+  if (!node.nodeName || !node.nodeName.trim()) {
+    const suggested = defaultNodeNameByType[node.approverType]
+    if (suggested) node.nodeName = suggested
+  }
 }
 
 function parseIds(csv?: string | null): number[] {
@@ -281,5 +318,27 @@ async function onSave() {
 }
 .node-actions {
   flex-shrink: 0;
+}
+.intro-list {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 13px;
+  color: #555;
+  line-height: 1.8;
+}
+.intro-list strong {
+  color: #18a058;
+}
+.intro-list em {
+  font-style: normal;
+  color: #2080f0;
+}
+.field-label {
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  color: #666;
+  justify-content: flex-end;
+  padding-right: 4px;
 }
 </style>
