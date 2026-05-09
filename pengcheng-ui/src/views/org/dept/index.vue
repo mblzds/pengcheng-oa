@@ -5,7 +5,7 @@
       <n-card class="dept-tree-card" size="small">
         <template #header>
           <div class="dept-tree-header">
-            <span>部门体系</span><span style="color: gray">（支持拖拽）</span>
+            <span>部门体系</span>
           </div>
         </template>
         <div class="dept-search">
@@ -29,8 +29,6 @@
               children-field="children"
               selectable
               block-line
-              draggable
-              @drop="handleDrop"
           />
         </div>
         <template #footer>
@@ -122,6 +120,9 @@
             <div v-else-if="!leaderLoading && leaderOptions.length === 0" class="form-tip">本部门暂无成员；留空时审批流会自动走父部门负责人。</div>
           </div>
         </n-form-item>
+        <n-form-item label="显示排序" path="sort">
+          <n-input-number v-model:value="formData.sort" :min="0" placeholder="数字越小越靠前（同上级部门下生效）" style="width: 100%"/>
+        </n-form-item>
         <n-form-item label="状态" path="status">
           <n-switch v-model:value="formData.status" :checked-value="1" :unchecked-value="0">
             <template #checked>正常</template>
@@ -151,8 +152,7 @@ import {
   type DataTableColumns,
   type FormInst,
   type FormRules,
-  type TreeOption,
-  type TreeDropInfo
+  type TreeOption
 } from 'naive-ui'
 import {SearchOutline, AddOutline} from '@vicons/ionicons5'
 import {deptApi, type SysDept} from '@/api/org'
@@ -202,28 +202,6 @@ async function loadData() {
   }
 }
 
-
-async function handleDrop({node, dragNode, dropPosition}: TreeDropInfo) {
-  const dragId = dragNode.id as number
-  const targetId = node.id as number
-
-  let parentId: number
-  if (dropPosition === 'after') {
-    // 拖拽到目标节点内部，目标节点成为新的父节点
-    parentId = targetId
-  } else {
-    // 拖拽到目标节点的前后，目标节点的父节点成为新的父节点
-    parentId = (node.parentId as number) || 0
-  }
-
-  try {
-    await deptApi.move(dragId, parentId)
-    message.success('移动成功')
-    loadData() // 重新加载树形结构
-  } catch (error) {
-    // 错误已在请求拦截器处理
-  }
-}
 
 // ==================== 用户列表逻辑 ====================
 const userData = ref<SysUser[]>([])
