@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.pengcheng.hr.approval.constant.ApprovalConstants;
 import com.pengcheng.hr.approval.dto.ApprovalFlowNodeVO;
 import com.pengcheng.hr.approval.dto.ApprovalProgressVO;
+import com.pengcheng.hr.approval.dto.BusinessTypeOption;
 import com.pengcheng.hr.approval.entity.ApprovalFlowNode;
 import com.pengcheng.hr.approval.entity.ApprovalRecordNode;
 import com.pengcheng.hr.approval.event.ApprovalFinalizedEvent;
@@ -407,6 +408,45 @@ public class ApprovalFlowServiceImpl implements ApprovalFlowService {
     @Override
     public List<ApprovalFlowNodeVO> listTemplate(String businessType) {
         return listEnabledTemplate(businessType).stream().map(this::toVO).toList();
+    }
+
+    @Override
+    public List<BusinessTypeOption> listBusinessTypes() {
+        // 内置类型按业务体感顺序固定（请假在前），未在 ApprovalConstants 注册的自定义类型 label 回显原 key
+        java.util.Map<String, String> labels = new java.util.LinkedHashMap<>();
+        labels.put(ApprovalConstants.BUSINESS_TYPE_LEAVE, "请假");
+        labels.put(ApprovalConstants.BUSINESS_TYPE_COMPENSATE, "调休");
+        labels.put(ApprovalConstants.BUSINESS_TYPE_EXPENSE, "报销");
+        labels.put(ApprovalConstants.BUSINESS_TYPE_ADVANCE, "垫佣");
+        labels.put(ApprovalConstants.BUSINESS_TYPE_PREPAY, "预付佣");
+
+        // 拉所有已存在节点，按 business_type 分组计数
+        List<ApprovalFlowNode> all = flowNodeMapper.selectList(
+                new LambdaQueryWrapper<ApprovalFlowNode>()
+                        .eq(ApprovalFlowNode::getEnabled, 1));
+        java.util.Map<String, Long> counts = all.stream()
+                .collect(Collectors.groupingBy(ApprovalFlowNode::getBusinessType, Collectors.counting()));
+
+        List<BusinessTypeOption> result = new ArrayList<>();
+        // 内置类型先输出（即使 nodeCount=0 也要保留 tab，给管理员去配）
+        for (java.util.Map.Entry<String, String> e : labels.entrySet()) {
+            result.add(BusinessTypeOption.builder()
+                    .businessType(e.getKey())
+                    .label(e.getValue())
+                    .nodeCount(counts.getOrDefault(e.getKey(), 0L).intValue())
+                    .build());
+        }
+        // 数据库里出现过但不在内置列表里的自定义类型，排在内置之后；label 用原 key
+        for (java.util.Map.Entry<String, Long> e : counts.entrySet()) {
+            if (!labels.containsKey(e.getKey())) {
+                result.add(BusinessTypeOption.builder()
+                        .businessType(e.getKey())
+                        .label(e.getKey())
+                        .nodeCount(e.getValue().intValue())
+                        .build());
+            }
+        }
+        return result;
     }
 
     @Override

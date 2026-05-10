@@ -90,6 +90,13 @@ public interface ApprovalFlowService {
     List<ApprovalFlowNodeVO> listTemplate(String businessType);
 
     /**
+     * 列举管理后台审批流配置页应展示的业务类型 tab 列表 = 后端注册的内置类型（leave / compensate /
+     * expense / advance / prepay）∪ 当前 approval_flow_node 表里已经出现过的自定义类型。
+     * 自定义类型 label 回显原 key，nodeCount = 各类型当前 enabled+未删除节点数。
+     */
+    List<com.pengcheng.hr.approval.dto.BusinessTypeOption> listBusinessTypes();
+
+    /**
      * 全量替换某 business_type 的节点配置（用于后台一次性保存）。
      * 实现应在事务内：软删旧节点 → 插入新节点。
      */

@@ -14,7 +14,18 @@ export interface ApprovalFlowNodeVO {
   enabled?: number
 }
 
+export interface BusinessTypeOption {
+  businessType: string
+  label: string
+  nodeCount: number
+}
+
 export const approvalFlowApi = {
+  /** 拉取审批流配置页 tab 列表（内置类型 + 数据库自定义类型） */
+  businessTypes(): Promise<BusinessTypeOption[]> {
+    return request({ url: '/admin/approval-flow/business-types', method: 'get' })
+  },
+
   list(businessType: string): Promise<ApprovalFlowNodeVO[]> {
     return request({ url: `/admin/approval-flow/${businessType}`, method: 'get' })
   },

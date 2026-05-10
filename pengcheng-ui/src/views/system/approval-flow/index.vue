@@ -19,11 +19,12 @@
       </n-collapse>
 
       <n-tabs v-model:value="activeBusinessType" type="line" animated @update:value="onTabChange">
-        <n-tab-pane name="leave" tab="请假审批流" />
-        <n-tab-pane name="compensate" tab="调休审批流" />
-        <n-tab-pane name="expense" tab="报销审批流" />
-        <n-tab-pane name="advance" tab="垫佣审批流" />
-        <n-tab-pane name="prepay" tab="预付佣审批流" />
+        <n-tab-pane
+          v-for="opt in businessTypeOptions"
+          :key="opt.businessType"
+          :name="opt.businessType"
+          :tab="`${opt.label}审批流`"
+        />
       </n-tabs>
 
       <n-spin :show="loading">
@@ -149,12 +150,13 @@
 import { ref, onMounted } from 'vue'
 import { useMessage } from 'naive-ui'
 import { ArrowUpOutline, ArrowDownOutline, TrashOutline, AddOutline } from '@vicons/ionicons5'
-import { approvalFlowApi, type ApprovalFlowNodeVO } from '@/api/approval'
+import { approvalFlowApi, type ApprovalFlowNodeVO, type BusinessTypeOption } from '@/api/approval'
 import { roleApi, userApi, type SysRole, type SysUser } from '@/api/system'
 
 const message = useMessage()
 
 const activeBusinessType = ref<string>('leave')
+const businessTypeOptions = ref<BusinessTypeOption[]>([])
 const nodes = ref<ApprovalFlowNodeVO[]>([])
 const loading = ref(false)
 const saving = ref(false)
@@ -185,9 +187,21 @@ const roleOptions = ref<{ label: string; value: number }[]>([])
 const userOptions = ref<{ label: string; value: number }[]>([])
 
 onMounted(async () => {
-  await Promise.all([loadRoleOptions(), loadUserOptions()])
+  await Promise.all([loadRoleOptions(), loadUserOptions(), loadBusinessTypes()])
   await loadNodes()
 })
+
+async function loadBusinessTypes() {
+  const list = await approvalFlowApi.businessTypes()
+  businessTypeOptions.value = list || []
+  // 服务端无返回兜底：默认 leave；当前选中类型不在列表里时切到第一项
+  if (businessTypeOptions.value.length === 0) {
+    return
+  }
+  if (!businessTypeOptions.value.find(o => o.businessType === activeBusinessType.value)) {
+    activeBusinessType.value = businessTypeOptions.value[0].businessType
+  }
+}
 
 async function loadRoleOptions() {
   const list: SysRole[] = await roleApi.list()
