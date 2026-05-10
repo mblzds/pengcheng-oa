@@ -22,15 +22,12 @@
         <n-tab-pane name="leave" tab="请假审批流" />
         <n-tab-pane name="compensate" tab="调休审批流" />
         <n-tab-pane name="expense" tab="报销审批流" />
+        <n-tab-pane name="advance" tab="垫佣审批流" />
+        <n-tab-pane name="prepay" tab="预付佣审批流" />
       </n-tabs>
 
       <n-spin :show="loading">
         <n-space vertical :size="12">
-          <!-- 报销 tab 警告：当前不走通用引擎 -->
-          <n-alert v-if="activeBusinessType === 'expense'" type="warning" title="本页对报销暂不生效">
-            当前报销/垫佣/预付佣的审批由付款专用引擎处理，<strong>这里改了不会影响线上行为</strong>。待统一切到通用审批引擎后才会接管。
-          </n-alert>
-
           <n-alert v-if="nodes.length === 0" type="info" :show-icon="false">
             尚未配置任何节点，提交申请会失败。请添加至少一个节点。
           </n-alert>
