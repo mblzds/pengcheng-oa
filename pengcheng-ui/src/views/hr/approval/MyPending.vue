@@ -130,28 +130,53 @@
 <script setup lang="tsx">
 import { computed, h, onMounted, reactive, ref } from 'vue'
 import { NButton, NSpace, NTag, useMessage, type DataTableColumns } from 'naive-ui'
-import { approvalApi, type ApprovalDetail, type ApprovalItem, type ApprovalType } from '@/api/approval'
+import { approvalApi, approvalFlowApi, type ApprovalDetail, type ApprovalItem, type ApprovalType, type BusinessTypeOption } from '@/api/approval'
 
 const message = useMessage()
 const loading = ref(false)
 const rows = ref<ApprovalItem[]>([])
 const typeFilter = ref<ApprovalType | null>(null)
 
-const typeOptions = [
-  { label: '请假', value: 'leave' },
-  { label: '调休', value: 'compensate' },
-  { label: '费用报销', value: 'expense' },
-  { label: '垫佣申请', value: 'advance' },
-  { label: '预付佣申请', value: 'prepay' },
+// 类型筛选/展示从 approval_business_type 表实时拉，支持运营新建的自定义类型；
+// commission 不在 approval_business_type 里（独立审计入口），这里手动追加
+const typeOptions = ref<{ label: string, value: string }[]>([
   { label: '佣金审核', value: 'commission' }
-]
+])
+const businessTypes = ref<BusinessTypeOption[]>([])
+
+async function loadBusinessTypes() {
+  try {
+    businessTypes.value = await approvalFlowApi.businessTypes()
+    typeOptions.value = [
+      ...businessTypes.value.map(t => ({
+        label: t.builtin === 1 ? builtinFullLabel(t.businessType, t.label) : t.label,
+        value: t.businessType
+      })),
+      { label: '佣金审核', value: 'commission' }
+    ]
+  } catch (e) {
+    // 拉不到也不阻塞页面
+  }
+}
+
+// 内置类型沿用之前的"全名"（如「费用报销」「垫佣申请」），自定义类型直接用 label
+function builtinFullLabel(key: string, label: string): string {
+  const fullMap: Record<string, string> = {
+    leave: '请假',
+    compensate: '调休',
+    expense: '费用报销',
+    advance: '垫佣申请',
+    prepay: '预付佣申请'
+  }
+  return fullMap[key] || label
+}
 
 const filteredRows = computed(() =>
   typeFilter.value ? rows.value.filter(r => r.type === typeFilter.value) : rows.value
 )
 
 function typeLabel(t?: string | null): string {
-  return typeOptions.find(o => o.value === t)?.label || '审批'
+  return typeOptions.value.find(o => o.value === t)?.label || (t || '审批')
 }
 
 function typeTagType(t: string): 'info' | 'success' | 'warning' | 'error' | 'default' {
@@ -340,7 +365,10 @@ async function confirmAction() {
   }
 }
 
-onMounted(loadList)
+onMounted(async () => {
+  await loadBusinessTypes()
+  await loadList()
+})
 </script>
 
 <style scoped>
