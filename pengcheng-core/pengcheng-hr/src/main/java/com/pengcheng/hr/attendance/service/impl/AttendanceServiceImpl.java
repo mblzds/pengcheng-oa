@@ -8,6 +8,7 @@ import com.pengcheng.hr.approval.service.ApprovalFlowService;
 import com.pengcheng.hr.attendance.dto.*;
 import com.pengcheng.hr.attendance.entity.AttendanceRecord;
 import com.pengcheng.hr.attendance.entity.CompensateRequest;
+import com.pengcheng.hr.attendance.entity.HolidayCalendar;
 import com.pengcheng.hr.attendance.entity.LeaveRequest;
 import com.pengcheng.hr.attendance.entity.SignInRecord;
 import com.pengcheng.hr.attendance.mapper.AttendanceRecordMapper;
@@ -236,6 +237,18 @@ public class AttendanceServiceImpl implements AttendanceService {
         int compensateDaysInt = compensateDays.intValue();
         int absentDays = Math.max(expectedWorkdays - attendanceDays - leaveDaysRounded - compensateDaysInt, 0);
 
+        // 把本月内的法定节假日 + 调休补班按 YYYY-MM-DD 字符串列出，方便小程序日历视图就地判定
+        List<HolidayCalendar> yearItems = holidayCalendarService.listByYear(year);
+        List<String> holidays = new java.util.ArrayList<>();
+        List<String> makeupWorkdays = new java.util.ArrayList<>();
+        for (HolidayCalendar h : yearItems) {
+            if (h.getHolidayDate() == null) continue;
+            if (h.getHolidayDate().isBefore(start) || h.getHolidayDate().isAfter(end)) continue;
+            String iso = h.getHolidayDate().toString();
+            if (h.getType() != null && h.getType() == HolidayCalendar.TYPE_HOLIDAY) holidays.add(iso);
+            else if (h.getType() != null && h.getType() == HolidayCalendar.TYPE_MAKEUP_WORKDAY) makeupWorkdays.add(iso);
+        }
+
         return AttendanceMonthlyVO.builder()
                 .userId(userId)
                 .year(year)
@@ -247,6 +260,8 @@ public class AttendanceServiceImpl implements AttendanceService {
                 .compensateDays(compensateDaysInt)
                 .expectedWorkdays(expectedWorkdays)
                 .absentDays(absentDays)
+                .holidays(holidays)
+                .makeupWorkdays(makeupWorkdays)
                 .overtimeHours(0.0)
                 .build();
     }

@@ -59,11 +59,14 @@
 					{ key: 'late', label: '迟到' },
 					{ key: 'early', label: '早退' },
 					{ key: 'absent', label: '缺勤' },
-					{ key: 'leave', label: '请假' }
+					{ key: 'leave', label: '请假' },
+					{ key: 'holiday', label: '节假日' }
 				]
 			}
 		},
 		computed: {
+			holidaySet() { return new Set(this.summary?.holidays || []) },
+			makeupWorkdaySet() { return new Set(this.summary?.makeupWorkdays || []) },
 			calendarDays() {
 				const firstDay = new Date(this.year, this.month - 1, 1).getDay()
 				const daysInMonth = new Date(this.year, this.month, 0).getDate()
@@ -74,13 +77,18 @@
 					const key = `${this.year}-${String(this.month).padStart(2, '0')}-${String(d).padStart(2, '0')}`
 					const rec = this.records[key] || {}
 					const isToday = today.getFullYear() === this.year && today.getMonth() + 1 === this.month && today.getDate() === d
-					const statusMap = { normal: '正常', late: '迟到', early: '早退', absent: '缺勤', leave: '请假' }
+					const statusMap = { normal: '正常', late: '迟到', early: '早退', absent: '缺勤', leave: '请假', holiday: '节假日' }
 					const isPastDate = new Date(this.year, this.month - 1, d) < new Date(today.getFullYear(), today.getMonth(), today.getDate())
-					days.push({
-						date: d, isToday,
-						status: rec.status || (isPastDate ? 'absent' : ''),
-						statusLabel: statusMap[rec.status || (isPastDate ? 'absent' : '')] || ''
-					})
+					// 工作日判定：周一~五是默认工作日；法定节假日改休、调休补班改上
+					const dow = new Date(this.year, this.month - 1, d).getDay()
+					const isHoliday = this.holidaySet.has(key)
+					const isMakeup = this.makeupWorkdaySet.has(key)
+					const isWorkday = isMakeup || (!isHoliday && dow !== 0 && dow !== 6)
+					// 状态优先级：实际打卡记录 > 节假日 > 缺勤（仅工作日且已过去）> 空
+					let status = rec.status || ''
+					if (!status && isHoliday) status = 'holiday'
+					if (!status && isPastDate && isWorkday) status = 'absent'
+					days.push({ date: d, isToday, status, statusLabel: statusMap[status] || '' })
 				}
 				return days
 			},
@@ -167,6 +175,7 @@
 		&.dot-early { background: #FADB14; }
 		&.dot-absent { background: #F5222D; }
 		&.dot-leave { background: #1890FF; }
+		&.dot-holiday { background: #BFBFBF; }
 	}
 	.day-label { font-size: 16rpx; color: #999; margin-top: 2rpx; }
 	.legend {

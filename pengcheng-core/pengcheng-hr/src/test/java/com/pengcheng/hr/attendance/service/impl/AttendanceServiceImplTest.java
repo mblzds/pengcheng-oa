@@ -2,6 +2,7 @@ package com.pengcheng.hr.attendance.service.impl;
 
 import com.pengcheng.common.event.DataChangeEvent;
 import com.pengcheng.hr.approval.service.ApprovalFlowService;
+import com.pengcheng.hr.attendance.service.HolidayCalendarService;
 import com.pengcheng.hr.attendance.dto.AttendanceMonthlyVO;
 import com.pengcheng.hr.attendance.dto.ClockInDTO;
 import com.pengcheng.hr.attendance.dto.LeaveRequestDTO;
@@ -50,6 +51,7 @@ class AttendanceServiceImplTest {
     private SysUserMapper sysUserMapper;
     private SysDeptMapper sysDeptMapper;
     private EmployeeProfileMapper employeeProfileMapper;
+    private HolidayCalendarService holidayCalendarService;
     private AttendanceServiceImpl service;
 
     @BeforeEach
@@ -64,6 +66,15 @@ class AttendanceServiceImplTest {
         sysUserMapper = mock(SysUserMapper.class);
         sysDeptMapper = mock(SysDeptMapper.class);
         employeeProfileMapper = mock(EmployeeProfileMapper.class);
+        holidayCalendarService = mock(HolidayCalendarService.class);
+        // 默认按"周一~五为工作日"的逻辑兜底，避免空指针
+        when(holidayCalendarService.isWorkday(any(LocalDate.class))).thenAnswer(inv -> {
+            LocalDate d = inv.getArgument(0);
+            int dow = d.getDayOfWeek().getValue();
+            return dow >= 1 && dow <= 5;
+        });
+        when(holidayCalendarService.countWorkdays(any(LocalDate.class), any(LocalDate.class))).thenReturn(0);
+        when(holidayCalendarService.listByYear(org.mockito.ArgumentMatchers.anyInt())).thenReturn(java.util.Collections.emptyList());
         // 默认开启时间校验、关闭位置校验，回退到 9:00/18:00 默认值
         when(systemConfigHelper.isAttendanceEnforceTime()).thenReturn(true);
         when(systemConfigHelper.isAttendanceEnforceLocation()).thenReturn(false);
@@ -80,7 +91,8 @@ class AttendanceServiceImplTest {
                 systemConfigHelper,
                 sysUserMapper,
                 sysDeptMapper,
-                employeeProfileMapper
+                employeeProfileMapper,
+                holidayCalendarService
         );
     }
 

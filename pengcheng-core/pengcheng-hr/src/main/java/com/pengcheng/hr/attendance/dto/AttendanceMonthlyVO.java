@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -30,6 +32,12 @@ public class AttendanceMonthlyVO {
 
     /** 缺勤天数 = max(expectedWorkdays - attendanceDays - leaveDays - compensateDays, 0)；后端算好直接返回 */
     private Integer absentDays;
+
+    /** 本月内法定节假日的日期清单（YYYY-MM-DD），给小程序日历视图用，避免把节日格当缺勤渲染 */
+    private List<String> holidays;
+
+    /** 本月内调休补班的日期清单（YYYY-MM-DD），日历应当把这些周末日反过来当工作日 */
+    private List<String> makeupWorkdays;
 
     private Double overtimeHours;
 }
