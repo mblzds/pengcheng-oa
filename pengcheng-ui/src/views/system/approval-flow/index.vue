@@ -18,14 +18,76 @@
         </n-collapse-item>
       </n-collapse>
 
+      <div class="type-bar">
+        <span class="type-bar-title">业务类型</span>
+        <n-space>
+          <n-button size="small" @click="openCreateTypeDialog">
+            <template #icon><n-icon><AddOutline /></n-icon></template>
+            新增类型
+          </n-button>
+          <n-button size="small" :disabled="!currentTypeOption" @click="openEditTypeDialog">编辑</n-button>
+          <n-button
+            size="small"
+            type="error"
+            :disabled="!currentTypeOption || currentTypeOption.builtin === 1"
+            @click="confirmDeleteType"
+          >
+            删除
+          </n-button>
+        </n-space>
+      </div>
+
       <n-tabs v-model:value="activeBusinessType" type="line" animated @update:value="onTabChange">
         <n-tab-pane
           v-for="opt in businessTypeOptions"
           :key="opt.businessType"
           :name="opt.businessType"
-          :tab="`${opt.label}审批流`"
+          :tab="opt.builtin === 1 ? `${opt.label}审批流` : `${opt.label}审批流（自定义）`"
         />
       </n-tabs>
+
+      <!-- 业务类型 新建 / 编辑 弹窗 -->
+      <n-modal
+        v-model:show="showTypeDialog"
+        preset="card"
+        :title="typeForm.id ? '编辑业务类型' : '新增业务类型'"
+        style="width: 480px"
+        :mask-closable="false"
+      >
+        <n-form label-placement="left" :label-width="120" require-mark-placement="right-hanging">
+          <n-form-item label="key（business_type）" required>
+            <n-input
+              v-model:value="typeForm.businessType"
+              placeholder="小写字母开头，如 travel / overtime"
+              :disabled="typeForm.id != null && typeForm.builtin === 1"
+              :input-props="{ maxlength: 64 }"
+            />
+          </n-form-item>
+          <n-form-item label="显示名" required>
+            <n-input v-model:value="typeForm.label" placeholder="如 出差申请" :input-props="{ maxlength: 64 }" />
+          </n-form-item>
+          <n-form-item label="说明">
+            <n-input
+              v-model:value="typeForm.description"
+              type="textarea"
+              :autosize="{ minRows: 2, maxRows: 4 }"
+              placeholder="可选，用于运营自己备忘"
+            />
+          </n-form-item>
+          <n-form-item label="排序">
+            <n-input-number v-model:value="typeForm.sort" :min="0" :max="9999" placeholder="数字越小越靠前" />
+          </n-form-item>
+          <n-alert v-if="!typeForm.id" type="info" :show-icon="false" style="margin-top: 8px">
+            新建类型仅完成 tab 注册；要让员工能在小程序提交申请，仍需后端为该 key 提供业务表与提交入口。
+          </n-alert>
+        </n-form>
+        <template #footer>
+          <n-space justify="end">
+            <n-button @click="showTypeDialog = false">取消</n-button>
+            <n-button type="primary" :loading="typeSaving" @click="onSaveType">保存</n-button>
+          </n-space>
+        </template>
+      </n-modal>
 
       <n-spin :show="loading">
         <n-space vertical :size="12">
@@ -147,19 +209,34 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useMessage } from 'naive-ui'
+import { ref, computed, onMounted } from 'vue'
+import { useMessage, useDialog } from 'naive-ui'
 import { ArrowUpOutline, ArrowDownOutline, TrashOutline, AddOutline } from '@vicons/ionicons5'
-import { approvalFlowApi, type ApprovalFlowNodeVO, type BusinessTypeOption } from '@/api/approval'
+import { approvalFlowApi, type ApprovalFlowNodeVO, type BusinessTypeOption, type BusinessTypeInput } from '@/api/approval'
 import { roleApi, userApi, type SysRole, type SysUser } from '@/api/system'
 
 const message = useMessage()
+const dialog = useDialog()
 
 const activeBusinessType = ref<string>('leave')
 const businessTypeOptions = ref<BusinessTypeOption[]>([])
 const nodes = ref<ApprovalFlowNodeVO[]>([])
 const loading = ref(false)
 const saving = ref(false)
+
+// 业务类型 新建/编辑 弹窗状态
+const showTypeDialog = ref(false)
+const typeSaving = ref(false)
+const typeForm = ref<BusinessTypeInput & { builtin?: number }>({
+  businessType: '',
+  label: '',
+  description: '',
+  sort: 100
+})
+
+const currentTypeOption = computed<BusinessTypeOption | undefined>(() =>
+  businessTypeOptions.value.find(o => o.businessType === activeBusinessType.value)
+)
 
 const approverTypeOptions = [
   { label: '直接上级', value: 'direct_supervisor' },
@@ -201,6 +278,97 @@ async function loadBusinessTypes() {
   if (!businessTypeOptions.value.find(o => o.businessType === activeBusinessType.value)) {
     activeBusinessType.value = businessTypeOptions.value[0].businessType
   }
+}
+
+function openCreateTypeDialog() {
+  typeForm.value = {
+    businessType: '',
+    label: '',
+    description: '',
+    sort: 100
+  }
+  showTypeDialog.value = true
+}
+
+function openEditTypeDialog() {
+  const cur = currentTypeOption.value
+  if (!cur) return
+  typeForm.value = {
+    id: cur.id,
+    businessType: cur.businessType,
+    label: cur.label,
+    description: cur.description || '',
+    sort: cur.sort ?? 100,
+    builtin: cur.builtin
+  }
+  showTypeDialog.value = true
+}
+
+async function onSaveType() {
+  const form = typeForm.value
+  if (!form.businessType?.trim()) return message.error('key 不能为空')
+  if (!/^[a-z][a-z0-9_]{0,63}$/.test(form.businessType)) {
+    return message.error('key 仅支持小写字母 / 数字 / 下划线，且必须以字母开头')
+  }
+  if (!form.label?.trim()) return message.error('显示名不能为空')
+  typeSaving.value = true
+  try {
+    if (form.id) {
+      await approvalFlowApi.updateBusinessType(form.id, {
+        id: form.id,
+        businessType: form.businessType.trim(),
+        label: form.label.trim(),
+        description: form.description?.trim() || null,
+        sort: form.sort
+      })
+      message.success('已保存')
+    } else {
+      await approvalFlowApi.createBusinessType({
+        businessType: form.businessType.trim(),
+        label: form.label.trim(),
+        description: form.description?.trim() || null,
+        sort: form.sort
+      })
+      message.success('已新建')
+    }
+    showTypeDialog.value = false
+    const newKey = form.businessType.trim()
+    await loadBusinessTypes()
+    // 新建后切到新 tab；编辑后保持原 tab
+    if (!form.id && businessTypeOptions.value.find(o => o.businessType === newKey)) {
+      activeBusinessType.value = newKey
+      await loadNodes()
+    }
+  } catch (err: any) {
+    // 后端的 IllegalArgumentException 已被 GlobalExceptionHandler 转成 code=400+message
+    message.error(err?.message || err?.msg || '保存失败')
+  } finally {
+    typeSaving.value = false
+  }
+}
+
+function confirmDeleteType() {
+  const cur = currentTypeOption.value
+  if (!cur || cur.builtin === 1) return
+  dialog.warning({
+    title: '删除业务类型',
+    content: `确定删除「${cur.label}」？已配置的节点不会自动清理，但前端不再展示该 tab。`,
+    positiveText: '删除',
+    negativeText: '取消',
+    onPositiveClick: async () => {
+      try {
+        await approvalFlowApi.deleteBusinessType(cur.id!)
+        message.success('已删除')
+        await loadBusinessTypes()
+        if (businessTypeOptions.value.length > 0) {
+          activeBusinessType.value = businessTypeOptions.value[0].businessType
+          await loadNodes()
+        }
+      } catch (err: any) {
+        message.error(err?.message || err?.msg || '删除失败')
+      }
+    }
+  })
 }
 
 async function loadRoleOptions() {
@@ -348,5 +516,15 @@ async function onSave() {
   color: #666;
   justify-content: flex-end;
   padding-right: 4px;
+}
+.type-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+.type-bar-title {
+  font-size: 13px;
+  color: #666;
 }
 </style>

@@ -15,15 +15,44 @@ export interface ApprovalFlowNodeVO {
 }
 
 export interface BusinessTypeOption {
+  id?: number
   businessType: string
   label: string
+  description?: string | null
+  /** 1 = 内置类型，前端禁删除，禁改 key */
+  builtin?: number
+  sort?: number
   nodeCount: number
 }
 
+export interface BusinessTypeInput {
+  id?: number
+  businessType: string
+  label: string
+  description?: string | null
+  sort?: number
+  enabled?: number
+}
+
 export const approvalFlowApi = {
-  /** 拉取审批流配置页 tab 列表（内置类型 + 数据库自定义类型） */
+  /** 拉取审批流配置页 tab 列表（数据源：approval_business_type 表） */
   businessTypes(): Promise<BusinessTypeOption[]> {
     return request({ url: '/admin/approval-flow/business-types', method: 'get' })
+  },
+
+  /** 新建业务类型 */
+  createBusinessType(bean: BusinessTypeInput): Promise<number> {
+    return request({ url: '/admin/approval-flow/business-types', method: 'post', data: bean })
+  },
+
+  /** 编辑业务类型（内置类型 key 不可改） */
+  updateBusinessType(id: number, bean: BusinessTypeInput): Promise<void> {
+    return request({ url: `/admin/approval-flow/business-types/${id}`, method: 'put', data: bean })
+  },
+
+  /** 删除业务类型（内置类型不可删） */
+  deleteBusinessType(id: number): Promise<void> {
+    return request({ url: `/admin/approval-flow/business-types/${id}`, method: 'delete' })
   },
 
   list(businessType: string): Promise<ApprovalFlowNodeVO[]> {

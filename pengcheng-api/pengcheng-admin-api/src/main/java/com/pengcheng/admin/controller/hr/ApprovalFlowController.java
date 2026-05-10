@@ -4,6 +4,8 @@ import cn.dev33.satoken.annotation.SaCheckPermission;
 import com.pengcheng.common.result.Result;
 import com.pengcheng.hr.approval.dto.ApprovalFlowNodeVO;
 import com.pengcheng.hr.approval.dto.BusinessTypeOption;
+import com.pengcheng.hr.approval.entity.ApprovalBusinessType;
+import com.pengcheng.hr.approval.service.ApprovalBusinessTypeService;
 import com.pengcheng.hr.approval.service.ApprovalFlowService;
 import com.pengcheng.system.annotation.Log;
 import com.pengcheng.system.annotation.Log.BusinessType;
@@ -23,14 +25,49 @@ import java.util.List;
 public class ApprovalFlowController {
 
     private final ApprovalFlowService approvalFlowService;
+    private final ApprovalBusinessTypeService businessTypeService;
 
     /**
-     * 列举管理后台 tab 用的业务类型 = 内置 5 种 + 数据库里出现过的自定义类型。
+     * 列举管理后台 tab 用的业务类型（数据源：approval_business_type 表）。
+     * 含 builtin 标识与 nodeCount 已配置节点数。
      */
     @GetMapping("/business-types")
     @SaCheckPermission("system:approval-flow:list")
     public Result<List<BusinessTypeOption>> businessTypes() {
         return Result.ok(approvalFlowService.listBusinessTypes());
+    }
+
+    /**
+     * 新建业务类型
+     */
+    @PostMapping("/business-types")
+    @SaCheckPermission("system:approval-flow:edit")
+    @Log(title = "新建审批业务类型", businessType = BusinessType.INSERT)
+    public Result<Long> createBusinessType(@RequestBody ApprovalBusinessType bean) {
+        return Result.ok(businessTypeService.create(bean));
+    }
+
+    /**
+     * 编辑业务类型；内置类型禁改 key
+     */
+    @PutMapping("/business-types/{id}")
+    @SaCheckPermission("system:approval-flow:edit")
+    @Log(title = "编辑审批业务类型", businessType = BusinessType.UPDATE)
+    public Result<Void> updateBusinessType(@PathVariable Long id, @RequestBody ApprovalBusinessType bean) {
+        bean.setId(id);
+        businessTypeService.update(bean);
+        return Result.ok();
+    }
+
+    /**
+     * 删除业务类型；内置类型禁删
+     */
+    @DeleteMapping("/business-types/{id}")
+    @SaCheckPermission("system:approval-flow:edit")
+    @Log(title = "删除审批业务类型", businessType = BusinessType.DELETE)
+    public Result<Void> deleteBusinessType(@PathVariable Long id) {
+        businessTypeService.delete(id);
+        return Result.ok();
     }
 
     /**
