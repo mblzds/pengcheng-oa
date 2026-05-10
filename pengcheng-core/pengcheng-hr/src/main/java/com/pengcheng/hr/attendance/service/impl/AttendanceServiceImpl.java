@@ -15,6 +15,8 @@ import com.pengcheng.hr.attendance.mapper.CompensateRequestMapper;
 import com.pengcheng.hr.attendance.mapper.LeaveRequestMapper;
 import com.pengcheng.hr.attendance.mapper.SignInRecordMapper;
 import com.pengcheng.hr.attendance.service.AttendanceService;
+import com.pengcheng.hr.attendance.service.HolidayCalendarService;
+import com.pengcheng.hr.attendance.util.LeaveDaysUtil;
 import com.pengcheng.hr.employee.entity.EmployeeProfile;
 import com.pengcheng.hr.employee.mapper.EmployeeProfileMapper;
 import com.pengcheng.system.entity.SysDept;
@@ -62,6 +64,7 @@ public class AttendanceServiceImpl implements AttendanceService {
     private final SysUserMapper sysUserMapper;
     private final SysDeptMapper sysDeptMapper;
     private final EmployeeProfileMapper employeeProfileMapper;
+    private final HolidayCalendarService holidayCalendarService;
 
     public static final int CLOCK_IN_NORMAL = 1;
     public static final int CLOCK_IN_LATE = 2;
@@ -185,24 +188,51 @@ public class AttendanceServiceImpl implements AttendanceService {
         YearMonth ym = YearMonth.of(year, month);
         LocalDate start = ym.atDay(1);
         LocalDate end = ym.atEndOfMonth();
-        LambdaQueryWrapper<AttendanceRecord> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(AttendanceRecord::getUserId, userId)
+        // attendance_record 的 attendanceDays / lateTimes / earlyLeaveTimes
+        List<AttendanceRecord> records = attendanceRecordMapper.selectList(new LambdaQueryWrapper<AttendanceRecord>()
+                .eq(AttendanceRecord::getUserId, userId)
                 .ge(AttendanceRecord::getAttendanceDate, start)
-                .le(AttendanceRecord::getAttendanceDate, end);
-        List<AttendanceRecord> records = attendanceRecordMapper.selectList(wrapper);
+                .le(AttendanceRecord::getAttendanceDate, end));
         int attendanceDays = 0, lateTimes = 0, earlyLeaveTimes = 0;
         for (AttendanceRecord r : records) {
             if (r.getClockInTime() != null || r.getClockOutTime() != null) attendanceDays++;
             if (r.getClockInStatus() != null && r.getClockInStatus() == CLOCK_IN_LATE) lateTimes++;
             if (r.getClockOutStatus() != null && r.getClockOutStatus() == CLOCK_OUT_EARLY) earlyLeaveTimes++;
         }
-        LambdaQueryWrapper<LeaveRequest> leaveWrapper = new LambdaQueryWrapper<>();
-        leaveWrapper.eq(LeaveRequest::getUserId, userId)
-                .eq(LeaveRequest::getStatus, 2)
+
+        // 已通过请假覆盖到本月的真实天数（按上下班时段算，区别于历史"条数"）
+        LocalTime workStart = parseHHmmOrDefault(systemConfigHelper.getAttendanceWorkStartTime(), WORK_START_TIME);
+        LocalTime workEnd = parseHHmmOrDefault(systemConfigHelper.getAttendanceWorkEndTime(), WORK_END_TIME);
+        List<LeaveRequest> approvedLeaves = leaveRequestMapper.selectList(new LambdaQueryWrapper<LeaveRequest>()
+                .eq(LeaveRequest::getUserId, userId)
+                .eq(LeaveRequest::getStatus, ApprovalConstants.STATUS_APPROVED)
                 .le(LeaveRequest::getStartTime, end.atTime(LocalTime.MAX))
-                .ge(LeaveRequest::getEndTime, start.atStartOfDay());
-        List<LeaveRequest> leaves = leaveRequestMapper.selectList(leaveWrapper);
-        int leaveDays = leaves.size();
+                .ge(LeaveRequest::getEndTime, start.atStartOfDay()));
+        double leaveDays = 0;
+        for (LeaveRequest l : approvedLeaves) {
+            // 截到本月窗口里再算天数，跨月请假只计本月那段
+            java.time.LocalDateTime s = l.getStartTime().isBefore(start.atStartOfDay()) ? start.atStartOfDay() : l.getStartTime();
+            java.time.LocalDateTime e = l.getEndTime().isAfter(end.atTime(LocalTime.MAX)) ? end.atTime(LocalTime.MAX) : l.getEndTime();
+            Double d = LeaveDaysUtil.calcDays(s, e, workStart, workEnd);
+            if (d != null) leaveDays += d;
+        }
+
+        // 已通过调休覆盖到本月的天数（compensate 是按整天计，所以等价计数）
+        Long compensateDays = compensateRequestMapper.selectCount(new LambdaQueryWrapper<CompensateRequest>()
+                .eq(CompensateRequest::getUserId, userId)
+                .eq(CompensateRequest::getStatus, ApprovalConstants.STATUS_APPROVED)
+                .ge(CompensateRequest::getCompensateDate, start)
+                .le(CompensateRequest::getCompensateDate, end));
+
+        // 应当出勤的工作日：从月初到 min(月末, 今日) 之间的工作日（扣周末/法定节假日，加调休补班）
+        LocalDate today = LocalDate.now();
+        LocalDate scopeEnd = today.isAfter(end) ? end : (today.isBefore(start) ? start.minusDays(1) : today);
+        int expectedWorkdays = scopeEnd.isBefore(start) ? 0 : holidayCalendarService.countWorkdays(start, scopeEnd);
+
+        int leaveDaysRounded = (int) Math.round(leaveDays);
+        int compensateDaysInt = compensateDays.intValue();
+        int absentDays = Math.max(expectedWorkdays - attendanceDays - leaveDaysRounded - compensateDaysInt, 0);
+
         return AttendanceMonthlyVO.builder()
                 .userId(userId)
                 .year(year)
@@ -210,9 +240,21 @@ public class AttendanceServiceImpl implements AttendanceService {
                 .attendanceDays(attendanceDays)
                 .lateTimes(lateTimes)
                 .earlyLeaveTimes(earlyLeaveTimes)
-                .leaveDays(leaveDays)
+                .leaveDays(leaveDaysRounded)
+                .compensateDays(compensateDaysInt)
+                .expectedWorkdays(expectedWorkdays)
+                .absentDays(absentDays)
                 .overtimeHours(0.0)
                 .build();
+    }
+
+    private static LocalTime parseHHmmOrDefault(String value, LocalTime fallback) {
+        if (value == null || value.isBlank()) return fallback;
+        try {
+            return LocalTime.parse(value, DateTimeFormatter.ofPattern("HH:mm"));
+        } catch (Exception e) {
+            return fallback;
+        }
     }
 
     @Override

@@ -341,6 +341,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/system/approval-flow/index.vue'),
         meta: { title: '审批流配置', icon: 'GitBranchOutline' }
       },
+      {
+        path: 'system/holiday',
+        name: 'SystemHoliday',
+        component: () => import('@/views/system/holiday/index.vue'),
+        meta: { title: '节假日日历', icon: 'CalendarOutline' }
+      },
 
       // ========== 7. 系统监控 ==========
       {

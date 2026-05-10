@@ -86,11 +86,12 @@
 			},
 			summaryItems() {
 				const s = this.summary
+				// 缺勤直接用后端按节假日表 + 真实请假/调休天数算好的 absentDays
 				return [
 					{ label: '出勤', value: s.attendanceDays || 0 },
 					{ label: '迟到', value: s.lateTimes || 0 },
 					{ label: '早退', value: s.earlyLeaveTimes || 0 },
-					{ label: '缺勤', value: Math.max((new Date(this.year, this.month, 0).getDate()) - (s.attendanceDays || 0) - (s.leaveDays || 0), 0) },
+					{ label: '缺勤', value: s.absentDays != null ? s.absentDays : 0 },
 					{ label: '请假', value: s.leaveDays || 0 }
 				]
 			}
