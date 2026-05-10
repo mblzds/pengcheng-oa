@@ -69,6 +69,35 @@ const emit = defineEmits<{
 const editorRef = ref<HTMLDivElement>()
 const imageInputRef = ref<HTMLInputElement>()
 const isFocused = ref(false)
+// 触发图片上传时保存当前 selection；OS 文件选择对话框会清空 editor 的 selection，
+// 上传回调里 execCommand('insertHTML') 没有插入点会静默失败
+let savedRange: Range | null = null
+
+function saveSelection() {
+  const sel = window.getSelection()
+  if (sel && sel.rangeCount > 0 && editorRef.value?.contains(sel.anchorNode)) {
+    savedRange = sel.getRangeAt(0).cloneRange()
+  } else {
+    savedRange = null
+  }
+}
+
+function restoreSelectionOrMoveToEnd() {
+  if (!editorRef.value) return
+  editorRef.value.focus()
+  const sel = window.getSelection()
+  if (!sel) return
+  sel.removeAllRanges()
+  if (savedRange && editorRef.value.contains(savedRange.startContainer)) {
+    sel.addRange(savedRange)
+  } else {
+    const range = document.createRange()
+    range.selectNodeContents(editorRef.value)
+    range.collapse(false)
+    sel.addRange(range)
+  }
+  savedRange = null
+}
 
 const charCount = computed(() => {
   return editorRef.value?.innerText?.length || 0
@@ -238,6 +267,7 @@ function handlePaste(e: ClipboardEvent) {
       e.preventDefault()
       const file = item.getAsFile()
       if (file) {
+        saveSelection()
         emit('uploadImage', file)
       }
       return
@@ -250,6 +280,7 @@ function handlePaste(e: ClipboardEvent) {
 }
 
 function triggerImageUpload() {
+  saveSelection()
   imageInputRef.value?.click()
 }
 
@@ -265,6 +296,7 @@ function handleImageSelect(e: Event) {
  * 插入图片到编辑器（外部调用，如图片上传成功后）
  */
 function insertImage(url: string) {
+  restoreSelectionOrMoveToEnd()
   execCommand('insertHTML', `<img src="${url}" style="max-width:100%;" />`)
 }
 
