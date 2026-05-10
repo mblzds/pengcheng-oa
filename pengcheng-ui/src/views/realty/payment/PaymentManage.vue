@@ -47,6 +47,22 @@
             </n-descriptions>
           </n-card>
 
+          <n-card v-if="attachmentList.length" size="small" title="票据附件">
+            <n-image-group>
+              <n-space>
+                <n-image
+                  v-for="(p, i) in attachmentList"
+                  :key="i"
+                  :src="p"
+                  width="120"
+                  height="120"
+                  object-fit="cover"
+                  style="border-radius: 6px"
+                />
+              </n-space>
+            </n-image-group>
+          </n-card>
+
           <n-card size="small" title="审批流转历史时间线">
             <n-timeline>
               <n-timeline-item
@@ -85,7 +101,7 @@
 
 <script setup lang="ts">
 import { computed, h, reactive, ref, onMounted } from 'vue'
-import { NButton, NIcon, NSpace, NTag, useMessage, type DataTableColumns } from 'naive-ui'
+import { NButton, NIcon, NImage, NImageGroup, NSpace, NTag, useMessage, type DataTableColumns } from 'naive-ui'
 import { CheckmarkCircleOutline, CloseCircleOutline, EyeOutline } from '@vicons/ionicons5'
 import { useUserStore } from '@/stores/user'
 import { realtyApi, type PaymentApprovalRecord, type PaymentRecord } from '@/api/realty'
@@ -215,6 +231,22 @@ const approvalTimeline = computed(() => {
     time: formatDateTime(item.approvalTime),
     content: item.remark || '无备注'
   }))
+})
+
+/**
+ * payment_request.attachments 是 JSON 数组列存的 URL 列表（如 ["/api/files/..."])。
+ * 后端 PaymentVO 透传原始字符串，这里 client-side 解析成数组。容错：解析失败 / 老
+ * 逗号串数据返回空数组。同域请求路径（/api/files/...）由 nginx/spring 自动路由。
+ */
+const attachmentList = computed<string[]>(() => {
+  const raw = detailData.value?.attachments
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed.filter((p: unknown): p is string => typeof p === 'string') : []
+  } catch {
+    return []
+  }
 })
 
 function rowKey(row: PaymentRecord) {
