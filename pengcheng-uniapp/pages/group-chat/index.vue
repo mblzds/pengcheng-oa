@@ -30,7 +30,7 @@
 							<view class="bubble-arrow-left"></view>
 							<view class="msg-bubble bubble-other" @longpress="handleMsgLongPress(msg)">
 								<text class="msg-text" v-if="msg.msgType === 1" selectable>{{ msg.content }}</text>
-								<image v-else-if="msg.msgType === 2" class="msg-image" :src="msg.content"
+								<image v-else-if="msg.msgType === 2" class="msg-image" :src="resolveFileUrl(msg.content)"
 									mode="widthFix" @tap="previewImage(msg.content)"></image>
 							</view>
 						</view>
@@ -43,7 +43,7 @@
 						<view class="bubble-inner">
 							<view class="msg-bubble bubble-self" @longpress="handleMsgLongPress(msg)">
 								<text class="msg-text" v-if="msg.msgType === 1" selectable>{{ msg.content }}</text>
-								<image v-else-if="msg.msgType === 2" class="msg-image" :src="msg.content"
+								<image v-else-if="msg.msgType === 2" class="msg-image" :src="resolveFileUrl(msg.content)"
 									mode="widthFix" @tap="previewImage(msg.content)"></image>
 							</view>
 							<view class="bubble-arrow-right"></view>
@@ -127,7 +127,7 @@
 	import { getUserInfo } from '../../utils/auth.js'
 	import wsClient from '../../utils/websocket.js'
 
-	import { resolveAvatar } from '../../utils/config.js'
+	import { resolveAvatar, resolveFileUrl } from '../../utils/config.js'
 	export default {
 		data() {
 			return {
@@ -151,6 +151,7 @@
 		onUnload() { this.removeWebSocketListeners() },
 		methods: {
 			resolveAvatar,
+			resolveFileUrl,
 			isSelf(senderId) {
 				return String(senderId) === String(this.myUserId)
 			},
@@ -259,7 +260,8 @@
 				})
 			},
 			previewImage(url) {
-				uni.previewImage({ current: url, urls: this.messages.filter(m => m.msgType === 2).map(m => m.content) })
+				const all = this.messages.filter(m => m.msgType === 2).map(m => resolveFileUrl(m.content))
+				uni.previewImage({ current: resolveFileUrl(url), urls: all })
 			},
 			setupWebSocket() {
 				this.groupChatHandler = (data) => {

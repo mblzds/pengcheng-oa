@@ -45,3 +45,17 @@ export const resolveAvatar = (path) => {
   return joinBaseUrl(path)
 }
 
+/**
+ * 解析后端文件 URL（票据图、聊天图片、聊天文件等）：
+ *   - 空 → 空串
+ *   - 本地预览路径 (wxfile/file/blob) → 原样
+ *   - http(s) 绝对地址 → 原样
+ *   - 相对路径（如 /api/files/...） → 拼上 API 基地址
+ * 与 resolveAvatar 不同的是不会回退到默认头像，空值就是空值。
+ */
+export const resolveFileUrl = (path) => {
+  if (!path) return ''
+  if (/^(wxfile|file|blob|https?):/i.test(path)) return path
+  return joinBaseUrl(path)
+}
+

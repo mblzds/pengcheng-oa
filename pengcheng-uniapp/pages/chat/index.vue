@@ -24,7 +24,7 @@
             <view class="bubble-arrow-left"></view>
             <view class="msg-bubble bubble-other" @longpress="handleMsgLongPress(msg)">
               <text class="msg-text" v-if="msg.msgType === 1" selectable>{{ msg.content }}</text>
-              <image v-else-if="msg.msgType === 2" class="msg-image" :src="msg.content"
+              <image v-else-if="msg.msgType === 2" class="msg-image" :src="resolveFileUrl(msg.content)"
                      mode="widthFix" @tap="previewImage(msg.content)"></image>
 	              <view v-else-if="msg.msgType === 3" class="msg-file" @tap="previewFile(msg)">
 	                <u-icon name="attach" color="#666" size="18"></u-icon>
@@ -39,7 +39,7 @@
           <view class="bubble-box bubble-box-self">
             <view class="msg-bubble bubble-self" @longpress="handleMsgLongPress(msg)">
               <text class="msg-text" v-if="msg.msgType === 1" selectable>{{ msg.content }}</text>
-              <image v-else-if="msg.msgType === 2" class="msg-image" :src="msg.content"
+              <image v-else-if="msg.msgType === 2" class="msg-image" :src="resolveFileUrl(msg.content)"
                      mode="widthFix" @tap="previewImage(msg.content)"></image>
 	              <view v-else-if="msg.msgType === 3" class="msg-file" @tap="previewFile(msg)">
 	                <u-icon name="attach" color="#666" size="18"></u-icon>
@@ -132,7 +132,7 @@ import {getChatHistory, sendMessage, markAsRead, uploadFile} from '../../utils/a
 import {getUserInfo} from '../../utils/auth.js'
 import wsClient from '../../utils/websocket.js'
 
-import { resolveAvatar } from '../../utils/config.js'
+import { resolveAvatar, resolveFileUrl } from '../../utils/config.js'
 export default {
   data() {
     return {
@@ -161,6 +161,7 @@ export default {
   },
   methods: {
     resolveAvatar,
+    resolveFileUrl,
     isSelf(senderId) {
       return String(senderId) === String(this.myUserId)
     },
@@ -332,10 +333,8 @@ export default {
       })
     },
 	    previewImage(url) {
-	      uni.previewImage({
-	        current: url,
-	        urls: this.messages.filter(m => m.msgType === 2).map(m => m.content)
-	      })
+	      const all = this.messages.filter(m => m.msgType === 2).map(m => resolveFileUrl(m.content))
+	      uni.previewImage({ current: resolveFileUrl(url), urls: all })
 	    },
 	    getFileName(fileUrl) {
 	      if (!fileUrl) return '文件'
@@ -348,7 +347,7 @@ export default {
 	      }
 	    },
 	    previewFile(msg) {
-	      const fileUrl = msg?.content
+	      const fileUrl = resolveFileUrl(msg?.content)
 	      if (!fileUrl) return
 	      const fileName = this.getFileName(fileUrl)
 	      uni.showLoading({ title: '打开中...' })
