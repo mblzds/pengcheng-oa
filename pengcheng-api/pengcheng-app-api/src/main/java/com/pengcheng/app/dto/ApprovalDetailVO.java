@@ -42,6 +42,9 @@ public class ApprovalDetailVO {
     /** 审批流转历史时间线 */
     private List<ApprovalHistory> histories;
 
+    /** 附件 URL 列表（费用报销/票据图等）；后端从 payment_request.attachments JSON 数组解析后回填 */
+    private List<String> attachments;
+
     @Data
     @Builder
     @NoArgsConstructor

@@ -106,6 +106,8 @@ export interface ApprovalDetail {
   endTime?: string | null
   days?: number | null
   reason?: string | null
+  /** 付款类专属：票据附件 URL 列表 */
+  attachments?: string[] | null
 }
 
 export interface ApproveDTO {

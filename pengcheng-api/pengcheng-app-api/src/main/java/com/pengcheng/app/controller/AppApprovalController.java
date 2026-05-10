@@ -237,8 +237,28 @@ public class AppApprovalController {
                 .status(pr.getStatus())
                 .applyTime(pr.getCreateTime())
                 .histories(buildFlowHistories(PaymentService.businessTypeOf(pr.getRequestType()), id))
+                .attachments(parseAttachments(pr.getAttachments()))
                 .build();
     }
+
+    /**
+     * payment_request.attachments 是 JSON 数组列（如 ["/api/files/2026/05/10/x.jpg"]）。
+     * 这里反序列化成 List<String>。容错：解析失败 / 空 / 老逗号串数据都返回空列表。
+     */
+    private List<String> parseAttachments(String json) {
+        if (json == null || json.isBlank()) {
+            return java.util.Collections.emptyList();
+        }
+        try {
+            return ATTACHMENTS_READER.readValue(json);
+        } catch (Exception e) {
+            return java.util.Collections.emptyList();
+        }
+    }
+
+    private static final com.fasterxml.jackson.databind.ObjectReader ATTACHMENTS_READER =
+            new com.fasterxml.jackson.databind.ObjectMapper()
+                    .readerForListOf(String.class);
 
     private ApprovalDetailVO buildCommissionDetail(Long id) {
         Commission c = commissionMapper.selectById(id);

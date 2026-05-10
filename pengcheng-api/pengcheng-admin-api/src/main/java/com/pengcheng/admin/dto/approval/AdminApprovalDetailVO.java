@@ -34,6 +34,9 @@ public class AdminApprovalDetailVO {
     private Double days;
     private String reason;
 
+    /** 付款类（费用报销/垫佣/预付佣）票据附件 URL 列表，从 payment_request.attachments 解析；非付款为 null */
+    private List<String> attachments;
+
     @Data
     @Builder
     @NoArgsConstructor

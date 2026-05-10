@@ -10,6 +10,16 @@
 				</view>
 			</view>
 
+			<!-- 票据附件：仅付款类（报销/垫佣/预付佣）有 -->
+			<view class="card" v-if="detail.attachments && detail.attachments.length > 0">
+				<view class="card-title">票据附件</view>
+				<view class="att-grid">
+					<view class="att-item" v-for="(p, i) in detail.attachments" :key="i" @tap="previewAttachment(i)">
+						<image :src="resolveImg(p)" mode="aspectFill" class="att-img"></image>
+					</view>
+				</view>
+			</view>
+
 			<!-- 审批流转时间线（含已审批节点 + 当前节点 + 未来节点占位） -->
 			<view class="card" v-if="detail.histories && detail.histories.length > 0">
 				<view class="card-title">审批流程</view>
@@ -50,6 +60,7 @@
 
 <script>
 	import { getApprovalDetail, submitApproval } from '../../utils/api.js'
+	import { joinBaseUrl } from '../../utils/config.js'
 
 	export default {
 		data() {
@@ -116,6 +127,17 @@
 			formatDateTime(value) {
 				if (!value) return '--'
 				return String(value).replace('T', ' ').slice(0, 16)
+			},
+			// 后端本地存储返回相对路径 /api/files/...，要拼基地址；http(s) 直接透传
+			resolveImg(p) {
+				if (!p) return ''
+				if (/^(wxfile|file|blob|https?):/i.test(p)) return p
+				return joinBaseUrl(p)
+			},
+			previewAttachment(idx) {
+				const list = (this.detail.attachments || []).map(p => this.resolveImg(p))
+				if (list.length === 0) return
+				uni.previewImage({ urls: list, current: list[idx] || list[0] })
 			},
 			async loadDetail() {
 				try {
@@ -217,4 +239,12 @@
 		border-radius: 16rpx; border: none;
 	}
 	.popup-btn::after { border: none; }
+
+	/* 票据附件九宫格（沿用 expense 提交页的布局比例） */
+	.att-grid { display: flex; flex-wrap: wrap; gap: 12rpx; }
+	.att-item {
+		width: 200rpx; height: 200rpx; border-radius: 8rpx; overflow: hidden;
+		background: #F5F5F5;
+	}
+	.att-img { width: 100%; height: 100%; }
 </style>

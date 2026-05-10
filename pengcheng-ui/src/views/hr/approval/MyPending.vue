@@ -82,6 +82,23 @@
             </n-descriptions-item>
           </n-descriptions>
 
+          <template v-if="detail?.attachments?.length">
+            <n-divider title-placement="left">票据附件</n-divider>
+            <n-image-group>
+              <n-space>
+                <n-image
+                  v-for="(p, i) in detail.attachments"
+                  :key="i"
+                  :src="resolveImg(p)"
+                  width="120"
+                  height="120"
+                  object-fit="cover"
+                  style="border-radius: 6px"
+                />
+              </n-space>
+            </n-image-group>
+          </template>
+
           <n-divider title-placement="left">流转记录</n-divider>
 
           <n-timeline v-if="detail?.histories?.length">
@@ -129,7 +146,7 @@
 
 <script setup lang="tsx">
 import { computed, h, onMounted, reactive, ref } from 'vue'
-import { NButton, NSpace, NTag, useMessage, type DataTableColumns } from 'naive-ui'
+import { NButton, NImage, NImageGroup, NSpace, NTag, useMessage, type DataTableColumns } from 'naive-ui'
 import { approvalApi, approvalFlowApi, type ApprovalDetail, type ApprovalItem, type ApprovalType, type BusinessTypeOption } from '@/api/approval'
 
 const message = useMessage()
@@ -198,6 +215,14 @@ function typeTagType(t: string): 'info' | 'success' | 'warning' | 'error' | 'def
 function formatTime(t?: string | null): string {
   if (!t) return ''
   return t.replace('T', ' ').slice(0, 19)
+}
+
+/** 后端本地存储返回 /api/files/...，浏览器在 admin 域上能否解析取决于反代；
+ *  这里走 axios baseURL 同源逻辑：相对 /api/* 直接给浏览器（同域），其他原样透传 */
+function resolveImg(p?: string | null): string {
+  if (!p) return ''
+  if (/^(blob|https?):/i.test(p)) return p
+  return p // /api/files/... 同源由 nginx/spring 处理
 }
 
 function statusText(s?: number | null): string {

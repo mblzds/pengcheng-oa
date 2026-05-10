@@ -198,8 +198,23 @@ public class AdminApprovalController {
                 .status(pr.getStatus())
                 .applyTime(pr.getCreateTime())
                 .histories(buildFlowHistories(PaymentService.businessTypeOf(pr.getRequestType()), id))
+                .attachments(parseAttachments(pr.getAttachments()))
                 .build();
     }
+
+    /** payment_request.attachments JSON 数组反序列化 */
+    private List<String> parseAttachments(String json) {
+        if (json == null || json.isBlank()) return java.util.Collections.emptyList();
+        try {
+            return ATTACHMENTS_READER.readValue(json);
+        } catch (Exception e) {
+            return java.util.Collections.emptyList();
+        }
+    }
+
+    private static final com.fasterxml.jackson.databind.ObjectReader ATTACHMENTS_READER =
+            new com.fasterxml.jackson.databind.ObjectMapper()
+                    .readerForListOf(String.class);
 
     private AdminApprovalDetailVO buildCommissionDetail(Long id) {
         Commission c = commissionMapper.selectById(id);
