@@ -40,6 +40,12 @@
 			}
 		},
 		{
+			"path": "pages/contacts/detail",
+			"style": {
+				"navigationBarTitleText": "详细资料"
+			}
+		},
+		{
 			"path": "pages/group-chat/index",
 			"style": {
 				"navigationBarTitleText": "群聊",

@@ -3,8 +3,8 @@
 		<view class="search-bar-wrap">
 			<view class="search-input-area">
 				<u-icon name="search" color="rgba(255,255,255,0.55)" size="15"></u-icon>
-				<input class="search-input" v-model="searchText" placeholder="搜索"
-					placeholder-class="search-placeholder" @input="handleSearch" />
+				<input class="search-input" v-model="searchText" placeholder="搜索姓名 / 工号 / 手机号"
+					placeholder-class="search-placeholder" />
 			</view>
 		</view>
 
@@ -39,10 +39,10 @@
 				</view>
 
 				<!-- 群聊列表 -->
-				<view class="section-title" v-if="displayedGroups.length > 0">
-					<text>群聊 ({{ displayedGroups.length }})</text>
+				<view class="section-title" v-if="filteredGroups.length > 0">
+					<text>群聊 ({{ filteredGroups.length }})</text>
 				</view>
-				<view class="contact-item" v-for="group in displayedGroups" :key="'g-' + group.id" @tap="openGroupChat(group)">
+				<view class="contact-item" v-for="group in filteredGroups" :key="'g-' + group.id" @tap="openGroupChat(group)">
 					<image v-if="group.avatar" class="contact-avatar" :src="resolveAvatar(group.avatar)" mode="aspectFill"></image>
 					<view v-else class="contact-avatar avatar-text" :style="{ background: getAvatarColor(group.name) }">
 						<text>{{ getFirstChar(group.name) }}</text>
@@ -53,9 +53,9 @@
 				</view>
 			</view>
 
-				<view class="empty-state" v-if="filteredUsers.length === 0 && displayedGroups.length === 0 && !loading">
+				<view class="empty-state" v-if="filteredUsers.length === 0 && filteredGroups.length === 0 && !loading">
 					<u-icon name="account" color="#D0D0D0" size="48"></u-icon>
-					<text class="empty-text">暂无联系人</text>
+					<text class="empty-text">{{ searchText.trim() ? '没有匹配的联系人或群聊' : '暂无联系人' }}</text>
 				</view>
 			</scroll-view>
 
@@ -73,6 +73,13 @@
 	import { checkLogin } from '../../utils/auth.js'
 
 	import { resolveAvatar } from '../../utils/config.js'
+
+	function matchAny(kw, ...fields) {
+		for (const f of fields) {
+			if (f != null && String(f).toLowerCase().includes(kw)) return true
+		}
+		return false
+	}
 	export default {
 		data() {
 			return {
@@ -88,15 +95,15 @@
 		},
 		computed: {
 			filteredUsers() {
-				if (!this.searchText) return this.users
-				const kw = this.searchText.toLowerCase()
-				return this.users.filter(u =>
-					(u.nickname && u.nickname.toLowerCase().includes(kw)) ||
-					(u.username && u.username.toLowerCase().includes(kw))
-				)
+				const kw = (this.searchText || '').trim().toLowerCase()
+				if (!kw) return this.users
+				return this.users.filter(u => matchAny(kw, u.nickname, u.username, u.employeeNo, u.phone))
 			},
-			displayedGroups() {
-				return this.selectionMode ? [] : this.groups
+			filteredGroups() {
+				if (this.selectionMode) return []
+				const kw = (this.searchText || '').trim().toLowerCase()
+				if (!kw) return this.groups
+				return this.groups.filter(g => matchAny(kw, g.name))
 			}
 		},
 		onLoad(options) {
@@ -139,13 +146,23 @@
 					finally { this.loading = false; this.refreshing = false }
 				},
 				onRefresh() { this.refreshing = true; this.loadData() },
-				handleSearch() {},
 				handleUserTap(user) {
 					if (this.selectionMode) {
 						this.toggleSelect(user.id)
 						return
 					}
-					this.openChat(user)
+					this.openContactDetail(user)
+				},
+				openContactDetail(user) {
+					const params = [
+						`id=${user.id}`,
+						`nickname=${encodeURIComponent(user.nickname || '')}`,
+						`username=${encodeURIComponent(user.username || '')}`,
+						`avatar=${encodeURIComponent(user.avatar || '')}`,
+						`employeeNo=${encodeURIComponent(user.employeeNo || '')}`,
+						`phone=${encodeURIComponent(user.phone || '')}`
+					].join('&')
+					uni.navigateTo({ url: `/pages/contacts/detail?${params}` })
 				},
 				toggleSelect(userId) {
 					const id = Number(userId)
@@ -165,9 +182,6 @@
 						eventChannel.emit('selectedUsers', selectedUsers)
 					}
 					uni.navigateBack()
-				},
-				openChat(user) {
-					uni.navigateTo({ url: `/pages/chat/index?targetId=${user.id}&name=${encodeURIComponent(user.nickname || user.username)}&avatar=${encodeURIComponent(user.avatar || '')}` })
 				},
 			openGroupChat(group) {
 				uni.navigateTo({ url: `/pages/group-chat/index?groupId=${group.id}&name=${encodeURIComponent(group.name)}` })

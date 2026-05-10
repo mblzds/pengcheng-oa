@@ -105,6 +105,8 @@ public class SysChatController {
             item.put("username", user.getUsername());
             item.put("nickname", user.getNickname());
             item.put("avatar", user.getAvatar());
+            item.put("employeeNo", user.getEmployeeNo());
+            item.put("phone", user.getPhone());
 
             // 获取与该用户的最新消息
             var latestMsg = chatMessageService.getLatestMessage(userId, user.getId());
