@@ -33,6 +33,12 @@ export const navigateByNotice = (notice) => {
     return true
   }
 
+  // 兜底：纯通知（公告 / 系统提醒等）没有具体业务跳转目标，进通用详情页展示标题 + 正文
+  if (notice.id) {
+    uni.navigateTo({ url: `/pages/notice/detail?id=${notice.id}` })
+    return true
+  }
+
   return false
 }
 

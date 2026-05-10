@@ -139,6 +139,9 @@ export const uploadFile = (filePath) => upload('/api/sys/file/upload', filePath)
 export const getNoticeList = (page = 1, pageSize = 10) =>
   get('/api/sys/notice/my', { page, pageSize })
 
+/** 获取通知详情 */
+export const getNoticeDetail = (id) => get(`/api/sys/notice/${id}`)
+
 /** 标记通知已读 */
 export const readNotice = (id) => post(`/api/sys/notice/read/${id}`)
 

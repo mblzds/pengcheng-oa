@@ -179,6 +179,12 @@
 			"style": {
 				"navigationBarTitleText": "AI助手"
 			}
+		},
+		{
+			"path": "pages/notice/detail",
+			"style": {
+				"navigationBarTitleText": "通知详情"
+			}
 		}
 	],
 	"globalStyle": {

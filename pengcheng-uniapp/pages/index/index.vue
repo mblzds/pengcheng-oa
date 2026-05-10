@@ -194,9 +194,7 @@
 				if (notice?.id) {
 					await readNotice(notice.id).catch(() => {})
 				}
-				if (!navigateByNotice(notice)) {
-					uni.showToast({ title: '暂无可跳转页面', icon: 'none' })
-				}
+				navigateByNotice(notice)
 				this.loadNotices()
 			},
 			setupWebSocket() {
