@@ -2,7 +2,10 @@
 	<view class="page">
 		<scroll-view scroll-y class="content">
 			<view class="group-header card">
-				<image class="group-avatar" :src="resolveAvatar(group.avatar)" mode="aspectFill"></image>
+				<image v-if="group.avatar" class="group-avatar" :src="resolveAvatar(group.avatar)" mode="aspectFill"></image>
+				<view v-else class="group-avatar avatar-fallback group-avatar-fallback" :style="{ background: avatarColor(group.name) }">
+					<text>{{ firstChar(group.name) }}</text>
+				</view>
 				<view class="group-info">
 					<text class="group-name">{{ group.name }}</text>
 					<text class="group-member-count">{{ members.length }} 人</text>
@@ -30,12 +33,30 @@
 				</view>
 			</view>
 
-			<view class="card">
-				<view class="card-title">
-					<text>群公告</text>
-					<text class="edit-text" v-if="isOwnerOrAdmin" @tap="editAnnouncement">编辑</text>
+			<view class="card setting-card">
+				<view class="setting-row" @tap="editGroupName">
+					<text class="setting-label">群名称</text>
+					<text class="setting-value">{{ group.name || '未命名群聊' }}</text>
+					<u-icon v-if="isOwnerOrAdmin" name="arrow-right" color="#CCC" size="14"></u-icon>
 				</view>
-				<text class="announcement-text">{{ group.announcement || '暂无群公告' }}</text>
+				<view class="setting-row" @tap="editAnnouncement">
+					<text class="setting-label">群公告</text>
+					<text class="setting-value" :class="{ placeholder: !group.announcement }">{{ group.announcement || '未设置' }}</text>
+					<u-icon v-if="isOwnerOrAdmin" name="arrow-right" color="#CCC" size="14"></u-icon>
+				</view>
+				<view class="setting-row">
+					<text class="setting-label">群主</text>
+					<text class="setting-value">{{ ownerName || '-' }}</text>
+				</view>
+				<view class="setting-row">
+					<text class="setting-label">创建时间</text>
+					<text class="setting-value">{{ formatTime(group.createTime) }}</text>
+				</view>
+				<view class="setting-row" v-if="isOwner" @tap="openTransferOwner">
+					<text class="setting-label">转让群主</text>
+					<text class="setting-value placeholder">将群主转让给其他成员</text>
+					<u-icon name="arrow-right" color="#CCC" size="14"></u-icon>
+				</view>
 			</view>
 
 			<view class="action-section">
@@ -53,6 +74,28 @@
 				</view>
 			</view>
 		</scroll-view>
+
+		<u-popup :show="showTransferPopup" mode="bottom" round="16" closeable @close="showTransferPopup = false">
+			<view class="popup-wrap">
+				<view class="popup-title">选择新群主</view>
+				<scroll-view scroll-y class="popup-list">
+					<view class="popup-item" v-for="m in transferableMembers" :key="m.userId" @tap="confirmTransfer(m)">
+						<image v-if="m.avatar" class="popup-avatar" :src="resolveAvatar(m.avatar)" mode="aspectFill"></image>
+						<view v-else class="popup-avatar avatar-fallback" :style="{ background: avatarColor(m.userNickname || m.nickname) }">
+							<text>{{ firstChar(m.userNickname || m.nickname) }}</text>
+						</view>
+						<view class="popup-info">
+							<text class="popup-name">{{ m.userNickname || m.nickname || '成员' }}</text>
+						</view>
+						<text class="popup-role" v-if="m.role === 1">管理员</text>
+						<u-icon name="arrow-right" color="#CCC" size="14"></u-icon>
+					</view>
+					<view v-if="transferableMembers.length === 0" class="popup-empty">
+						<text>暂无可转让的成员</text>
+					</view>
+				</scroll-view>
+			</view>
+		</u-popup>
 	</view>
 </template>
 
@@ -65,17 +108,27 @@
 		updateGroup,
 		addGroupMembers,
 		removeGroupMember,
-		setGroupAdmin
+		setGroupAdmin,
+		transferGroupOwner
 	} from '../../utils/api.js'
+
+	const AVATAR_COLORS = ['#25B7D3', '#F56C6C', '#E6A23C', '#67C23A', '#409EFF', '#9B59B6', '#1ABC9C', '#E74C3C']
 	import { getUserInfo } from '../../utils/auth.js'
 
 	import { resolveAvatar } from '../../utils/config.js'
 	export default {
-		data() { return { groupId: 0, group: {}, members: [], showAllMembers: false, myUserId: 0 } },
+		data() { return { groupId: 0, group: {}, members: [], showAllMembers: false, myUserId: 0, showTransferPopup: false } },
 		computed: {
 			isOwner() { return this.group.ownerId === this.myUserId },
 			isOwnerOrAdmin() { const me = this.members.find(m => m.userId === this.myUserId); return me && me.role >= 1 },
-			displayMembers() { return this.showAllMembers ? this.members : this.members.slice(0, 15) }
+			displayMembers() { return this.showAllMembers ? this.members : this.members.slice(0, 15) },
+			ownerName() {
+				const o = this.members.find(m => m.userId === this.group.ownerId)
+				return o?.userNickname || o?.nickname || ''
+			},
+			transferableMembers() {
+				return this.members.filter(m => m.userId !== this.myUserId && m.role !== 2)
+			}
 		},
 		onLoad(options) {
 			this.groupId = Number(options.groupId); this.myUserId = getUserInfo()?.userId || 0
@@ -144,8 +197,10 @@
 				},
 				handleAddMember() {
 					const excluded = this.members.map(item => item.userId).filter(Boolean).join(',')
+					// 注意：pages/contacts/index 是 tabBar 页，navigateTo 到 tabBar 会静默失败，
+					// 所以这里跳到独立的 pages/contacts/select 页面，通过 eventChannel 拿回选中结果
 					uni.navigateTo({
-						url: `/pages/contacts/index?mode=select-members&excludeUserIds=${encodeURIComponent(excluded)}`,
+						url: `/pages/contacts/select?excludeUserIds=${encodeURIComponent(excluded)}&title=${encodeURIComponent('添加群成员')}`,
 						events: {
 							selectedUsers: async (selectedUsers = []) => {
 								const userIds = selectedUsers.map(item => item.id).filter(Boolean)
@@ -158,10 +213,15 @@
 									uni.showToast({ title: '添加失败', icon: 'none' })
 								}
 							}
+						},
+						fail: (err) => {
+							console.error('打开选人页失败:', err)
+							uni.showToast({ title: '打开失败，请重试', icon: 'none' })
 						}
 					})
 				},
 			editAnnouncement() {
+				if (!this.isOwnerOrAdmin) return
 				uni.showModal({ title: '编辑群公告', editable: true, placeholderText: '请输入群公告', content: this.group.announcement || '',
 					success: async (res) => {
 						if (res.confirm && res.content !== undefined) {
@@ -170,6 +230,69 @@
 						}
 					}
 				})
+			},
+			editGroupName() {
+				if (!this.isOwnerOrAdmin) return
+				uni.showModal({
+					title: '修改群名称', editable: true, placeholderText: '请输入群名称', content: this.group.name || '',
+					success: async (res) => {
+						if (!res.confirm || res.content === undefined) return
+						const name = String(res.content).trim()
+						if (!name) {
+							uni.showToast({ title: '群名称不能为空', icon: 'none' })
+							return
+						}
+						if (name === this.group.name) return
+						try {
+							await updateGroup({ id: this.groupId, name })
+							this.group.name = name
+							uni.showToast({ title: '群名称已更新', icon: 'success' })
+						} catch (e) {
+							uni.showToast({ title: '更新失败', icon: 'none' })
+						}
+					}
+				})
+			},
+			openTransferOwner() {
+				if (!this.isOwner) return
+				if (this.transferableMembers.length === 0) {
+					uni.showToast({ title: '群里还没有其他成员', icon: 'none' })
+					return
+				}
+				this.showTransferPopup = true
+			},
+			confirmTransfer(member) {
+				const name = member.userNickname || member.nickname || '该成员'
+				uni.showModal({
+					title: '转让群主',
+					content: `确定将群主转让给 ${name} 吗？转让后你将变为普通成员。`,
+					confirmColor: '#FA5151',
+					success: async (res) => {
+						if (!res.confirm) return
+						try {
+							await transferGroupOwner(this.groupId, member.userId)
+							this.showTransferPopup = false
+							uni.showToast({ title: '群主已转让', icon: 'success' })
+							await this.loadGroupInfo()
+						} catch (e) {
+							uni.showToast({ title: '转让失败', icon: 'none' })
+						}
+					}
+				})
+			},
+			formatTime(t) {
+				if (!t) return '-'
+				return String(t).replace('T', ' ').slice(0, 16)
+			},
+			firstChar(name) {
+				if (!name) return '?'
+				return String(name).charAt(0).toUpperCase()
+			},
+			avatarColor(name) {
+				if (!name) return AVATAR_COLORS[0]
+				let hash = 0
+				for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash)
+				return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]
 			},
 			handleClearHistory() { uni.showModal({ title: '提示', content: '确定要清空聊天记录吗？', success: (res) => { if (res.confirm) uni.showToast({ title: '已清空', icon: 'success' }) } }) },
 			handleQuitGroup() {
@@ -192,6 +315,10 @@
 	.card { background: #FFF; margin: 16rpx; border-radius: 8rpx; padding: 28rpx; }
 	.group-header { display: flex; align-items: center; }
 	.group-avatar { width: 100rpx; height: 100rpx; border-radius: 8rpx; margin-right: 24rpx; background: #E0E0E0; }
+	.group-avatar-fallback {
+		display: flex; align-items: center; justify-content: center;
+		text { font-size: 44rpx; color: #FFF; font-weight: 600; }
+	}
 	.group-info { flex: 1; }
 	.group-name { font-size: 34rpx; font-weight: 600; color: #1A1A1A; display: block; }
 	.group-member-count { font-size: 26rpx; color: #999; margin-top: 8rpx; display: block; }
@@ -212,7 +339,43 @@
 		width: 80rpx; height: 80rpx; border-radius: 8rpx; border: 3rpx dashed #CCC;
 		display: flex; align-items: center; justify-content: center;
 	}
-	.announcement-text { font-size: 28rpx; color: #666; line-height: 1.6; }
+
+	.setting-card { padding: 0 28rpx; }
+	.setting-row {
+		display: flex; align-items: center;
+		padding: 28rpx 0;
+		border-top: 1rpx solid #F0F0F0;
+		&:first-child { border-top: none; }
+		&:active { background: #F5F5F5; }
+	}
+	.setting-label { font-size: 28rpx; color: #1A1A1A; flex-shrink: 0; }
+	.setting-value {
+		flex: 1; text-align: right; font-size: 28rpx; color: #555;
+		margin: 0 16rpx 0 24rpx;
+		overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+		&.placeholder { color: #B0B0B0; }
+	}
+
+	.popup-wrap { padding: 32rpx 0 calc(32rpx + env(safe-area-inset-bottom)); }
+	.popup-title { padding: 0 32rpx 24rpx; font-size: 30rpx; font-weight: 600; color: #1A1A1A; }
+	.popup-list { max-height: 60vh; max-height: 60dvh; }
+	.popup-item {
+		display: flex; align-items: center;
+		padding: 18rpx 32rpx;
+		&:active { background: #F5F5F5; }
+	}
+	.popup-avatar { width: 80rpx; height: 80rpx; border-radius: 8rpx; background: #E0E0E0; flex-shrink: 0; }
+	.avatar-fallback {
+		display: flex; align-items: center; justify-content: center;
+		text { font-size: 32rpx; color: #FFF; font-weight: 600; }
+	}
+	.popup-info { flex: 1; min-width: 0; margin-left: 20rpx; }
+	.popup-name { font-size: 28rpx; color: #1A1A1A; }
+	.popup-role {
+		font-size: 20rpx; color: #3182CE; background: #EBF8FF;
+		padding: 4rpx 10rpx; border-radius: 6rpx; margin-right: 12rpx; flex-shrink: 0;
+	}
+	.popup-empty { padding: 60rpx 32rpx; text-align: center; text { color: #999; font-size: 26rpx; } }
 
 	.action-section { margin: 32rpx 16rpx; }
 	.action-item {

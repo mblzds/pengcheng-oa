@@ -12,7 +12,7 @@
 				refresher-enabled :refresher-triggered="refreshing" @refresherrefresh="onRefresh">
 
 				<!-- 功能入口 -->
-				<view class="func-item" @tap="navigateToCreateGroup" v-if="!selectionMode">
+				<view class="func-item" @tap="navigateToCreateGroup">
 					<view class="func-icon green">
 						<text class="func-icon-text">群</text>
 					</view>
@@ -32,9 +32,6 @@
 					</view>
 					<view class="contact-info">
 						<text class="contact-name">{{ user.nickname || user.username }}</text>
-					</view>
-					<view class="select-indicator" v-if="selectionMode" :class="{ selected: isSelected(user.id) }">
-						<u-icon v-if="isSelected(user.id)" name="checkmark" color="#FFFFFF" size="16"></u-icon>
 					</view>
 				</view>
 
@@ -58,13 +55,6 @@
 					<text class="empty-text">{{ searchText.trim() ? '没有匹配的联系人或群聊' : '暂无联系人' }}</text>
 				</view>
 			</scroll-view>
-
-			<view class="bottom-bar safe-area-bottom" v-if="selectionMode">
-				<button class="confirm-btn" :class="{ disabled: selectedIds.length === 0 }"
-					:disabled="selectedIds.length === 0" @tap="confirmSelection">
-					确认选择{{ selectedIds.length > 0 ? ` (${selectedIds.length})` : '' }}
-				</button>
-			</view>
 		</view>
 	</template>
 
@@ -87,10 +77,7 @@
 				groups: [],
 				searchText: '',
 				loading: false,
-				refreshing: false,
-				selectionMode: false,
-				selectedIds: [],
-				excludeIds: []
+				refreshing: false
 			}
 		},
 		computed: {
@@ -100,21 +87,9 @@
 				return this.users.filter(u => matchAny(kw, u.nickname, u.username, u.employeeNo, u.phone))
 			},
 			filteredGroups() {
-				if (this.selectionMode) return []
 				const kw = (this.searchText || '').trim().toLowerCase()
 				if (!kw) return this.groups
 				return this.groups.filter(g => matchAny(kw, g.name))
-			}
-		},
-		onLoad(options) {
-			this.selectionMode = options?.mode === 'select-members'
-			const excludeRaw = decodeURIComponent(options?.excludeUserIds || '')
-			this.excludeIds = excludeRaw
-				.split(',')
-				.map(item => Number(item))
-				.filter(id => Number.isFinite(id) && id > 0)
-			if (this.selectionMode) {
-				uni.setNavigationBarTitle({ title: '选择成员' })
 			}
 		},
 		onShow() { if (!checkLogin()) return; this.loadData() },
@@ -139,7 +114,7 @@
 						getGroupList().catch(() => ({ data: [] }))
 					])
 						if (usersRes.data && Array.isArray(usersRes.data)) {
-							this.users = usersRes.data.filter(item => !this.excludeIds.includes(Number(item.id)))
+							this.users = usersRes.data
 						}
 						if (groupsRes.data && Array.isArray(groupsRes.data)) this.groups = groupsRes.data
 					} catch (err) { console.error(err) }
@@ -147,10 +122,6 @@
 				},
 				onRefresh() { this.refreshing = true; this.loadData() },
 				handleUserTap(user) {
-					if (this.selectionMode) {
-						this.toggleSelect(user.id)
-						return
-					}
 					this.openContactDetail(user)
 				},
 				openContactDetail(user) {
@@ -163,25 +134,6 @@
 						`phone=${encodeURIComponent(user.phone || '')}`
 					].join('&')
 					uni.navigateTo({ url: `/pages/contacts/detail?${params}` })
-				},
-				toggleSelect(userId) {
-					const id = Number(userId)
-					if (!id) return
-					const idx = this.selectedIds.indexOf(id)
-					if (idx >= 0) this.selectedIds.splice(idx, 1)
-					else this.selectedIds.push(id)
-				},
-				isSelected(userId) {
-					return this.selectedIds.includes(Number(userId))
-				},
-				confirmSelection() {
-					if (this.selectedIds.length === 0) return
-					const selectedUsers = this.users.filter(item => this.selectedIds.includes(Number(item.id)))
-					const eventChannel = this.getOpenerEventChannel && this.getOpenerEventChannel()
-					if (eventChannel) {
-						eventChannel.emit('selectedUsers', selectedUsers)
-					}
-					uni.navigateBack()
 				},
 			openGroupChat(group) {
 				uni.navigateTo({ url: `/pages/group-chat/index?groupId=${group.id}&name=${encodeURIComponent(group.name)}` })
@@ -235,30 +187,6 @@
 		.contact-info { flex: 1; min-width: 0; }
 		.contact-name { font-size: 28rpx; color: #1A1A1A; display: block; }
 		.contact-desc { font-size: 22rpx; color: #999; display: block; margin-top: 4rpx; }
-		.select-indicator {
-			width: 40rpx; height: 40rpx; border-radius: 50%;
-			border: 2rpx solid #D0D0D0;
-			display: flex; align-items: center; justify-content: center;
-			flex-shrink: 0;
-		}
-		.select-indicator.selected { background: #07C160; border-color: #07C160; }
-
-		.bottom-bar {
-			padding: 20rpx 28rpx;
-			background: #FFF;
-			border-top: 1rpx solid #F0F0F0;
-		}
-		.confirm-btn {
-			height: 84rpx; line-height: 84rpx;
-			background: linear-gradient(135deg, #059B4B, #07C160);
-			color: #FFF;
-			font-size: 30rpx;
-			font-weight: 600;
-			border-radius: 12rpx;
-			border: none;
-		}
-		.confirm-btn::after { border: none; }
-		.confirm-btn.disabled { background: #C7C7C7; }
 
 		.empty-state {
 			display: flex; flex-direction: column; align-items: center; padding: 120rpx 40rpx;

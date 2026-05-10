@@ -60,6 +60,9 @@ export const markAsRead = (senderId) => post(`/api/sys/chat/read/${senderId}`)
 /** 获取未读消息数 */
 export const getUnreadCount = () => get('/api/sys/chat/unread-count')
 
+/** 全局搜索聊天记录（私聊 + 群聊，按会话聚合） */
+export const searchChatHistory = (kw, limit = 50) => get('/api/sys/chat/search', { kw, limit })
+
 /** 获取消息统计 */
 export const getMessageStats = () => get('/api/sys/chat/stats')
 
@@ -144,6 +147,9 @@ export const getNoticeDetail = (id) => get(`/api/sys/notice/${id}`)
 
 /** 标记通知已读 */
 export const readNotice = (id) => post(`/api/sys/notice/${id}/read`)
+
+/** 一键全部标记为已读 */
+export const markAllNoticesRead = () => post('/api/sys/notice/read-all')
 
 // ==================== 工作台 ====================
 

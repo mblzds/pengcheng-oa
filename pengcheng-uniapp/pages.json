@@ -46,10 +46,17 @@
 			}
 		},
 		{
+			"path": "pages/contacts/select",
+			"style": {
+				"navigationBarTitleText": "选择成员"
+			}
+		},
+		{
 			"path": "pages/group-chat/index",
 			"style": {
 				"navigationBarTitleText": "群聊",
-				"enablePullDownRefresh": false
+				"enablePullDownRefresh": false,
+				"navigationStyle": "custom"
 			}
 		},
 		{
@@ -184,6 +191,12 @@
 			"path": "pages/ai/chat",
 			"style": {
 				"navigationBarTitleText": "AI助手"
+			}
+		},
+		{
+			"path": "pages/notice/list",
+			"style": {
+				"navigationBarTitleText": "系统通知"
 			}
 		},
 		{

@@ -6,7 +6,8 @@
         <text>{{ loadingMore ? '加载中...' : '查看更多消息' }}</text>
       </view>
 
-      <view v-for="(msg, index) in messages" :key="msg.id" :id="'msg-' + msg.id" class="message-item">
+      <view v-for="(msg, index) in messages" :key="msg.id" :id="'msg-' + msg.id"
+            :class="['message-item', { 'msg-highlight': String(msg.id) === highlightMsgId }]">
         <!-- 时间分割线 -->
         <view class="time-divider" v-if="showTimeDivider(index)">
           <text>{{ formatFullTime(msg.sendTime) }}</text>
@@ -137,6 +138,7 @@ export default {
   data() {
     return {
       targetId: 0, targetName: '', targetAvatar: '', myUserId: 0, myAvatar: '', myName: '',
+      targetMsgId: '', highlightMsgId: '',
       messages: [], inputText: '', scrollToId: '', page: 1, hasMore: true, loadingMore: false,
       isVoiceMode: false, isRecording: false,
       showEmojiPanel: false, showExtraPanel: false,
@@ -147,12 +149,14 @@ export default {
     this.targetId = Number(options.targetId)
     this.targetName = decodeURIComponent(options.name || '聊天')
     this.targetAvatar = decodeURIComponent(options.avatar || '')
+    this.targetMsgId = options.targetMsgId ? String(options.targetMsgId) : ''
     const u = getUserInfo()
     this.myUserId = u?.userId || 0
     this.myAvatar = u?.avatar || ''
     this.myName = u?.nickname || u?.username || '我'
     uni.setNavigationBarTitle({title: this.targetName})
-    this.loadMessages();
+    if (this.targetMsgId) this.loadAndScrollToMessage(this.targetMsgId)
+    else this.loadMessages()
     this.markRead();
     this.setupWebSocket()
   },
@@ -282,6 +286,43 @@ export default {
         }
         this.$nextTick(() => this.scrollToBottom())
       } catch (err) {
+      }
+    },
+    // 进入聊天页时定位到搜索匹配的消息：从第 1 页开始往前翻直到找到目标或翻够 maxPages
+    async loadAndScrollToMessage(msgId) {
+      const target = String(msgId)
+      const maxPages = 10
+      try {
+        const r1 = await getChatHistory(this.targetId, 1, 50)
+        const list1 = ((r1.data?.list) || (Array.isArray(r1.data) ? r1.data : [])).slice().reverse()
+        this.messages = list1
+        this.page = 1
+        this.hasMore = list1.length >= 50
+      } catch (err) { return }
+
+      let found = this.messages.some(m => String(m.id) === target)
+      while (!found && this.hasMore && this.page < maxPages) {
+        this.page++
+        try {
+          const res = await getChatHistory(this.targetId, this.page, 50)
+          const list = ((res.data?.list) || (Array.isArray(res.data) ? res.data : [])).slice().reverse()
+          if (list.length === 0) { this.hasMore = false; break }
+          this.messages = [...list, ...this.messages]
+          this.hasMore = list.length >= 50
+          found = list.some(m => String(m.id) === target)
+        } catch (err) { this.page--; break }
+      }
+
+      if (found) {
+        this.highlightMsgId = target
+        this.scrollToId = ''
+        this.$nextTick(() => {
+          this.scrollToId = 'msg-' + target
+          setTimeout(() => { this.highlightMsgId = '' }, 2500)
+        })
+      } else {
+        uni.showToast({ title: '聊天记录较多，未能定位到该条', icon: 'none' })
+        this.$nextTick(() => this.scrollToBottom())
       }
     },
     async loadMoreHistory() {
@@ -465,6 +506,16 @@ export default {
   margin-bottom: 30rpx;
   box-sizing: border-box;
   width: 100%;
+}
+
+/* 搜索定位时的临时高亮：约 2.5s 内由黄底渐变到透明 */
+.msg-highlight {
+  animation: msg-flash 2.5s ease-out;
+}
+@keyframes msg-flash {
+  0% { background-color: rgba(255, 215, 0, 0.45); }
+  60% { background-color: rgba(255, 215, 0, 0.25); }
+  100% { background-color: transparent; }
 }
 
 /* 对方消息 - 左对齐 */

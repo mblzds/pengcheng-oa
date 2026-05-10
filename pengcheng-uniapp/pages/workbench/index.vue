@@ -138,7 +138,7 @@
 				uni.navigateTo({ url: entry.url })
 			},
 			goNoticeList() {
-				uni.switchTab({ url: '/pages/index/index' })
+				uni.navigateTo({ url: '/pages/notice/list' })
 			},
 			onNoticeClick(item) {
 				if (item.id) {

@@ -1,12 +1,26 @@
 <template>
 	<view class="chat-page">
+		<view class="custom-nav">
+			<view class="status-bar" :style="{ height: statusBarHeight + 'px' }"></view>
+			<view class="nav-bar">
+				<view class="nav-back" @tap="navBack">
+					<u-icon name="arrow-left" color="#181818" size="22"></u-icon>
+				</view>
+				<view class="nav-title-wrap" @tap="goGroupDetail">
+					<text class="nav-title">{{ groupName }}</text>
+					<u-icon name="info-circle" color="#999" size="14" customStyle="margin-left: 6rpx;"></u-icon>
+				</view>
+				<!-- 右侧让出给微信胶囊（… / 关闭），不放任何元素避免重叠 -->
+			</view>
+		</view>
 		<scroll-view class="message-list" scroll-y :scroll-into-view="scrollToId"
 			:scroll-with-animation="true" @scrolltoupper="loadMoreHistory" @tap="hideExtra">
 			<view class="loading-wrap" v-if="hasMore" @tap="loadMoreHistory">
 				<text>{{ loadingMore ? '加载中...' : '查看更多消息' }}</text>
 			</view>
 
-			<view v-for="(msg, index) in messages" :key="msg.id" :id="'msg-' + msg.id" class="message-item">
+			<view v-for="(msg, index) in messages" :key="msg.id" :id="'msg-' + msg.id"
+				:class="['message-item', { 'msg-highlight': String(msg.id) === highlightMsgId }]">
 				<view class="time-divider" v-if="showTimeDivider(index)">
 					<text>{{ formatFullTime(msg.sendTime) }}</text>
 				</view>
@@ -132,6 +146,8 @@
 		data() {
 			return {
 				groupId: 0, groupName: '', myUserId: 0, myAvatar: '', myName: '',
+				statusBarHeight: 20,
+				targetMsgId: '', highlightMsgId: '',
 				messages: [], inputText: '', scrollToId: '', page: 1, hasMore: true, loadingMore: false,
 				isVoiceMode: false, isRecording: false,
 				showEmojiPanel: false, showExtraPanel: false,
@@ -141,17 +157,28 @@
 		onLoad(options) {
 			this.groupId = Number(options.groupId)
 			this.groupName = decodeURIComponent(options.name || '群聊')
+			this.targetMsgId = options.targetMsgId ? String(options.targetMsgId) : ''
+			const sys = uni.getSystemInfoSync()
+			this.statusBarHeight = sys.statusBarHeight || 20
 			const u = getUserInfo()
 			this.myUserId = u?.userId || 0
 			this.myAvatar = u?.avatar || ''
 			this.myName = u?.nickname || u?.username || '我'
-			uni.setNavigationBarTitle({ title: this.groupName })
-			this.loadMessages(); this.setupWebSocket()
+			if (this.targetMsgId) this.loadAndScrollToMessage(this.targetMsgId)
+			else this.loadMessages()
+			this.setupWebSocket()
 		},
 		onUnload() { this.removeWebSocketListeners() },
 		methods: {
 			resolveAvatar,
 			resolveFileUrl,
+			navBack() {
+				uni.navigateBack({ delta: 1 })
+			},
+			goGroupDetail() {
+				if (!this.groupId) return
+				uni.navigateTo({ url: `/pages/group/detail?groupId=${this.groupId}` })
+			},
 			isSelf(senderId) {
 				return String(senderId) === String(this.myUserId)
 			},
@@ -223,6 +250,43 @@
 					else if (res.data && Array.isArray(res.data)) { this.messages = res.data.reverse(); this.hasMore = res.data.length >= 50 }
 					this.$nextTick(() => this.scrollToBottom())
 				} catch (err) {}
+			},
+			// 进入聊天页时定位到搜索匹配的消息：从第 1 页开始往前翻直到找到目标消息或翻够 maxPages
+			async loadAndScrollToMessage(msgId) {
+				const target = String(msgId)
+				const maxPages = 10
+				try {
+					const r1 = await getGroupMessages(this.groupId, 1, 50)
+					const list1 = (r1.data?.list || r1.data || []).slice().reverse()
+					this.messages = list1
+					this.page = 1
+					this.hasMore = list1.length >= 50
+				} catch (err) { return }
+
+				let found = this.messages.some(m => String(m.id) === target)
+				while (!found && this.hasMore && this.page < maxPages) {
+					this.page++
+					try {
+						const res = await getGroupMessages(this.groupId, this.page, 50)
+						const list = (res.data?.list || res.data || []).slice().reverse()
+						if (list.length === 0) { this.hasMore = false; break }
+						this.messages = [...list, ...this.messages]
+						this.hasMore = list.length >= 50
+						found = list.some(m => String(m.id) === target)
+					} catch (err) { this.page--; break }
+				}
+
+				if (found) {
+					this.highlightMsgId = target
+					this.scrollToId = ''
+					this.$nextTick(() => {
+						this.scrollToId = 'msg-' + target
+						setTimeout(() => { this.highlightMsgId = '' }, 2500)
+					})
+				} else {
+					uni.showToast({ title: '聊天记录较多，未能定位到该条', icon: 'none' })
+					this.$nextTick(() => this.scrollToBottom())
+				}
 			},
 			async loadMoreHistory() {
 				if (this.loadingMore || !this.hasMore) return
@@ -310,6 +374,32 @@
 			background: #EDEDED;
 		}
 
+	.custom-nav {
+		background: #F7F7F7;
+		border-bottom: 1rpx solid #E5E5E5;
+	}
+	.status-bar { width: 100%; }
+	.nav-bar {
+		position: relative;
+		height: 88rpx;
+	}
+	.nav-back {
+		position: absolute; left: 0; top: 0; bottom: 0;
+		width: 88rpx; padding-left: 20rpx;
+		display: flex; align-items: center;
+	}
+	/* 标题区：左让出 88rpx 给返回键，右让出 200rpx 给微信胶囊 */
+	.nav-title-wrap {
+		position: absolute; left: 88rpx; right: 200rpx; top: 0; bottom: 0;
+		display: flex; align-items: center; justify-content: center;
+		&:active { opacity: 0.6; }
+	}
+	.nav-title {
+		font-size: 32rpx; font-weight: 600; color: #181818;
+		max-width: 100%;
+		overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+	}
+
 	.message-list {
 		flex: 1;
 		overflow: hidden;
@@ -355,6 +445,16 @@
 		margin-bottom: 30rpx;
 		box-sizing: border-box;
 		width: 100%;
+	}
+
+	/* 搜索定位时的临时高亮：约 2.5s 内由黄底渐变到透明 */
+	.msg-highlight {
+		animation: msg-flash 2.5s ease-out;
+	}
+	@keyframes msg-flash {
+		0% { background-color: rgba(255, 215, 0, 0.45); }
+		60% { background-color: rgba(255, 215, 0, 0.25); }
+		100% { background-color: transparent; }
 	}
 
 	.msg-row-other {

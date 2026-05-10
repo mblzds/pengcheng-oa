@@ -26,19 +26,6 @@
 
 		<scroll-view scroll-y class="conversation-list" @scrolltolower="loadMore"
 			refresher-enabled :refresher-triggered="refreshing" @refresherrefresh="onRefresh">
-			<view class="notice-card" v-if="!isSearching && noticeList.length > 0">
-				<view class="notice-header">
-					<text class="notice-title">系统通知</text>
-				</view>
-				<view class="notice-item" v-for="n in noticeList" :key="n.id" @tap.stop="openNotice(n)">
-					<view class="notice-dot" :class="{ unread: isUnread(n) }"></view>
-					<view class="notice-content">
-						<text class="notice-main">{{ n.title || '系统通知' }}</text>
-						<text class="notice-sub">{{ n.createTime || '' }}</text>
-					</view>
-				</view>
-			</view>
-
 			<view class="conversation-item" v-for="item in filteredConversations" :key="'c-' + item.contactId"
 				@tap="openChat(item)" @longpress="!isSearching && handleLongPress(item)">
 				<view class="avatar-wrap">
@@ -94,10 +81,35 @@
 				</view>
 			</view>
 
-			<view class="empty-state" v-if="isSearching && filteredConversations.length === 0 && filteredGroups.length === 0">
+			<view v-if="isSearching && messageMatches.length > 0" class="match-section-header">
+				<text>聊天记录</text>
+			</view>
+			<view class="conversation-item" v-for="m in messageMatches" :key="`m-${m.kind}-${m.id}`" @tap="openMatch(m)">
+				<view class="avatar-wrap">
+					<image v-if="m.avatar" class="conv-avatar" :src="resolveAvatar(m.avatar)" mode="aspectFill"></image>
+					<view v-else class="conv-avatar avatar-text" :style="{ background: getAvatarColor(m.kind === 'group' ? m.name : (m.nickname || m.username)) }">
+						<text>{{ getFirstChar(m.kind === 'group' ? m.name : (m.nickname || m.username)) }}</text>
+					</view>
+				</view>
+				<view class="conv-info">
+					<view class="conv-top">
+						<text class="conv-name">{{ m.kind === 'group' ? (m.name || '群聊') : (m.nickname || m.username || '联系人') }}</text>
+						<text class="conv-time">{{ formatTime(m.sendTime) }}</text>
+					</view>
+					<view class="conv-bottom">
+						<text class="conv-msg">
+							<text v-for="(p, pi) in highlightParts(m.kind === 'group' && m.senderName ? `${m.senderName}: ${m.content}` : m.content, kw)" :key="'mm'+pi"
+								:class="{ hl: p.matched }">{{ p.text }}</text>
+						</text>
+						<text v-if="m.matchCount > 1" class="match-count">{{ m.matchCount }} 条</text>
+					</view>
+				</view>
+			</view>
+
+			<view class="empty-state" v-if="isSearching && filteredConversations.length === 0 && filteredGroups.length === 0 && messageMatches.length === 0 && !searchingMessages">
 				<u-icon name="search" color="#D0D0D0" size="56"></u-icon>
-				<text class="empty-text">没有匹配的会话</text>
-				<text class="empty-hint">试试搜索其他联系人或关键词</text>
+				<text class="empty-text">没有匹配的会话或聊天记录</text>
+				<text class="empty-hint">换个关键词试试</text>
 			</view>
 			<view class="empty-state" v-else-if="!isSearching && conversations.length === 0 && groups.length === 0 && !loading">
 				<u-icon name="chat" color="#D0D0D0" size="56"></u-icon>
@@ -109,10 +121,9 @@
 </template>
 
 <script>
-	import { getRecentContacts, getGroupList, getChatUsers, getNoticeList, readNotice } from '../../utils/api.js'
+	import { getRecentContacts, getGroupList, getChatUsers, searchChatHistory } from '../../utils/api.js'
 	import { getUserInfo, checkLogin } from '../../utils/auth.js'
 	import wsClient from '../../utils/websocket.js'
-	import { navigateByNotice } from '../../utils/notice.js'
 
 	import { resolveAvatar } from '../../utils/config.js'
 	export default {
@@ -120,12 +131,25 @@
 			return {
 				conversations: [],
 				groups: [],
-				noticeList: [],
 				loading: false,
 				refreshing: false,
 				showAddMenu: false,
 				userInfo: null,
-				searchText: ''
+				searchText: '',
+				messageMatches: [],
+				searchingMessages: false
+			}
+		},
+		watch: {
+			searchText() {
+				if (this._searchTimer) clearTimeout(this._searchTimer)
+				const kw = (this.searchText || '').trim()
+				if (!kw) {
+					this.messageMatches = []
+					this.searchingMessages = false
+					return
+				}
+				this._searchTimer = setTimeout(() => this.runMessageSearch(kw), 300)
 			}
 		},
 		computed: {
@@ -227,23 +251,8 @@
 						this.sortConversations()
 					}
 					if (groupsRes.data && Array.isArray(groupsRes.data)) this.groups = groupsRes.data
-					await this.loadNotices()
 				} catch (err) { console.error(err) }
 				finally { this.loading = false; this.refreshing = false }
-			},
-			async loadNotices() {
-				const res = await getNoticeList(1, 5).catch(() => ({ data: { list: [] } }))
-				this.noticeList = res.data?.list || res.data || []
-			},
-			isUnread(notice) {
-				return notice.readFlag === false || notice.readStatus === 0
-			},
-			async openNotice(notice) {
-				if (notice?.id) {
-					await readNotice(notice.id).catch(() => {})
-				}
-				navigateByNotice(notice)
-				this.loadNotices()
 			},
 			setupWebSocket() {
 				// 先移除旧的监听，防止重复
@@ -292,17 +301,12 @@
 					}
 					uni.vibrateShort()
 				}
-				this.noticeHandler = () => {
-					this.loadNotices()
-				}
 				wsClient.on('chat', this.chatHandler)
 				wsClient.on('groupChat', this.groupChatHandler)
-				wsClient.on('notice', this.noticeHandler)
 			},
 			removeWebSocketListeners() {
 				if (this.chatHandler) { wsClient.off('chat', this.chatHandler); this.chatHandler = null }
 				if (this.groupChatHandler) { wsClient.off('groupChat', this.groupChatHandler); this.groupChatHandler = null }
-				if (this.noticeHandler) { wsClient.off('notice', this.noticeHandler); this.noticeHandler = null }
 			},
 			onRefresh() { this.refreshing = true; this.loadData() },
 			loadMore() {},
@@ -316,7 +320,6 @@
 				this.groups = [...this.groups]
 				uni.navigateTo({ url: `/pages/group-chat/index?groupId=${group.id}&name=${encodeURIComponent(group.name)}` })
 			},
-			handleCreateGroup() { this.showAddMenu = false; uni.navigateTo({ url: '/pages/group/create' }) },
 			matchOne(text, kw) {
 				return text != null && String(text).toLowerCase().includes(kw)
 			},
@@ -358,6 +361,36 @@
 				if (diff < 172800000) return '昨天'
 				if (diff < 604800000) return '周' + ['日', '一', '二', '三', '四', '五', '六'][d.getDay()]
 				return `${d.getMonth() + 1}/${d.getDate()}`
+			},
+			handleCreateGroup() {
+				this.showAddMenu = false
+				uni.navigateTo({ url: '/pages/group/create' })
+			},
+			async runMessageSearch(kw) {
+				this.searchingMessages = true
+				try {
+					const res = await searchChatHistory(kw)
+					// 关键词过期保护：用户继续打字时只接受最新的关键词结果
+					if ((this.searchText || '').trim() !== kw) return
+					this.messageMatches = Array.isArray(res?.data) ? res.data : []
+				} catch (e) {
+					this.messageMatches = []
+				} finally {
+					this.searchingMessages = false
+				}
+			},
+			openMatch(m) {
+				const msgPart = m.msgId ? `&targetMsgId=${m.msgId}` : ''
+				if (m.kind === 'group') {
+					uni.navigateTo({
+						url: `/pages/group-chat/index?groupId=${m.id}&name=${encodeURIComponent(m.name || '群聊')}${msgPart}`
+					})
+				} else {
+					const displayName = m.nickname || m.username || '聊天'
+					uni.navigateTo({
+						url: `/pages/chat/index?targetId=${m.id}&name=${encodeURIComponent(displayName)}&avatar=${encodeURIComponent(m.avatar || '')}${msgPart}`
+					})
+				}
 			}
 		}
 	}
@@ -396,30 +429,6 @@
 	}
 
 	.conversation-list { flex: 1; overflow: hidden; }
-	.notice-card {
-		margin: 16rpx 20rpx 8rpx;
-		background: #FFF;
-		border-radius: 12rpx;
-		padding: 12rpx 16rpx;
-	}
-	.notice-header { padding: 6rpx 4rpx 10rpx; }
-	.notice-title { font-size: 24rpx; color: #666; font-weight: 600; }
-	.notice-item {
-		display: flex; align-items: flex-start;
-		padding: 12rpx 4rpx;
-		border-top: 1rpx solid #F3F3F3;
-	}
-	.notice-dot {
-		width: 12rpx; height: 12rpx; border-radius: 50%;
-		background: #D9D9D9; margin-right: 10rpx; margin-top: 10rpx; flex-shrink: 0;
-		&.unread { background: #FA5151; }
-	}
-	.notice-content { flex: 1; min-width: 0; }
-	.notice-main {
-		display: block; font-size: 24rpx; color: #333;
-		overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-	}
-	.notice-sub { display: block; font-size: 20rpx; color: #B0B0B0; margin-top: 4rpx; }
 	.conversation-item {
 		display: flex; align-items: center; padding: 22rpx 24rpx;
 		background: #FFF; border-bottom: 1rpx solid #F0F0F0;
@@ -447,6 +456,16 @@
 	.conv-time { font-size: 20rpx; color: #B0B0B0; flex-shrink: 0; margin-left: 12rpx; }
 	.conv-bottom { display: flex; align-items: center; justify-content: space-between; }
 	.conv-msg { font-size: 24rpx; color: #999; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+	.match-section-header {
+		padding: 16rpx 24rpx 8rpx;
+		text { font-size: 22rpx; color: #999; font-weight: 500; }
+	}
+	.match-count {
+		font-size: 20rpx; color: #B0B0B0;
+		background: #F0F0F0; padding: 2rpx 10rpx; border-radius: 20rpx;
+		margin-left: 12rpx; flex-shrink: 0;
+	}
 
 	.empty-state {
 		display: flex; flex-direction: column; align-items: center; padding: 140rpx 40rpx;
