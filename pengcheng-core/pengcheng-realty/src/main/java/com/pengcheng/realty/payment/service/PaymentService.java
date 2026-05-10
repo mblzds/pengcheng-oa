@@ -73,6 +73,8 @@ public class PaymentService {
     public static final int STATUS_APPROVED = 3;
     /** 审批状态：已驳回 */
     public static final int STATUS_REJECTED = 4;
+    /** 审批状态：申请人主动撤销（仅审批中可撤；已通过且未付款不在此功能范围内） */
+    public static final int STATUS_CANCELLED = 5;
 
     /** 审批结果：通过 */
     public static final int APPROVAL_RESULT_PASS = 1;
@@ -160,6 +162,35 @@ public class PaymentService {
         }
         paymentRequestMapper.updateById(request);
         // 广播数据变更事件
+        eventPublisher.publishEvent(new DataChangeEvent(this, "update", "payment", request.getId()));
+    }
+
+    /**
+     * 申请人主动撤销付款申请。
+     * 仅当 status ∈ {待审批, 审批中} 且尚未实际付款（pay_status=未付款）时允许撤销。
+     */
+    @Transactional
+    public void cancelPaymentRequest(Long requestId, Long applicantId) {
+        if (requestId == null || applicantId == null) {
+            throw new IllegalArgumentException("撤销参数不完整");
+        }
+        PaymentRequest request = paymentRequestMapper.selectById(requestId);
+        if (request == null) {
+            throw new IllegalArgumentException("付款申请不存在");
+        }
+        if (!applicantId.equals(request.getApplicantId())) {
+            throw new ApprovalFlowException("仅申请人可撤销自己的申请");
+        }
+        if (request.getStatus() == null
+                || (request.getStatus() != STATUS_PENDING && request.getStatus() != STATUS_IN_PROGRESS)) {
+            throw new ApprovalFlowException("当前申请已审批完成或已撤销，不可撤销");
+        }
+        // 已发起支付（即使审批未完成，正常流程也不会走到这里）必须拦住，避免与回调入账并发
+        if (request.getPayStatus() != null && request.getPayStatus() != PAY_STATUS_UNPAID) {
+            throw new ApprovalFlowException("已发起或完成付款，不可撤销");
+        }
+        request.setStatus(STATUS_CANCELLED);
+        paymentRequestMapper.updateById(request);
         eventPublisher.publishEvent(new DataChangeEvent(this, "update", "payment", request.getId()));
     }
 

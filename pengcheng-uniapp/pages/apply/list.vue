@@ -38,14 +38,17 @@
 				<view class="record-info" v-if="item.reason">
 						<text class="info-text">原因：{{ item.reason }}</text>
 					</view>
-					<view class="record-info" v-if="item.currentNodeName && item.status === 1">
+					<view class="record-info" v-if="item.currentNodeName && (item.status === 1 || item.status === 2)">
 					<text class="info-text node-text">当前节点：{{ item.currentNodeName }}</text>
 				</view>
 				<view class="record-info reject-row" v-if="item.status === 4 && item.rejectReason">
 					<text class="info-text reject-text">驳回原因：{{ item.rejectReason }}</text>
 				</view>
-				<view class="record-info">
+				<view class="record-bottom">
 					<text class="info-text">提交时间：{{ item.createTime || '--' }}</text>
+					<view v-if="canCancel(item)" class="cancel-btn" @tap.stop="onCancel(item)">
+						<text>取消申请</text>
+					</view>
 				</view>
 			</view>
 
@@ -74,7 +77,7 @@
 </template>
 
 <script>
-	import { getLeaveList, getPaymentList } from '../../utils/api.js'
+	import { getLeaveList, getPaymentList, cancelLeave, cancelPayment } from '../../utils/api.js'
 
 	export default {
 		data() {
@@ -93,7 +96,8 @@
 					{ label: '全部', value: '' },
 					{ label: '审批中', value: 'pending' },
 					{ label: '已通过', value: 'approved' },
-					{ label: '已驳回', value: 'rejected' }
+					{ label: '已驳回', value: 'rejected' },
+					{ label: '已撤销', value: 'cancelled' }
 				],
 				list: [],
 				page: 1,
@@ -135,8 +139,40 @@
 				this.resetAndLoad()
 			},
 			getStatusText(status) {
-				const map = { 1: '审批中', 2: '审批中', 3: '已通过', 4: '已驳回' }
+				const map = { 1: '审批中', 2: '审批中', 3: '已通过', 4: '已驳回', 5: '已撤销' }
 				return map[status] || status || '--'
+			},
+			canCancel(item) {
+				// 仅本人发起且仍在审批中的申请允许撤销（列表本身已按当前用户过滤）
+				return item && (item.status === 1 || item.status === 2) && item.cancelKind
+			},
+			async onCancel(item) {
+				const ok = await new Promise(resolve => {
+					uni.showModal({
+						title: '确认撤销',
+						content: `确定撤销这条「${item.typeName}」申请吗？撤销后审批人将不再收到此审批。`,
+						confirmText: '撤销',
+						confirmColor: '#F5222D',
+						success: r => resolve(r.confirm),
+						fail: () => resolve(false)
+					})
+				})
+				if (!ok) return
+				uni.showLoading({ title: '撤销中...', mask: true })
+				try {
+					if (item.cancelKind === 'leave' || item.cancelKind === 'compensate') {
+						await cancelLeave(item.rawId, item.cancelKind)
+					} else if (item.cancelKind === 'payment') {
+						await cancelPayment(item.rawId)
+					}
+					uni.hideLoading()
+					uni.showToast({ title: '已撤销', icon: 'success' })
+					this.resetAndLoad()
+				} catch (err) {
+					uni.hideLoading()
+					const msg = (err && (err.msg || err.message)) || '撤销失败'
+					uni.showToast({ title: msg, icon: 'none' })
+				}
 			},
 			switchType(val) {
 				this.activeType = val
@@ -165,7 +201,7 @@
 				const rows = []
 				if (type === 'all' || type === 'leave' || type === 'compensate') {
 					const leaveType = type === 'all' ? undefined : type
-					const leaveStatusMap = { pending: 1, approved: 2, rejected: 3 }
+					const leaveStatusMap = { pending: 1, approved: 2, rejected: 3, cancelled: 4 }
 					const leaveStatus = this.statusFilter ? leaveStatusMap[this.statusFilter] : undefined
 					const leaveRes = await getLeaveList({
 						type: leaveType,
@@ -195,11 +231,16 @@
 						if (r.type === 'leave' && typeof r.days === 'number') {
 							daysText = `${r.days}天`
 						}
+						// 后端 status: 1 审批中 / 2 已通过 / 3 已驳回 / 4 已撤销
+						// UI status: 1 审批中 / 3 已通过 / 4 已驳回 / 5 已撤销（与付款单 1/2/3/4/5 对齐）
+						const leaveUiStatus = ({ 1: 1, 2: 3, 3: 4, 4: 5 })[r.status] || 1
 						rows.push({
 							id: `l-${r.type}-${r.id}`,
+							rawId: r.id,
+							cancelKind: r.type, // 'leave' 或 'compensate'
 							typeName,
 							daysText,
-							status: r.status === 2 ? 3 : (r.status === 3 ? 4 : 1),
+							status: leaveUiStatus,
 							amount: null,
 							rangeText,
 							reason: r.reason || '',
@@ -215,7 +256,9 @@
 					const requestType = type === 'all' ? undefined : paymentTypeMap[type]
 					const statusList = this.statusFilter === 'pending'
 						? [1, 2]
-						: (this.statusFilter === 'approved' ? [3] : (this.statusFilter === 'rejected' ? [4] : [undefined]))
+						: (this.statusFilter === 'approved' ? [3]
+							: (this.statusFilter === 'rejected' ? [4]
+								: (this.statusFilter === 'cancelled' ? [5] : [undefined])))
 					for (const payStatus of statusList) {
 						const payRes = await getPaymentList({
 							type: requestType,
@@ -233,6 +276,8 @@
 							}
 							rows.push({
 								id: `p-${r.id}-${r.status}`,
+								rawId: r.id,
+								cancelKind: 'payment',
 								typeName: typeNameMap[r.requestType] || '付款申请',
 								daysText: '',
 								status: r.status,
@@ -300,8 +345,18 @@
 		&.s-pending, &.s-1, &.s-2 { background: #FFF7E6; color: #FA8C16; }
 		&.s-approved, &.s-3 { background: #F6FFED; color: #52C41A; }
 		&.s-rejected, &.s-4 { background: #FFF1F0; color: #F5222D; }
+		&.s-cancelled, &.s-5 { background: #F5F5F5; color: #999; }
 	}
 	.record-info { margin-top: 8rpx; }
+	.record-bottom {
+		margin-top: 12rpx; display: flex; justify-content: space-between; align-items: center;
+	}
+	.cancel-btn {
+		padding: 8rpx 24rpx; border-radius: 24rpx;
+		background: #FFF1F0; border: 1rpx solid #FFCCC7;
+		text { font-size: 24rpx; color: #F5222D; }
+		&:active { background: #FFE4E1; }
+	}
 	.info-text { font-size: 24rpx; color: #999; }
 	.info-text.node-text { color: #FA8C16; }
 	.reject-row {

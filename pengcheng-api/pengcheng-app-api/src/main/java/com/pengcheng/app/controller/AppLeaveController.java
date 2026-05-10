@@ -97,6 +97,26 @@ public class AppLeaveController {
     }
 
     /**
+     * 申请人主动撤销请假/调休申请
+     * type=leave 时 id 为 leave_request.id；type=compensate 时为 realty_compensate_request.id
+     * 仅业务单整体仍处于「审批中」时允许撤销，并校验当前登录用户必须是申请人本人。
+     */
+    @PostMapping("/{id}/cancel")
+    public Result<Void> cancel(@PathVariable Long id, @RequestParam String type) {
+        Long userId = StpUtil.getLoginIdAsLong();
+        String businessType;
+        if ("leave".equals(type)) {
+            businessType = ApprovalConstants.BUSINESS_TYPE_LEAVE;
+        } else if ("compensate".equals(type)) {
+            businessType = ApprovalConstants.BUSINESS_TYPE_COMPENSATE;
+        } else {
+            return Result.fail(400, "无效的撤销类型: " + type);
+        }
+        approvalFlowService.cancel(businessType, id, userId);
+        return Result.ok();
+    }
+
+    /**
      * 查询当前用户请假/调休记录
      * 支持 type(leave/compensate)/status/page/pageSize 参数
      */

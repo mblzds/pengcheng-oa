@@ -96,6 +96,61 @@ public class ApprovalFlowServiceImpl implements ApprovalFlowService {
 
     @Override
     @Transactional
+    public void cancel(String businessType, Long businessId, Long applicantId) {
+        if (businessType == null || businessId == null || applicantId == null) {
+            throw new IllegalStateException("撤销参数不完整");
+        }
+        // 校验业务单存在 + 仍在审批中 + 操作人是原申请人
+        Long ownerId;
+        Integer currentStatus;
+        if (ApprovalConstants.BUSINESS_TYPE_LEAVE.equals(businessType)) {
+            LeaveRequest lr = leaveRequestMapper.selectById(businessId);
+            if (lr == null) throw new IllegalStateException("请假记录不存在");
+            ownerId = lr.getUserId();
+            currentStatus = lr.getStatus();
+        } else if (ApprovalConstants.BUSINESS_TYPE_COMPENSATE.equals(businessType)) {
+            CompensateRequest cr = compensateRequestMapper.selectById(businessId);
+            if (cr == null) throw new IllegalStateException("调休记录不存在");
+            ownerId = cr.getUserId();
+            currentStatus = cr.getStatus();
+        } else {
+            throw new IllegalStateException("不支持撤销的业务类型：" + businessType);
+        }
+        if (!Objects.equals(ownerId, applicantId)) {
+            throw new IllegalStateException("仅申请人可撤销自己的申请");
+        }
+        if (currentStatus == null || currentStatus != ApprovalConstants.STATUS_PENDING) {
+            throw new IllegalStateException("当前申请已审批完成或已撤销，不可撤销");
+        }
+        // 把所有未审批节点标记为「已撤销」，使审批人待办列表（result IS NULL）不再返回这些节点
+        LocalDateTime now = LocalDateTime.now();
+        List<ApprovalRecordNode> pendingNodes = recordNodeMapper.selectList(
+                new LambdaQueryWrapper<ApprovalRecordNode>()
+                        .eq(ApprovalRecordNode::getBusinessType, businessType)
+                        .eq(ApprovalRecordNode::getBusinessId, businessId)
+                        .isNull(ApprovalRecordNode::getResult));
+        for (ApprovalRecordNode n : pendingNodes) {
+            n.setApproverId(applicantId);
+            n.setResult(ApprovalConstants.RESULT_CANCELLED);
+            n.setRemark("申请人撤销");
+            n.setApprovalTime(now);
+            recordNodeMapper.updateById(n);
+        }
+        // 业务单整体状态翻转为「已撤销」
+        if (ApprovalConstants.BUSINESS_TYPE_LEAVE.equals(businessType)) {
+            LeaveRequest lr = leaveRequestMapper.selectById(businessId);
+            lr.setStatus(ApprovalConstants.STATUS_CANCELLED);
+            leaveRequestMapper.updateById(lr);
+        } else {
+            CompensateRequest cr = compensateRequestMapper.selectById(businessId);
+            cr.setStatus(ApprovalConstants.STATUS_CANCELLED);
+            compensateRequestMapper.updateById(cr);
+        }
+        // 注意：不发布 ApprovalFinalizedEvent —— 撤销不应触发 AttendanceExemptListener 等"通过"后置动作
+    }
+
+    @Override
+    @Transactional
     public void approve(Long recordNodeId, Long approverId, boolean approved, String remark) {
         ApprovalRecordNode node = recordNodeMapper.selectById(recordNodeId);
         if (node == null) {

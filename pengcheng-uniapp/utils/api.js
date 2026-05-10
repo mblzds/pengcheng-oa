@@ -204,6 +204,9 @@ export const applyCompensate = (data) => post('/api/app/leave/compensate', data)
 /** 请假/调休记录列表 */
 export const getLeaveList = (params) => get('/api/app/leave/list', params)
 
+/** 撤销请假/调休申请：type 取 'leave' 或 'compensate' */
+export const cancelLeave = (id, type) => post(`/api/app/leave/${id}/cancel?type=${encodeURIComponent(type)}`)
+
 // ==================== 付款申请 ====================
 
 /** 报销申请 */
@@ -217,6 +220,9 @@ export const applyPrepay = (data) => post('/api/app/payment/prepay', data)
 
 /** 付款申请记录列表 */
 export const getPaymentList = (params) => get('/api/app/payment/list', params)
+
+/** 撤销付款申请（报销/垫佣/预付佣） */
+export const cancelPayment = (id) => post(`/api/app/payment/${id}/cancel`)
 
 /** 小程序真实支付下单 */
 export const createPaymentOrder = (data) => post('/api/app/pay/create', data)

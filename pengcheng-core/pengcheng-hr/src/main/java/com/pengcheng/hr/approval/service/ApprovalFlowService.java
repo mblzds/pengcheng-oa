@@ -36,6 +36,22 @@ public interface ApprovalFlowService {
     void approve(Long recordNodeId, Long approverId, boolean approved, String remark);
 
     /**
+     * 申请人主动撤销审批流。
+     * - 仅业务单仍处于 STATUS_PENDING 时允许（已通过/驳回/已撤销不可重复操作）。
+     * - 校验 applicantId 必须是业务单原申请人，防止越权撤销他人申请。
+     * - 把所有 result IS NULL 的节点终态化为 RESULT_CANCELLED 并写 approver_id 为申请人，
+     *   使其从所有审批人的待办列表中消失。
+     * - 业务单 status 翻转为 STATUS_CANCELLED；不发布 ApprovalFinalizedEvent，
+     *   因此不会触发考勤豁免等通过侧后置动作。
+     *
+     * @param businessType {@link ApprovalConstants#BUSINESS_TYPE_LEAVE} 或 COMPENSATE
+     * @param businessId   业务单 ID
+     * @param applicantId  当前操作人 ID（必须等于业务单原申请人）
+     * @throws IllegalStateException 业务单不存在 / 已终态 / 操作人不是申请人
+     */
+    void cancel(String businessType, Long businessId, Long applicantId);
+
+    /**
      * 查询某业务申请当前可处理的节点（result IS NULL 中 seq 最小者）。
      * 已无待处理节点时返回 null。
      */

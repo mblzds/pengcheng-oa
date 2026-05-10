@@ -95,6 +95,17 @@ public class AppPaymentController {
     }
 
     /**
+     * 申请人主动撤销付款申请（报销/垫佣/预付佣）
+     * 仅审批未完成且未实际付款时允许，由 PaymentService 校验 status 与 pay_status。
+     */
+    @PostMapping("/{id}/cancel")
+    public Result<Void> cancel(@PathVariable Long id) {
+        Long userId = StpUtil.getLoginIdAsLong();
+        paymentService.cancelPaymentRequest(id, userId);
+        return Result.ok();
+    }
+
+    /**
      * 查询付款申请记录
      * 支持 type/status/page/pageSize 参数
      */
