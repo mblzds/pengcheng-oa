@@ -42,6 +42,11 @@ public class SysUser extends BaseEntity {
     private String username;
 
     /**
+     * 工号（员工编号），唯一；花名册导入按此 upsert。null 仅在历史数据未补齐时出现
+     */
+    private String employeeNo;
+
+    /**
      * 密码
      */
     private String password;

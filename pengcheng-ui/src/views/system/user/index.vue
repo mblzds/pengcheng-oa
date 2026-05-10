@@ -134,6 +134,9 @@
         <n-form-item label="用户名" path="username">
           <n-input v-model:value="formData.username" placeholder="请输入用户名" :disabled="!!formData.id" />
         </n-form-item>
+        <n-form-item label="工号" path="employeeNo">
+          <n-input v-model:value="formData.employeeNo" placeholder="留空将自动生成 EMP+ID" />
+        </n-form-item>
         <n-form-item v-if="!formData.id" label="密码" path="password">
           <n-input v-model:value="formData.password" type="password" placeholder="请输入密码，留空默认123456" show-password-on="click" />
         </n-form-item>
@@ -288,6 +291,9 @@ const userTypeOptions = [
 
 const columns: DataTableColumns<SysUser> = [
   { title: 'ID', key: 'id', width: 60 },
+  { title: '工号', key: 'employeeNo', width: 100, render(row) {
+    return row.employeeNo || '-'
+  } },
   { title: '用户名', key: 'username', width: 100 },
   { title: '部门', key: 'deptName', width: 100, render(row) {
     return row.deptName || '-'
@@ -430,6 +436,7 @@ const formData = reactive<SysUser>({
   id: undefined,
   deptId: null,
   username: '',
+  employeeNo: '',
   password: '',
   nickname: '',
   email: '',
@@ -544,6 +551,7 @@ function handleAdd() {
     id: undefined,
     deptId: null,
     username: '',
+    employeeNo: '',
     password: '',
     nickname: '',
     email: '',

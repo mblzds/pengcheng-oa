@@ -48,6 +48,7 @@
               <li><strong>本部门负责人</strong>：Y / N。Y 时该用户会被设为对应部门的 leader</li>
               <li><strong>直接上级姓名</strong>：可空。空时审批流默认走部门负责人；填了则按指定上级</li>
               <li><strong>角色</strong>：合法值 <code>超级管理员 / 部门经理 / HR / 人事 / 财务 / 普通员工</code>，多个用 <code>;</code> 分隔。审批流标签由系统按规则自动补</li>
+              <li><strong>入职日期</strong>：格式 <code>YYYY-MM-DD</code>，如 <code>2024-06-01</code>。考勤月报会用此日期作为「考勤起算日」，早于该日期的工作日不算缺勤。可空，但建议填上，缺失会回退到系统级「考勤启用日期」</li>
               <li><strong>状态</strong>：在职 / 离职。离职会软删该用户</li>
               <li><strong>初始密码</strong>：固定 <code>Pc@123456</code>，新员工首次登录后建议改密</li>
             </ul>

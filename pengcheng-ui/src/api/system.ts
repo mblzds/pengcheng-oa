@@ -28,6 +28,7 @@ export interface SysUser {
   deptId?: number | null
   deptName?: string
   username: string
+  employeeNo?: string
   password?: string
   nickname: string
   avatar?: string

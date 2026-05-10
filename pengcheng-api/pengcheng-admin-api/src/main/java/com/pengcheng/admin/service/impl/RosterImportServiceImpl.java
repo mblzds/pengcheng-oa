@@ -126,6 +126,7 @@ public class RosterImportServiceImpl implements RosterImportService {
             SysUser user = new SysUser();
             user.setNickname(r.getName());
             user.setUsername(blankToNull(r.getUsername(), r.getEmployeeNo()));
+            user.setEmployeeNo(r.getEmployeeNo());
             user.setPhone(r.getPhone());
             user.setEmail(blankToNull(r.getEmail()));
             user.setDeptId(deptId);
@@ -512,11 +513,12 @@ public class RosterImportServiceImpl implements RosterImportService {
     // ============================== 用户辅助 ==============================
 
     private Map<String, Long> loadEmployeeNoIndex() {
-        List<EmployeeProfile> profiles = employeeProfileMapper.selectList(
-                new LambdaQueryWrapper<EmployeeProfile>().isNotNull(EmployeeProfile::getEmployeeNo));
+        // V66 后工号迁到 sys_user，作为 upsert 的主键索引
+        List<SysUser> users = userMapper.selectList(
+                new LambdaQueryWrapper<SysUser>().isNotNull(SysUser::getEmployeeNo).select(SysUser::getId, SysUser::getEmployeeNo));
         Map<String, Long> map = new HashMap<>();
-        for (EmployeeProfile p : profiles) {
-            if (p.getEmployeeNo() != null) map.put(p.getEmployeeNo(), p.getUserId());
+        for (SysUser u : users) {
+            if (u.getEmployeeNo() != null) map.put(u.getEmployeeNo(), u.getId());
         }
         return map;
     }

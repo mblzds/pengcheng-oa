@@ -117,10 +117,21 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         checkUsernameUnique(user.getUsername(), null);
         checkPhoneUnique(user.getPhone(), null);
         checkOpenIdUnique(user.getOpenId(), null);
+        if (StringUtils.hasText(user.getEmployeeNo())) {
+            checkEmployeeNoUnique(user.getEmployeeNo(), null);
+        }
         // 加密密码
         String password = StringUtils.hasText(user.getPassword()) ? user.getPassword() : DEFAULT_PASSWORD;
         user.setPassword(BCrypt.hashpw(password));
         this.save(user);
+        // 工号留空：按 EMP+id 4 位补零自动生成（与 V66 兜底逻辑一致），保证用户列表一致显示
+        if (!StringUtils.hasText(user.getEmployeeNo())) {
+            SysUser patch = new SysUser();
+            patch.setId(user.getId());
+            patch.setEmployeeNo(String.format("EMP%04d", user.getId()));
+            this.updateById(patch);
+            user.setEmployeeNo(patch.getEmployeeNo());
+        }
         // 保存用户角色关联
         saveUserRoles(user.getId(), roleIds);
         // 保存用户岗位关联
@@ -137,6 +148,9 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         checkUsernameUnique(user.getUsername(), user.getId());
         checkPhoneUnique(user.getPhone(), user.getId());
         checkOpenIdUnique(user.getOpenId(), user.getId());
+        if (StringUtils.hasText(user.getEmployeeNo())) {
+            checkEmployeeNoUnique(user.getEmployeeNo(), user.getId());
+        }
         // 不更新密码
         user.setPassword(null);
         this.updateById(user);
@@ -269,6 +283,19 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         }
         if (baseMapper.countByOpenIdAll(openId, excludeId) > 0) {
             throw new BusinessException("微信账号已被绑定到其他用户");
+        }
+    }
+
+    private void checkEmployeeNoUnique(String employeeNo, Long excludeId) {
+        if (!StringUtils.hasText(employeeNo)) {
+            return;
+        }
+        com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<SysUser> w =
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<SysUser>()
+                        .eq(SysUser::getEmployeeNo, employeeNo);
+        if (excludeId != null) w.ne(SysUser::getId, excludeId);
+        if (baseMapper.selectCount(w) > 0) {
+            throw new BusinessException("工号已被占用：" + employeeNo);
         }
     }
 
