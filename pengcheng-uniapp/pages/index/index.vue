@@ -1,13 +1,18 @@
 <template>
 	<view class="page">
 		<view class="search-bar">
-			<view class="search-input" @tap="navigateToSearch">
+			<view class="search-input">
 				<u-icon name="search" color="rgba(255,255,255,0.55)" size="15"></u-icon>
-				<text class="search-placeholder">搜索</text>
+				<input class="search-input-text" v-model="searchText" placeholder="搜索联系人 / 聊天内容"
+					placeholder-class="search-placeholder" confirm-type="search" />
+				<view v-if="searchText" class="clear-icon" @tap="searchText = ''">
+					<u-icon name="close-circle-fill" color="rgba(255,255,255,0.7)" size="16"></u-icon>
+				</view>
 			</view>
-			<view class="add-btn" @tap="showAddMenu = !showAddMenu">
+			<view v-if="!isSearching" class="add-btn" @tap="showAddMenu = !showAddMenu">
 				<u-icon name="plus-circle" color="rgba(255,255,255,0.9)" size="22"></u-icon>
 			</view>
+			<text v-else class="cancel-btn" @tap="searchText = ''">取消</text>
 		</view>
 
 		<view class="add-menu" v-if="showAddMenu" @tap="showAddMenu = false">
@@ -21,7 +26,7 @@
 
 		<scroll-view scroll-y class="conversation-list" @scrolltolower="loadMore"
 			refresher-enabled :refresher-triggered="refreshing" @refresherrefresh="onRefresh">
-			<view class="notice-card" v-if="noticeList.length > 0">
+			<view class="notice-card" v-if="!isSearching && noticeList.length > 0">
 				<view class="notice-header">
 					<text class="notice-title">系统通知</text>
 				</view>
@@ -34,8 +39,8 @@
 				</view>
 			</view>
 
-			<view class="conversation-item" v-for="item in conversations" :key="'c-' + item.contactId"
-				@tap="openChat(item)" @longpress="handleLongPress(item)">
+			<view class="conversation-item" v-for="item in filteredConversations" :key="'c-' + item.contactId"
+				@tap="openChat(item)" @longpress="!isSearching && handleLongPress(item)">
 				<view class="avatar-wrap">
 					<image v-if="item.avatar" class="conv-avatar" :src="resolveAvatar(item.avatar)" mode="aspectFill"></image>
 					<view v-else class="conv-avatar avatar-text" :style="{ background: getAvatarColor(item.nickname || item.username) }">
@@ -47,16 +52,22 @@
 				</view>
 				<view class="conv-info">
 					<view class="conv-top">
-						<text class="conv-name">{{ item.nickname || item.username }}</text>
+						<text class="conv-name">
+							<text v-for="(p, pi) in highlightParts(item.nickname || item.username, kw)" :key="'cn'+pi"
+								:class="{ hl: p.matched }">{{ p.text }}</text>
+						</text>
 						<text class="conv-time">{{ formatTime(item.sendTime) }}</text>
 					</view>
 					<view class="conv-bottom">
-						<text class="conv-msg">{{ item.lastMessage }}</text>
+						<text class="conv-msg">
+							<text v-for="(p, pi) in highlightParts(item.lastMessage, kw)" :key="'cm'+pi"
+								:class="{ hl: p.matched }">{{ p.text }}</text>
+						</text>
 					</view>
 				</view>
 			</view>
 
-			<view class="conversation-item" v-for="group in groups" :key="'g-' + group.id" @tap="openGroupChat(group)">
+			<view class="conversation-item" v-for="group in filteredGroups" :key="'g-' + group.id" @tap="openGroupChat(group)">
 				<view class="avatar-wrap">
 					<image v-if="group.avatar" class="conv-avatar" :src="resolveAvatar(group.avatar)" mode="aspectFill"></image>
 					<view v-else class="conv-avatar avatar-text" :style="{ background: getAvatarColor(group.name) }">
@@ -68,16 +79,27 @@
 				</view>
 				<view class="conv-info">
 					<view class="conv-top">
-						<text class="conv-name">{{ group.name }}</text>
+						<text class="conv-name">
+							<text v-for="(p, pi) in highlightParts(group.name, kw)" :key="'gn'+pi"
+								:class="{ hl: p.matched }">{{ p.text }}</text>
+						</text>
 						<text class="conv-time">{{ formatTime(group.lastMessageTime) }}</text>
 					</view>
 					<view class="conv-bottom">
-						<text class="conv-msg">{{ group.lastMessage || '暂无消息' }}</text>
+						<text class="conv-msg">
+							<text v-for="(p, pi) in highlightParts(group.lastMessage || '暂无消息', kw)" :key="'gm'+pi"
+								:class="{ hl: p.matched }">{{ p.text }}</text>
+						</text>
 					</view>
 				</view>
 			</view>
 
-			<view class="empty-state" v-if="conversations.length === 0 && groups.length === 0 && !loading">
+			<view class="empty-state" v-if="isSearching && filteredConversations.length === 0 && filteredGroups.length === 0">
+				<u-icon name="search" color="#D0D0D0" size="56"></u-icon>
+				<text class="empty-text">没有匹配的会话</text>
+				<text class="empty-hint">试试搜索其他联系人或关键词</text>
+			</view>
+			<view class="empty-state" v-else-if="!isSearching && conversations.length === 0 && groups.length === 0 && !loading">
 				<u-icon name="chat" color="#D0D0D0" size="56"></u-icon>
 				<text class="empty-text">暂无消息</text>
 				<text class="empty-hint">去通讯录找人聊天吧</text>
@@ -102,7 +124,33 @@
 				loading: false,
 				refreshing: false,
 				showAddMenu: false,
-				userInfo: null
+				userInfo: null,
+				searchText: ''
+			}
+		},
+		computed: {
+			kw() {
+				return (this.searchText || '').trim().toLowerCase()
+			},
+			isSearching() {
+				return this.kw.length > 0
+			},
+			filteredConversations() {
+				if (!this.isSearching) return this.conversations
+				const k = this.kw
+				return this.conversations.filter(c =>
+					this.matchOne(c.nickname, k) ||
+					this.matchOne(c.username, k) ||
+					this.matchOne(c.lastMessage, k)
+				)
+			},
+			filteredGroups() {
+				if (!this.isSearching) return this.groups
+				const k = this.kw
+				return this.groups.filter(g =>
+					this.matchOne(g.name, k) ||
+					this.matchOne(g.lastMessage, k)
+				)
 			}
 		},
 		onShow() {
@@ -269,8 +317,24 @@
 				uni.navigateTo({ url: `/pages/group-chat/index?groupId=${group.id}&name=${encodeURIComponent(group.name)}` })
 			},
 			handleCreateGroup() { this.showAddMenu = false; uni.navigateTo({ url: '/pages/group/create' }) },
-			navigateToSearch() {
-				uni.switchTab({ url: '/pages/contacts/index' })
+			matchOne(text, kw) {
+				return text != null && String(text).toLowerCase().includes(kw)
+			},
+			highlightParts(text, kw) {
+				const s = text == null ? '' : String(text)
+				if (!kw || !s) return [{ text: s, matched: false }]
+				const lower = s.toLowerCase()
+				const parts = []
+				let last = 0
+				let idx = lower.indexOf(kw)
+				while (idx !== -1) {
+					if (idx > last) parts.push({ text: s.substring(last, idx), matched: false })
+					parts.push({ text: s.substring(idx, idx + kw.length), matched: true })
+					last = idx + kw.length
+					idx = lower.indexOf(kw, last)
+				}
+				if (last < s.length) parts.push({ text: s.substring(last), matched: false })
+				return parts
 			},
 			handleLongPress(item) {
 				uni.showActionSheet({
@@ -307,8 +371,14 @@
 		flex: 1; display: flex; align-items: center; height: 60rpx;
 		background: rgba(255,255,255,0.18); border-radius: 6rpx; padding: 0 16rpx;
 	}
-	.search-placeholder { font-size: 24rpx; color: rgba(255,255,255,0.55); margin-left: 8rpx; }
+	.search-input-text {
+		flex: 1; height: 60rpx; font-size: 26rpx; color: #FFF; margin-left: 8rpx;
+	}
+	.search-placeholder { font-size: 24rpx; color: rgba(255,255,255,0.55); }
+	.clear-icon { padding: 0 4rpx; display: flex; align-items: center; }
+	.cancel-btn { font-size: 26rpx; color: #FFF; padding: 0 8rpx; }
 	.add-btn { width: 56rpx; height: 56rpx; display: flex; align-items: center; justify-content: center; }
+	.hl { color: #FA5151; }
 
 	.add-menu { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 100; }
 	.menu-content {
