@@ -143,7 +143,7 @@ export const getNoticeList = (page = 1, pageSize = 10) =>
 export const getNoticeDetail = (id) => get(`/api/sys/notice/${id}`)
 
 /** 标记通知已读 */
-export const readNotice = (id) => post(`/api/sys/notice/read/${id}`)
+export const readNotice = (id) => post(`/api/sys/notice/${id}/read`)
 
 // ==================== 工作台 ====================
 
