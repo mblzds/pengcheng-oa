@@ -13,9 +13,11 @@ import com.pengcheng.message.mapper.ChatGroupMessageMapper;
 import com.pengcheng.system.mapper.SysUserMapper;
 import com.pengcheng.message.service.ChatGroupService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -30,6 +32,9 @@ public class ChatGroupServiceImpl implements ChatGroupService {
     private final ChatGroupMemberMapper memberMapper;
     private final ChatGroupMessageMapper messageMapper;
     private final SysUserMapper userMapper;
+
+    @Value("${pengcheng.chat.content-max-bytes:4096}")
+    private int contentMaxBytes;
     
     @Override
     @Transactional
@@ -289,6 +294,12 @@ public class ChatGroupServiceImpl implements ChatGroupService {
     
     @Override
     public ChatGroupMessage sendMessage(Long groupId, Long senderId, String content, Integer msgType) {
+        if (content != null && !content.isEmpty()) {
+            int bytes = content.getBytes(StandardCharsets.UTF_8).length;
+            if (bytes > contentMaxBytes) {
+                throw new IllegalArgumentException("消息内容过长，超过 " + contentMaxBytes + " 字节上限");
+            }
+        }
         // 检查是否是群成员
         ChatGroupMember member = memberMapper.selectMemberInfo(groupId, senderId);
         if (member == null) {

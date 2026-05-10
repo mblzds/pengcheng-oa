@@ -42,3 +42,13 @@ pengcheng:
         enabled: false
       pay:
         enabled: false
+  chat:
+    # 单条消息内容（content）最大字节数，超长直接 400 拒（防止客户端构造超大消息撑爆 TEXT 列）
+    content-max-bytes: 4096
+    retention:
+      # 私聊保留天数；超过的会被定时任务物理删除
+      private-days: 365
+      # 群聊保留天数（追溯需求更长）
+      group-days: 1095
+      # 单次定时任务一次循环最多删多少行；累计 100 批后停手，避免长事务
+      cleanup-batch: 1000

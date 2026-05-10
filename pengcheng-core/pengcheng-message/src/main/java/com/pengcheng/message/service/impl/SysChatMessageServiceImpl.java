@@ -12,10 +12,12 @@ import com.pengcheng.system.mapper.SysUserMapper;
 import com.pengcheng.message.service.SysChatMessageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -34,12 +36,17 @@ public class SysChatMessageServiceImpl implements SysChatMessageService {
     private final SysUserMapper userMapper;
     private final JdbcTemplate jdbcTemplate;
 
+    /** content 列是 MySQL TEXT，理论上限 ~64KB；这里按 4KB 限制防客户端构造超大消息 */
+    @Value("${pengcheng.chat.content-max-bytes:4096}")
+    private int contentMaxBytes;
+
     @Override
     @Transactional(rollbackFor = Exception.class)
     public SysChatMessage send(SysChatMessage message) {
+        validateContent(message.getContent());
         Long senderId = StpUtil.getLoginIdAsLong();
         SysUser sender = userMapper.selectById(senderId);
-        
+
         message.setSenderId(senderId);
         message.setSenderName(sender != null ? sender.getNickname() : "未知用户");
         message.setSenderAvatar(sender != null ? sender.getAvatar() : null);
@@ -52,6 +59,18 @@ public class SysChatMessageServiceImpl implements SysChatMessageService {
         
         chatMessageMapper.insert(message);
         return message;
+    }
+
+    /** 文本/图片 URL/文件 URL 一律按字节数校验（图片/文件消息存的是 URL，本身不会超 4KB） */
+    private void validateContent(String content) {
+        if (content == null || content.isEmpty()) {
+            // 允许空 content（部分系统消息），不在此处拦
+            return;
+        }
+        int bytes = content.getBytes(StandardCharsets.UTF_8).length;
+        if (bytes > contentMaxBytes) {
+            throw new IllegalArgumentException("消息内容过长，超过 " + contentMaxBytes + " 字节上限");
+        }
     }
 
     @Override
