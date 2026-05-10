@@ -19,9 +19,28 @@
 				</button>
 
 				<view v-else class="bind-section">
-					<view class="bind-tip">首次登录，需授权手机号绑定到现有账号</view>
-					<button class="wx-login-btn" open-type="getPhoneNumber" @getphonenumber="handleBindPhone" :loading="loading">
-						<text class="wx-btn-text">授权手机号完成绑定</text>
+					<view class="bind-tip">首次登录，请用手机号 + 验证码绑定到现有账号</view>
+					<view class="phone-form">
+						<view class="input-group">
+							<view class="input-wrap">
+								<u-icon name="phone" color="#BBB" size="18" style="margin-right: 16rpx;"></u-icon>
+								<input class="input-field" type="number" maxlength="11"
+									v-model="bindPhone" placeholder="请输入手机号" placeholder-class="placeholder" />
+							</view>
+						</view>
+						<view class="input-group">
+							<view class="input-wrap">
+								<u-icon name="lock" color="#BBB" size="18" style="margin-right: 16rpx;"></u-icon>
+								<input class="input-field code-field" type="number" maxlength="6"
+									v-model="bindSmsCode" placeholder="请输入验证码" placeholder-class="placeholder" />
+								<view class="code-btn" :class="{ 'code-disabled': bindCodeCountdown > 0 }" @tap="handleSendBindCode">
+									<text>{{ bindCodeCountdown > 0 ? `${bindCodeCountdown}s` : '获取验证码' }}</text>
+								</view>
+							</view>
+						</view>
+					</view>
+					<button class="wx-login-btn" @tap="handleBindBySms" :loading="loading">
+						<text class="wx-btn-text">提交并绑定</text>
 					</button>
 					<view class="bind-cancel" @tap="cancelBind"><text>取消</text></view>
 				</view>
@@ -79,11 +98,15 @@
 				loading: false,
 				showPhoneLogin: false,
 				phone: '', smsCode: '', codeCountdown: 0, codeTimer: null,
-				// 微信登录返回 BIND_REQUIRED(4001) 时进入"授权手机号绑定"分支
-				needBindPhone: false
+				// 微信登录返回 BIND_REQUIRED(4001) 时进入"短信验证码绑定"分支
+				needBindPhone: false,
+				bindPhone: '', bindSmsCode: '', bindCodeCountdown: 0, bindCodeTimer: null
 			}
 		},
-		onUnload() { if (this.codeTimer) clearInterval(this.codeTimer) },
+		onUnload() {
+			if (this.codeTimer) clearInterval(this.codeTimer)
+			if (this.bindCodeTimer) clearInterval(this.bindCodeTimer)
+		},
 		methods: {
 			completeLogin(data) {
 				setToken(data.token)
@@ -123,20 +146,42 @@
 				} finally { this.loading = false }
 			},
 
-			async handleBindPhone(e) {
+			async handleSendBindCode() {
+				if (this.bindCodeCountdown > 0) return
+				if (!this.bindPhone || !/^1[3-9]\d{9}$/.test(this.bindPhone)) {
+					uni.showToast({ title: '请输入正确的手机号', icon: 'none' }); return
+				}
+				try {
+					await sendSmsCode({ phone: this.bindPhone })
+					uni.showToast({ title: '验证码已发送', icon: 'success' })
+					this.bindCodeCountdown = 60
+					this.bindCodeTimer = setInterval(() => {
+						this.bindCodeCountdown--
+						if (this.bindCodeCountdown <= 0) clearInterval(this.bindCodeTimer)
+					}, 1000)
+				} catch (err) { console.error('发送验证码失败:', err) }
+			},
+
+			async handleBindBySms() {
 				if (this.loading) return
-				const phoneCode = e?.detail?.code
-				if (!phoneCode) {
-					uni.showToast({ title: '需授权手机号才能绑定', icon: 'none' })
-					return
+				if (!this.bindPhone || !/^1[3-9]\d{9}$/.test(this.bindPhone)) {
+					return uni.showToast({ title: '请输入正确的手机号', icon: 'none' })
+				}
+				if (!this.bindSmsCode || this.bindSmsCode.length < 4) {
+					return uni.showToast({ title: '请输入验证码', icon: 'none' })
 				}
 				this.loading = true
 				try {
-					// 重新拿一个 wxCode（前一次的可能已过期或已被消费）
+					// 重新拿 wxCode：前一次的可能已经过期或被消费
 					const loginRes = await new Promise((resolve, reject) => {
 						uni.login({ provider: 'weixin', success: resolve, fail: reject })
 					})
-					const res = await wxLogin({ wxCode: loginRes.code, phoneCode, loginType: 'MINIPROGRAM' })
+					const res = await wxLogin({
+						wxCode: loginRes.code,
+						phone: this.bindPhone,
+						smsCode: this.bindSmsCode,
+						loginType: 'MINIPROGRAM'
+					})
 					this.needBindPhone = false
 					this.completeLogin(res.data)
 				} catch (err) {
@@ -151,6 +196,8 @@
 
 			cancelBind() {
 				this.needBindPhone = false
+				this.bindPhone = ''
+				this.bindSmsCode = ''
 			},
 
 			async handleSendCode() {

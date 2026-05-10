@@ -15,6 +15,7 @@ import com.pengcheng.wechat.WechatMiniProgramService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 @Slf4j
@@ -27,6 +28,10 @@ public class MiniProgramLoginStrategy implements LoginStrategy {
     private final SysUserService userService;
     private final LoginHelper loginHelper;
     private final SystemConfigHelper configHelper;
+    private final StringRedisTemplate redisTemplate;
+
+    /** 与 SmsCodeLoginStrategy 保持一致的短信验证码 redis key 前缀 */
+    private static final String SMS_CODE_KEY = "sms:login:";
 
     @Override
     public LoginType getType() {
@@ -56,38 +61,53 @@ public class MiniProgramLoginStrategy implements LoginStrategy {
         // 2. 从 sys_user 查找已绑定该 openId 的账号
         SysUser user = userService.getByOpenId(openId);
 
-        // 3. 未绑定：用 phoneCode 换微信认证手机号 → 找现有员工 → 把 openId 绑上去
-        //    没传 phoneCode 时返回 4001，前端调起 <button open-type="getPhoneNumber"> 重试
+        // 3. 未绑定：拿手机号 → 按 phone 找现有员工 → 把 openId 绑上去
+        //    手机号来源两种：
+        //      a) phoneCode：微信认证手机号（仅企业小程序开通能力时可用）
+        //      b) phone + smsCode：短信验证码兜底（所有小程序通用，与 SmsCodeLoginStrategy 共用 redis key）
+        //    都没传时返回 4001，前端引导用户补齐
         if (user == null) {
-            if (request.getPhoneCode() == null || request.getPhoneCode().isEmpty()) {
-                log.warn("openId 未绑定且未提供 phoneCode，请前端授权手机号: {}", openId);
-                throw new BusinessException(CODE_BIND_REQUIRED, "未绑定，请授权手机号完成绑定");
+            String boundPhone = null;
+            if (request.getPhoneCode() != null && !request.getPhoneCode().isEmpty()) {
+                try {
+                    boundPhone = wechatMiniProgramService.getPhoneNumber(request.getPhoneCode());
+                } catch (Exception e) {
+                    log.warn("解析微信手机号失败: {}", e.getMessage());
+                    throw new BusinessException("授权手机号失败，请重试");
+                }
+                if (boundPhone == null || boundPhone.isEmpty()) {
+                    throw new BusinessException("未拿到微信手机号，请重新授权");
+                }
+            } else if (request.getPhone() != null && !request.getPhone().isEmpty()
+                    && request.getSmsCode() != null && !request.getSmsCode().isEmpty()) {
+                if (!request.getPhone().matches("^1[3-9]\\d{9}$")) {
+                    throw new BusinessException("请输入正确的手机号");
+                }
+                String cacheCode = redisTemplate.opsForValue().get(SMS_CODE_KEY + request.getPhone());
+                if (cacheCode == null || !cacheCode.equals(request.getSmsCode())) {
+                    throw new BusinessException("验证码错误或已过期");
+                }
+                redisTemplate.delete(SMS_CODE_KEY + request.getPhone());
+                boundPhone = request.getPhone();
+            } else {
+                log.warn("openId 未绑定且未提供 phoneCode/phone+smsCode: {}", openId);
+                throw new BusinessException(CODE_BIND_REQUIRED, "未绑定，请用手机号验证码完成绑定");
             }
-            String wxPhone;
-            try {
-                wxPhone = wechatMiniProgramService.getPhoneNumber(request.getPhoneCode());
-            } catch (Exception e) {
-                log.warn("解析微信手机号失败: {}", e.getMessage());
-                throw new BusinessException("授权手机号失败，请重试");
-            }
-            if (wxPhone == null || wxPhone.isEmpty()) {
-                throw new BusinessException("未拿到微信手机号，请重新授权");
-            }
+
             SysUser byPhone = userService.getOne(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<SysUser>()
-                    .eq(SysUser::getPhone, wxPhone).last("LIMIT 1"));
+                    .eq(SysUser::getPhone, boundPhone).last("LIMIT 1"));
             if (byPhone == null) {
-                log.warn("微信手机号 {} 未在系统中注册", wxPhone);
-                throw new BusinessException(CODE_PHONE_NOT_REGISTERED, "手机号未注册：" + wxPhone + "，请联系管理员开通");
+                log.warn("手机号 {} 未在系统中注册", boundPhone);
+                throw new BusinessException(CODE_PHONE_NOT_REGISTERED, "手机号未注册：" + boundPhone + "，请联系管理员开通");
             }
             if (byPhone.getStatus() != null && byPhone.getStatus() != 1) {
                 throw new BusinessException("账号已被禁用");
             }
-            // 把 openId 写回该账号，下次微信登录就直接命中
             SysUser patch = new SysUser();
             patch.setId(byPhone.getId());
             patch.setOpenId(openId);
             userService.updateById(patch);
-            log.info("已绑定 openId 到现有账号: userId={}, phone={}", byPhone.getId(), wxPhone);
+            log.info("已绑定 openId 到现有账号: userId={}, phone={}", byPhone.getId(), boundPhone);
             byPhone.setOpenId(openId);
             return loginHelper.doLogin(byPhone);
         }
