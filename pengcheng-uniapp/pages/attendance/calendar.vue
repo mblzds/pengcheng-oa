@@ -60,6 +60,7 @@
 					{ key: 'early', label: '早退' },
 					{ key: 'absent', label: '缺勤' },
 					{ key: 'leave', label: '请假' },
+					{ key: 'compensate', label: '调休' },
 					{ key: 'holiday', label: '节假日' }
 				]
 			}
@@ -67,6 +68,8 @@
 		computed: {
 			holidaySet() { return new Set(this.summary?.holidays || []) },
 			makeupWorkdaySet() { return new Set(this.summary?.makeupWorkdays || []) },
+			leaveDateSet() { return new Set(this.summary?.leaveDates || []) },
+			compensateDateSet() { return new Set(this.summary?.compensateDates || []) },
 			cutoffDate() { return this.summary?.cutoffDate || '' },
 			calendarDays() {
 				const firstDay = new Date(this.year, this.month - 1, 1).getDay()
@@ -78,17 +81,21 @@
 					const key = `${this.year}-${String(this.month).padStart(2, '0')}-${String(d).padStart(2, '0')}`
 					const rec = this.records[key] || {}
 					const isToday = today.getFullYear() === this.year && today.getMonth() + 1 === this.month && today.getDate() === d
-					const statusMap = { normal: '正常', late: '迟到', early: '早退', absent: '缺勤', leave: '请假', holiday: '节假日' }
+					const statusMap = { normal: '正常', late: '迟到', early: '早退', absent: '缺勤', leave: '请假', compensate: '调休', holiday: '节假日' }
 					const isPastDate = new Date(this.year, this.month - 1, d) < new Date(today.getFullYear(), today.getMonth(), today.getDate())
 					// 工作日判定：周一~五是默认工作日；法定节假日改休、调休补班改上
 					const dow = new Date(this.year, this.month - 1, d).getDay()
 					const isHoliday = this.holidaySet.has(key)
 					const isMakeup = this.makeupWorkdaySet.has(key)
 					const isWorkday = isMakeup || (!isHoliday && dow !== 0 && dow !== 6)
-					// 状态优先级：实际打卡记录 > 节假日 > 缺勤（仅工作日且已过去且不早于考勤起算日）> 空
+					const isOnLeave = this.leaveDateSet.has(key)
+					const isOnCompensate = this.compensateDateSet.has(key)
+					// 状态优先级：实际打卡记录 > 请假/调休覆盖 > 节假日 > 缺勤（工作日且已过且不早于考勤起算日）
 					// cutoffDate = max(员工 joinDate, 系统启用日)；之前的格子是历史空白，不算缺勤
 					const isBeforeCutoff = this.cutoffDate && key < this.cutoffDate
 					let status = rec.status || ''
+					if (!status && isOnLeave) status = 'leave'
+					if (!status && isOnCompensate) status = 'compensate'
 					if (!status && isHoliday) status = 'holiday'
 					if (!status && isPastDate && isWorkday && !isBeforeCutoff) status = 'absent'
 					days.push({ date: d, isToday, status, statusLabel: statusMap[status] || '' })
@@ -178,6 +185,7 @@
 		&.dot-early { background: #FADB14; }
 		&.dot-absent { background: #F5222D; }
 		&.dot-leave { background: #1890FF; }
+		&.dot-compensate { background: #722ED1; }
 		&.dot-holiday { background: #BFBFBF; }
 	}
 	.day-label { font-size: 16rpx; color: #999; margin-top: 2rpx; }

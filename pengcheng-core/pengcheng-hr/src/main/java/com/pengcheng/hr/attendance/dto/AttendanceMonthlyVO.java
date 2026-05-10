@@ -39,6 +39,12 @@ public class AttendanceMonthlyVO {
     /** 本月内调休补班的日期清单（YYYY-MM-DD），日历应当把这些周末日反过来当工作日 */
     private List<String> makeupWorkdays;
 
+    /** 本月内被已批准请假覆盖的日期清单（YYYY-MM-DD），日历显示为"请假"而不是"缺勤" */
+    private List<String> leaveDates;
+
+    /** 本月内已批准调休覆盖的日期清单（YYYY-MM-DD），日历显示为"调休"，同样不算缺勤 */
+    private List<String> compensateDates;
+
     /**
      * 考勤起算日（YYYY-MM-DD），优先取员工 joinDate，缺失时回退到系统级"考勤启用日期"。
      * 早于该日期的格子前端不应渲染为缺勤。null 表示无截止线（老员工 + 系统未配）。

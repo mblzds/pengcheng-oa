@@ -229,27 +229,44 @@ public class AttendanceServiceImpl implements AttendanceService {
                 .le(LeaveRequest::getStartTime, end.atTime(LocalTime.MAX))
                 .ge(LeaveRequest::getEndTime, start.atStartOfDay()));
         double leaveDays = 0;
+        // 收集本月每一天是否被请假覆盖；前端日历用这个清单把请假天的格子渲染成"请假"而不是"缺勤"
+        java.util.Set<String> leaveDateSet = new java.util.LinkedHashSet<>();
         for (LeaveRequest l : approvedLeaves) {
             // 截到本月窗口里再算天数，跨月请假只计本月那段
             java.time.LocalDateTime s = l.getStartTime().isBefore(start.atStartOfDay()) ? start.atStartOfDay() : l.getStartTime();
             java.time.LocalDateTime e = l.getEndTime().isAfter(end.atTime(LocalTime.MAX)) ? end.atTime(LocalTime.MAX) : l.getEndTime();
             Double d = LeaveDaysUtil.calcDays(s, e, workStart, workEnd);
             if (d != null) leaveDays += d;
+            // 把覆盖到的每一个本月日期加入集合（即使是当日的半天请假也算这天被覆盖）
+            LocalDate cur = s.toLocalDate();
+            LocalDate endDay = e.toLocalDate();
+            while (!cur.isAfter(endDay)) {
+                if (!cur.isBefore(start) && !cur.isAfter(end)) {
+                    leaveDateSet.add(cur.toString());
+                }
+                cur = cur.plusDays(1);
+            }
         }
 
         // 已通过调休覆盖到本月、且已经过去的天数（compensate 按整天计；未来日不能提前抵缺勤）
-        Long compensateDays = compensateRequestMapper.selectCount(new LambdaQueryWrapper<CompensateRequest>()
+        LocalDate compensateScopeEnd = scopeEnd.isBefore(start) ? start.minusDays(1) : scopeEnd;
+        List<CompensateRequest> approvedCompensates = compensateRequestMapper.selectList(new LambdaQueryWrapper<CompensateRequest>()
                 .eq(CompensateRequest::getUserId, userId)
                 .eq(CompensateRequest::getStatus, ApprovalConstants.STATUS_APPROVED)
                 .ge(CompensateRequest::getCompensateDate, start)
-                .le(CompensateRequest::getCompensateDate, scopeEnd.isBefore(start) ? start.minusDays(1) : scopeEnd));
+                .le(CompensateRequest::getCompensateDate, compensateScopeEnd));
+        java.util.Set<String> compensateDateSet = new java.util.LinkedHashSet<>();
+        for (CompensateRequest c : approvedCompensates) {
+            if (c.getCompensateDate() != null) compensateDateSet.add(c.getCompensateDate().toString());
+        }
+        long compensateDays = approvedCompensates.size();
 
         // 应当出勤的工作日：从 max(月初, cutoff) 到 min(月末, 今日) 之间的工作日
         // 当 effectiveStart 已越过 scopeEnd（cutoff 在未来 / 整月在 cutoff 之前），expectedWorkdays = 0
         int expectedWorkdays = (scopeEnd.isBefore(effectiveStart)) ? 0 : holidayCalendarService.countWorkdays(effectiveStart, scopeEnd);
 
         int leaveDaysRounded = (int) Math.round(leaveDays);
-        int compensateDaysInt = compensateDays.intValue();
+        int compensateDaysInt = (int) compensateDays;
         int absentDays = Math.max(expectedWorkdays - attendanceDays - leaveDaysRounded - compensateDaysInt, 0);
 
         // 把本月内的法定节假日 + 调休补班按 YYYY-MM-DD 字符串列出，方便小程序日历视图就地判定
@@ -277,6 +294,8 @@ public class AttendanceServiceImpl implements AttendanceService {
                 .absentDays(absentDays)
                 .holidays(holidays)
                 .makeupWorkdays(makeupWorkdays)
+                .leaveDates(new java.util.ArrayList<>(leaveDateSet))
+                .compensateDates(new java.util.ArrayList<>(compensateDateSet))
                 .cutoffDate(cutoff != null ? cutoff.toString() : null)
                 .overtimeHours(0.0)
                 .build();
