@@ -40,10 +40,13 @@ public class PaymentVO {
     private Long relatedAllianceId;
     private String attachments;
 
-    /** 审批状态：1-待审批 2-审批中 3-已通过 4-已驳回 */
+    /** 审批状态：1-待审批 2-审批中 3-已通过 4-已驳回 5-已撤销 */
     private Integer status;
 
     private LocalDateTime createTime;
+
+    /** 审批中（status=1/2）时的当前节点名，用于小程序列表展示「当前节点：财务」 */
+    private String currentNodeName;
 
     /** 审批记录列表 */
     private List<PaymentApproval> approvals;

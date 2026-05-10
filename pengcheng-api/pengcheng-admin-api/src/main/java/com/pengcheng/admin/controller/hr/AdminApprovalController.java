@@ -22,7 +22,6 @@ import com.pengcheng.realty.commission.mapper.CommissionMapper;
 import com.pengcheng.realty.commission.service.CommissionService;
 import com.pengcheng.realty.common.exception.ApprovalFlowException;
 import com.pengcheng.realty.payment.dto.PaymentApprovalDTO;
-import com.pengcheng.realty.payment.entity.PaymentApproval;
 import com.pengcheng.realty.payment.entity.PaymentRequest;
 import com.pengcheng.realty.payment.mapper.PaymentRequestMapper;
 import com.pengcheng.realty.payment.service.PaymentService;
@@ -189,15 +188,7 @@ public class AdminApprovalController {
     private AdminApprovalDetailVO buildPaymentDetail(Long id) {
         PaymentRequest pr = paymentRequestMapper.selectById(id);
         if (pr == null) throw new IllegalArgumentException("付款申请不存在");
-        List<PaymentApproval> approvals = paymentService.getApprovalHistory(id);
-        List<AdminApprovalDetailVO.ApprovalHistory> histories = approvals.stream()
-                .map(a -> AdminApprovalDetailVO.ApprovalHistory.builder()
-                        .approverName(resolveUserName(a.getApproverId()))
-                        .result(a.getResult())
-                        .remark(a.getRemark())
-                        .approvalTime(a.getApprovalTime())
-                        .build())
-                .toList();
+        // 走引擎 progress：含已审批 + 当前节点 + 未来节点占位，与请假/调休一致
         return AdminApprovalDetailVO.builder()
                 .id(pr.getId())
                 .type(resolvePaymentType(pr.getRequestType()))
@@ -206,7 +197,7 @@ public class AdminApprovalController {
                 .amount(pr.getAmount())
                 .status(pr.getStatus())
                 .applyTime(pr.getCreateTime())
-                .histories(histories)
+                .histories(buildFlowHistories(PaymentService.businessTypeOf(pr.getRequestType()), id))
                 .build();
     }
 

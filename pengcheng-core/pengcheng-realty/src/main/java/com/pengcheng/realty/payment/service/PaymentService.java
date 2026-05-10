@@ -345,6 +345,16 @@ public class PaymentService {
     private PaymentVO toVO(PaymentRequest request) {
         PaymentVO vo = PaymentVO.fromEntity(request);
         vo.setApprovals(getApprovalHistory(request.getId()));
+        // 审批中（待审批/审批中）才暴露当前节点名，小程序列表展示「当前节点：财务」
+        if (request.getStatus() != null
+                && (request.getStatus() == STATUS_PENDING || request.getStatus() == STATUS_IN_PROGRESS)
+                && request.getRequestType() != null) {
+            ApprovalRecordNode current = approvalFlowService.getCurrentNode(
+                    businessTypeOf(request.getRequestType()), request.getId());
+            if (current != null) {
+                vo.setCurrentNodeName(current.getNodeName());
+            }
+        }
         return vo;
     }
 

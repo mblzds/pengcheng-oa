@@ -22,7 +22,7 @@
 			<view class="update-bar" v-if="showDataUpdated" @tap="refreshFromDataChange">
 				<text>数据已更新，点击刷新</text>
 			</view>
-			<view class="record-item" v-for="item in list" :key="item.id">
+			<view class="record-item" v-for="item in list" :key="item.id" @tap="openTimeline(item)">
 				<view class="record-top">
 					<text class="record-type">{{ item.typeName }}<text v-if="item.daysText" class="record-days">  {{ item.daysText }}</text></text>
 					<view v-if="!statusFilter" class="record-status" :class="'s-' + item.status">
@@ -60,6 +60,32 @@
 			</view>
 		</scroll-view>
 
+		<!-- 审批流程时间线弹窗 -->
+		<u-popup :show="showTimeline" mode="bottom" round="16" closeable @close="showTimeline = false">
+			<view class="timeline-popup">
+				<view class="timeline-popup-title">{{ timelineTitle }}</view>
+				<view v-if="timelineLoading" class="timeline-loading"><text>加载中...</text></view>
+				<view v-else-if="timelineHistories.length === 0" class="timeline-empty">
+					<text>暂无审批记录</text>
+				</view>
+				<view v-else class="timeline">
+					<view class="timeline-item" v-for="(t, i) in timelineHistories" :key="i">
+						<view class="tl-dot" :class="dotClass(t, i)"></view>
+						<view class="tl-line" v-if="i < timelineHistories.length - 1"></view>
+						<view class="tl-content">
+							<view class="tl-header">
+								<text class="tl-node">{{ t.nodeName || ('节点 ' + (i + 1)) }}</text>
+								<text class="tl-state" :class="stateClass(t, i)">{{ stateLabel(t, i) }}</text>
+							</view>
+							<text class="tl-approver">{{ t.approverName || '—' }}</text>
+							<text class="tl-time" v-if="t.approvalTime">{{ formatDateTime(t.approvalTime) }}</text>
+							<text class="tl-reason" v-if="t.remark">备注：{{ t.remark }}</text>
+						</view>
+					</view>
+				</view>
+			</view>
+		</u-popup>
+
 		<!-- 新建申请按钮 -->
 		<view class="fab-wrap">
 			<view class="fab-btn" @tap="showApplyMenu = !showApplyMenu">
@@ -77,7 +103,7 @@
 </template>
 
 <script>
-	import { getLeaveList, getPaymentList, cancelLeave, cancelPayment } from '../../utils/api.js'
+	import { getLeaveList, getPaymentList, cancelLeave, cancelPayment, getApprovalDetail } from '../../utils/api.js'
 
 	export default {
 		data() {
@@ -106,7 +132,11 @@
 				noMore: false,
 				refreshing: false,
 				showApplyMenu: false,
-				showDataUpdated: false
+				showDataUpdated: false,
+				showTimeline: false,
+				timelineLoading: false,
+				timelineTitle: '审批流程',
+				timelineHistories: []
 			}
 		},
 		onLoad(options) {
@@ -145,6 +175,47 @@
 			canCancel(item) {
 				// 仅本人发起且仍在审批中的申请允许撤销（列表本身已按当前用户过滤）
 				return item && (item.status === 1 || item.status === 2) && item.cancelKind
+			},
+			// 审批时间线 ==========
+			async openTimeline(item) {
+				if (!item || !item.detailType || !item.rawId) return
+				this.timelineTitle = `${item.typeName} · 审批流程`
+				this.timelineHistories = []
+				this.timelineLoading = true
+				this.showTimeline = true
+				try {
+					const res = await getApprovalDetail(item.rawId, item.detailType)
+					this.timelineHistories = (res && res.data && res.data.histories) || []
+				} catch (err) {
+					uni.showToast({ title: '审批流程加载失败', icon: 'none' })
+				} finally {
+					this.timelineLoading = false
+				}
+			},
+			currentPendingIndex() {
+				return this.timelineHistories.findIndex(h => h.result == null)
+			},
+			dotClass(t, i) {
+				if (t.result === 1) return 'approved'
+				if (t.result === 2) return 'rejected'
+				if (i === this.currentPendingIndex()) return 'active'
+				return ''
+			},
+			stateClass(t, i) {
+				if (t.result === 1) return 's-approved'
+				if (t.result === 2) return 's-rejected'
+				if (i === this.currentPendingIndex()) return 's-active'
+				return 's-future'
+			},
+			stateLabel(t, i) {
+				if (t.result === 1) return '已通过'
+				if (t.result === 2) return '已驳回'
+				if (i === this.currentPendingIndex()) return '审批中'
+				return '未审批'
+			},
+			formatDateTime(value) {
+				if (!value) return '--'
+				return String(value).replace('T', ' ').slice(0, 16)
 			},
 			async onCancel(item) {
 				const ok = await new Promise(resolve => {
@@ -238,6 +309,7 @@
 							id: `l-${r.type}-${r.id}`,
 							rawId: r.id,
 							cancelKind: r.type, // 'leave' 或 'compensate'
+							detailType: r.type, // getApprovalDetail 用
 							typeName,
 							daysText,
 							status: leaveUiStatus,
@@ -274,10 +346,12 @@
 								const rejected = r.approvals.find(a => a.result === 2)
 								if (rejected && rejected.remark) rejectReason = rejected.remark
 							}
+							const paymentDetailType = ({ 1: 'expense', 2: 'advance', 3: 'prepay' })[r.requestType] || 'expense'
 							rows.push({
 								id: `p-${r.id}-${r.status}`,
 								rawId: r.id,
 								cancelKind: 'payment',
+								detailType: paymentDetailType, // getApprovalDetail 用 expense/advance/prepay
 								typeName: typeNameMap[r.requestType] || '付款申请',
 								daysText: '',
 								status: r.status,
@@ -285,6 +359,7 @@
 								rangeText: '',
 								reason: r.description || '',
 								createTime: r.createTime,
+								currentNodeName: r.currentNodeName || '',
 								rejectReason
 							})
 						})
@@ -384,4 +459,42 @@
 		padding: 20rpx 32rpx; font-size: 26rpx; color: #333;
 		&:active { background: #F5F5F5; }
 	}
+
+	/* 审批流程时间线弹窗（与审批人侧 approval/detail.vue 同视觉规范） */
+	.timeline-popup { padding: 32rpx 32rpx 48rpx; max-height: 80vh; }
+	.timeline-popup-title {
+		font-size: 32rpx; font-weight: 600; color: #1A1A1A;
+		text-align: center; margin-bottom: 32rpx;
+	}
+	.timeline-loading, .timeline-empty {
+		text-align: center; padding: 60rpx 0;
+		text { font-size: 26rpx; color: #999; }
+	}
+	.timeline { padding-left: 8rpx; max-height: 60vh; overflow-y: auto; }
+	.timeline-item { display: flex; position: relative; padding-bottom: 24rpx; }
+	.tl-dot {
+		width: 18rpx; height: 18rpx; border-radius: 50%; background: #DDD;
+		margin-right: 20rpx; margin-top: 8rpx; flex-shrink: 0; z-index: 1;
+		&.active { background: #FA8C16; box-shadow: 0 0 0 4rpx rgba(250, 140, 22, 0.2); }
+		&.approved { background: #52C41A; }
+		&.rejected { background: #F5222D; }
+	}
+	.tl-line {
+		position: absolute; left: 8rpx; top: 26rpx; bottom: 0; width: 2rpx; background: #E8E8E8;
+	}
+	.tl-content { flex: 1; min-width: 0; }
+	.tl-header {
+		display: flex; align-items: center; justify-content: space-between; gap: 12rpx;
+	}
+	.tl-node { font-size: 28rpx; color: #1A1A1A; font-weight: 500; }
+	.tl-state {
+		font-size: 22rpx; padding: 2rpx 12rpx; border-radius: 16rpx; flex-shrink: 0;
+		&.s-approved { background: #F6FFED; color: #52C41A; }
+		&.s-rejected { background: #FFF1F0; color: #F5222D; }
+		&.s-active   { background: #FFF7E6; color: #FA8C16; }
+		&.s-future   { background: #F5F5F5; color: #999; }
+	}
+	.tl-approver { font-size: 24rpx; color: #666; margin-top: 6rpx; display: block; }
+	.tl-time { font-size: 22rpx; color: #BBB; margin-top: 4rpx; display: block; }
+	.tl-reason { font-size: 24rpx; color: #999; margin-top: 4rpx; display: block; }
 </style>
