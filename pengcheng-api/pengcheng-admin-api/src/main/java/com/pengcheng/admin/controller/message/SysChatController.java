@@ -8,6 +8,8 @@ import com.pengcheng.message.entity.SysChatMessage;
 import com.pengcheng.system.entity.SysUser;
 import com.pengcheng.system.entity.SysUserBlacklist;
 import com.pengcheng.message.entity.MessageCategory;
+import com.pengcheng.message.mapper.ChatGroupMessageMapper;
+import com.pengcheng.message.mapper.SysChatMessageMapper;
 import com.pengcheng.message.service.MessagePriorityService;
 import com.pengcheng.message.service.SysChatMessageService;
 import com.pengcheng.system.service.SysUserBlacklistService;
@@ -32,6 +34,8 @@ public class SysChatController {
     private final SysUserBlacklistService blacklistService;
     private final MessageWebSocketHandler webSocketHandler;
     private final MessagePriorityService messagePriorityService;
+    private final SysChatMessageMapper chatMessageMapper;
+    private final ChatGroupMessageMapper groupMessageMapper;
 
     /**
      * 发送消息
@@ -121,6 +125,45 @@ public class SysChatController {
             result.add(item);
         }
         return Result.ok(result);
+    }
+
+    /**
+     * 全局聊天搜索：按对方/群聚合，每个会话返回最新匹配条 + 总匹配条数。
+     * 用于消息页搜索框的"聊天记录"分区，覆盖私聊和群聊的全部历史。
+     */
+    @GetMapping("/search")
+    public Result<List<Map<String, Object>>> searchChatHistory(
+            @RequestParam String kw,
+            @RequestParam(defaultValue = "50") Integer limit) {
+        if (kw == null || kw.trim().isEmpty()) {
+            return Result.ok(java.util.Collections.emptyList());
+        }
+        Long userId = StpUtil.getLoginIdAsLong();
+        String keyword = kw.trim();
+        int half = Math.max(1, limit / 2);
+
+        List<Map<String, Object>> privateRows = chatMessageMapper.searchPrivateLatest(userId, keyword, half);
+        List<Map<String, Object>> groupRows = groupMessageMapper.searchGroupLatest(userId, keyword, half);
+
+        List<Map<String, Object>> combined = new java.util.ArrayList<>(privateRows.size() + groupRows.size());
+        for (Map<String, Object> row : privateRows) {
+            row.put("kind", "private");
+            combined.add(row);
+        }
+        for (Map<String, Object> row : groupRows) {
+            row.put("kind", "group");
+            combined.add(row);
+        }
+        // 私聊和群聊已各自按 send_time desc，但合并后再排一次确保整体有序
+        combined.sort((a, b) -> {
+            Object ta = a.get("sendTime");
+            Object tb = b.get("sendTime");
+            if (ta == null && tb == null) return 0;
+            if (ta == null) return 1;
+            if (tb == null) return -1;
+            return tb.toString().compareTo(ta.toString());
+        });
+        return Result.ok(combined);
     }
 
     /**
@@ -222,19 +265,6 @@ public class SysChatController {
         webSocketHandler.sendToUser(userId,
                 "{\"type\":\"recall\",\"messageId\":" + msgId + "}");
         return Result.ok();
-    }
-
-    /**
-     * 搜索聊天记录
-     */
-    @GetMapping("/search")
-    public Result<PageResult<SysChatMessage>> searchMessages(
-            @RequestParam String keyword,
-            @RequestParam(defaultValue = "1") Integer page,
-            @RequestParam(defaultValue = "20") Integer pageSize) {
-        Long userId = StpUtil.getLoginIdAsLong();
-        var result = chatMessageService.searchMessages(userId, keyword, page, pageSize);
-        return Result.ok(PageResult.of(result));
     }
 
     /**
