@@ -45,7 +45,7 @@
 					<text class="info-text reject-text">驳回原因：{{ item.rejectReason }}</text>
 				</view>
 				<view class="record-bottom">
-					<text class="info-text">提交时间：{{ item.createTime || '--' }}</text>
+					<text class="info-text">提交时间：{{ formatDateTime(item.createTime) }}</text>
 					<view v-if="canCancel(item)" class="cancel-btn" @tap.stop="onCancel(item)">
 						<text>取消申请</text>
 					</view>
