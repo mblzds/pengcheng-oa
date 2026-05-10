@@ -1,6 +1,13 @@
 server:
   port: 8080
 
+# 开发环境打开微信小程序登录策略；appId/appSecret 走 sys_config_group → wechatMiniProgram
+pengcheng:
+  feature:
+    wechat:
+      mini:
+        enabled: true
+
 spring:
   datasource:
     url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:pengcheng-system}?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
