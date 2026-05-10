@@ -188,14 +188,19 @@ public class AttendanceServiceImpl implements AttendanceService {
         YearMonth ym = YearMonth.of(year, month);
         LocalDate start = ym.atDay(1);
         LocalDate end = ym.atEndOfMonth();
+        LocalDate today = LocalDate.now();
+        LocalDate scopeEnd = today.isAfter(end) ? end : (today.isBefore(start) ? start.minusDays(1) : today);
+
         // attendance_record 的 attendanceDays / lateTimes / earlyLeaveTimes
+        // attendanceDays 仅计「应当出勤的工作日」上的打卡——周末/节假日加班打卡不抵缺勤
         List<AttendanceRecord> records = attendanceRecordMapper.selectList(new LambdaQueryWrapper<AttendanceRecord>()
                 .eq(AttendanceRecord::getUserId, userId)
                 .ge(AttendanceRecord::getAttendanceDate, start)
                 .le(AttendanceRecord::getAttendanceDate, end));
         int attendanceDays = 0, lateTimes = 0, earlyLeaveTimes = 0;
         for (AttendanceRecord r : records) {
-            if (r.getClockInTime() != null || r.getClockOutTime() != null) attendanceDays++;
+            boolean isOnWorkday = r.getAttendanceDate() != null && holidayCalendarService.isWorkday(r.getAttendanceDate());
+            if (isOnWorkday && (r.getClockInTime() != null || r.getClockOutTime() != null)) attendanceDays++;
             if (r.getClockInStatus() != null && r.getClockInStatus() == CLOCK_IN_LATE) lateTimes++;
             if (r.getClockOutStatus() != null && r.getClockOutStatus() == CLOCK_OUT_EARLY) earlyLeaveTimes++;
         }
@@ -217,16 +222,14 @@ public class AttendanceServiceImpl implements AttendanceService {
             if (d != null) leaveDays += d;
         }
 
-        // 已通过调休覆盖到本月的天数（compensate 是按整天计，所以等价计数）
+        // 已通过调休覆盖到本月、且已经过去的天数（compensate 按整天计；未来日不能提前抵缺勤）
         Long compensateDays = compensateRequestMapper.selectCount(new LambdaQueryWrapper<CompensateRequest>()
                 .eq(CompensateRequest::getUserId, userId)
                 .eq(CompensateRequest::getStatus, ApprovalConstants.STATUS_APPROVED)
                 .ge(CompensateRequest::getCompensateDate, start)
-                .le(CompensateRequest::getCompensateDate, end));
+                .le(CompensateRequest::getCompensateDate, scopeEnd.isBefore(start) ? start.minusDays(1) : scopeEnd));
 
         // 应当出勤的工作日：从月初到 min(月末, 今日) 之间的工作日（扣周末/法定节假日，加调休补班）
-        LocalDate today = LocalDate.now();
-        LocalDate scopeEnd = today.isAfter(end) ? end : (today.isBefore(start) ? start.minusDays(1) : today);
         int expectedWorkdays = scopeEnd.isBefore(start) ? 0 : holidayCalendarService.countWorkdays(start, scopeEnd);
 
         int leaveDaysRounded = (int) Math.round(leaveDays);
