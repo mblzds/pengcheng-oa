@@ -1,4 +1,4 @@
-import request from '@/utils/request'
+import request, { downloadBlob } from '@/utils/request'
 
 export interface RosterRowError {
   lineNo: number
@@ -40,8 +40,7 @@ export const rosterApi = {
     fd.append('file', file)
     return request({ url: '/admin/roster/import', method: 'post', data: fd, headers: { 'Content-Type': 'multipart/form-data' } })
   },
-  templateUrl(): string {
-    // 直链下载，request util 不适合处理二进制下载，浏览器直接打开
-    return '/api/admin/roster/template'
+  downloadTemplate(): Promise<void> {
+    return downloadBlob('/admin/roster/template', '员工花名册-模板.csv')
   }
 }

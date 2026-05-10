@@ -204,9 +204,12 @@ function reset() {
   result.value = null
 }
 
-function downloadTemplate() {
-  // 直接 window.open 触发浏览器下载
-  window.open(rosterApi.templateUrl(), '_blank')
+async function downloadTemplate() {
+  try {
+    await rosterApi.downloadTemplate()
+  } catch (err: any) {
+    message.error(err?.message || '下载模板失败')
+  }
 }
 
 function downloadErrorReport(errors: RosterRowError[]) {
