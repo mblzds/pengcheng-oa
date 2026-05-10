@@ -111,7 +111,11 @@ const request = (options) => {
             uni.reLaunch({ url: '/pages/login/index' })
             rejectWith(bizMsg || '登录已过期', { code: data.code, statusCode: res.statusCode })
           } else {
-            uni.showToast({ title: bizMsg || '请求失败', icon: 'none' })
+            // 4xxx 是业务流程信号（如 4001 BIND_REQUIRED 需要前端引导授权手机号），交给调用方处理
+            const isFlowSignal = typeof data.code === 'number' && data.code >= 4000 && data.code < 5000
+            if (!isFlowSignal) {
+              uni.showToast({ title: bizMsg || '请求失败', icon: 'none' })
+            }
             rejectWith(bizMsg || '请求失败', { code: data.code, statusCode: res.statusCode, data })
           }
         } else if (res.statusCode === 401) {

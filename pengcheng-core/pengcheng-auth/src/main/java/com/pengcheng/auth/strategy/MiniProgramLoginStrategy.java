@@ -38,6 +38,11 @@ public class MiniProgramLoginStrategy implements LoginStrategy {
         return new ClientType[]{ClientType.APP};
     }
 
+    /** openId 未绑定且需要前端调起 getPhoneNumber 二次提交 */
+    public static final int CODE_BIND_REQUIRED = 4001;
+    /** 微信授权的手机号在 sys_user 里找不到对应账号 */
+    public static final int CODE_PHONE_NOT_REGISTERED = 4002;
+
     @Override
     public LoginResult login(LoginRequest request) {
         if (request.getWxCode() == null || request.getWxCode().isEmpty()) {
@@ -48,36 +53,66 @@ public class MiniProgramLoginStrategy implements LoginStrategy {
         WechatMiniProgramService.MiniProgramLoginResult wxResult = wechatMiniProgramService.login(request.getWxCode());
         String openId = wxResult.getOpenId();
 
-        // 2. 从 sys_user 查找用户，不存在则提示联系管理员
+        // 2. 从 sys_user 查找已绑定该 openId 的账号
         SysUser user = userService.getByOpenId(openId);
+
+        // 3. 未绑定：用 phoneCode 换微信认证手机号 → 找现有员工 → 把 openId 绑上去
+        //    没传 phoneCode 时返回 4001，前端调起 <button open-type="getPhoneNumber"> 重试
         if (user == null) {
-            log.warn("小程序 openId 未绑定: {}", openId);
-            throw new BusinessException("账号未注册，请联系管理员开通");
+            if (request.getPhoneCode() == null || request.getPhoneCode().isEmpty()) {
+                log.warn("openId 未绑定且未提供 phoneCode，请前端授权手机号: {}", openId);
+                throw new BusinessException(CODE_BIND_REQUIRED, "未绑定，请授权手机号完成绑定");
+            }
+            String wxPhone;
+            try {
+                wxPhone = wechatMiniProgramService.getPhoneNumber(request.getPhoneCode());
+            } catch (Exception e) {
+                log.warn("解析微信手机号失败: {}", e.getMessage());
+                throw new BusinessException("授权手机号失败，请重试");
+            }
+            if (wxPhone == null || wxPhone.isEmpty()) {
+                throw new BusinessException("未拿到微信手机号，请重新授权");
+            }
+            SysUser byPhone = userService.getOne(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<SysUser>()
+                    .eq(SysUser::getPhone, wxPhone).last("LIMIT 1"));
+            if (byPhone == null) {
+                log.warn("微信手机号 {} 未在系统中注册", wxPhone);
+                throw new BusinessException(CODE_PHONE_NOT_REGISTERED, "手机号未注册：" + wxPhone + "，请联系管理员开通");
+            }
+            if (byPhone.getStatus() != null && byPhone.getStatus() != 1) {
+                throw new BusinessException("账号已被禁用");
+            }
+            // 把 openId 写回该账号，下次微信登录就直接命中
+            SysUser patch = new SysUser();
+            patch.setId(byPhone.getId());
+            patch.setOpenId(openId);
+            userService.updateById(patch);
+            log.info("已绑定 openId 到现有账号: userId={}, phone={}", byPhone.getId(), wxPhone);
+            byPhone.setOpenId(openId);
+            return loginHelper.doLogin(byPhone);
         }
 
-        if (user.getStatus() != 1) {
+        if (user.getStatus() != null && user.getStatus() != 1) {
             throw new BusinessException("账号已被禁用");
         }
 
-        // 3. 获取手机号（如果有 phoneCode）
+        // 4. 已绑定的常规流程：顺手用 phoneCode 校正一下 phone
         if (request.getPhoneCode() != null && !request.getPhoneCode().isEmpty()) {
-            // 检查是否已确认为付费服务
             if (!configHelper.isPhoneVerifyPaid()) {
                 log.warn(configHelper.getPhoneVerifyFeeNotice());
             }
             try {
                 String phoneNumber = wechatMiniProgramService.getPhoneNumber(request.getPhoneCode());
-                if (phoneNumber != null && !phoneNumber.isEmpty()) {
+                if (phoneNumber != null && !phoneNumber.isEmpty() && !phoneNumber.equals(user.getPhone())) {
                     user.setPhone(phoneNumber);
                     userService.updateById(user);
-                    log.info("获取用户手机号成功：{}", phoneNumber);
+                    log.info("更新用户手机号：{}", phoneNumber);
                 }
             } catch (Exception e) {
                 log.warn("获取手机号失败：{}", e.getMessage());
             }
         }
 
-        // 4. 执行登录
         return loginHelper.doLogin(user);
     }
 }

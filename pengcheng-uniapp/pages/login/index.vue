@@ -13,18 +13,26 @@
 		<!-- 主体区域 -->
 		<view class="login-body">
 			<view class="login-card">
-				<button class="wx-login-btn" @tap="handleWxLogin" :loading="loading">
+				<button v-if="!needBindPhone" class="wx-login-btn" @tap="handleWxLogin" :loading="loading">
 					<u-icon name="weixin-fill" color="#FFFFFF" size="20"></u-icon>
 					<text class="wx-btn-text">微信授权登录</text>
 				</button>
 
-				<view class="divider-line">
+				<view v-else class="bind-section">
+					<view class="bind-tip">首次登录，需授权手机号绑定到现有账号</view>
+					<button class="wx-login-btn" open-type="getPhoneNumber" @getphonenumber="handleBindPhone" :loading="loading">
+						<text class="wx-btn-text">授权手机号完成绑定</text>
+					</button>
+					<view class="bind-cancel" @tap="cancelBind"><text>取消</text></view>
+				</view>
+
+				<view class="divider-line" v-if="!needBindPhone">
 					<view class="line"></view>
 					<text class="divider-text">或</text>
 					<view class="line"></view>
 				</view>
 
-				<view class="toggle-login" @tap="showPhoneLogin = !showPhoneLogin">
+				<view class="toggle-login" v-if="!needBindPhone" @tap="showPhoneLogin = !showPhoneLogin">
 					<text>{{ showPhoneLogin ? '返回微信登录' : '手机号登录' }}</text>
 				</view>
 
@@ -70,7 +78,9 @@
 			return {
 				loading: false,
 				showPhoneLogin: false,
-				phone: '', smsCode: '', codeCountdown: 0, codeTimer: null
+				phone: '', smsCode: '', codeCountdown: 0, codeTimer: null,
+				// 微信登录返回 BIND_REQUIRED(4001) 时进入"授权手机号绑定"分支
+				needBindPhone: false
 			}
 		},
 		onUnload() { if (this.codeTimer) clearInterval(this.codeTimer) },
@@ -104,8 +114,43 @@
 					// #endif
 				} catch (err) {
 					console.error('登录失败:', err)
-					uni.showToast({ title: '登录失败，请重试', icon: 'none' })
+					if (err && err.code === 4001) {
+						// openId 未绑定到现有账号；切到"授权手机号绑定"分支
+						this.needBindPhone = true
+						return
+					}
+					uni.showToast({ title: err?.message || '登录失败，请重试', icon: 'none' })
 				} finally { this.loading = false }
+			},
+
+			async handleBindPhone(e) {
+				if (this.loading) return
+				const phoneCode = e?.detail?.code
+				if (!phoneCode) {
+					uni.showToast({ title: '需授权手机号才能绑定', icon: 'none' })
+					return
+				}
+				this.loading = true
+				try {
+					// 重新拿一个 wxCode（前一次的可能已过期或已被消费）
+					const loginRes = await new Promise((resolve, reject) => {
+						uni.login({ provider: 'weixin', success: resolve, fail: reject })
+					})
+					const res = await wxLogin({ wxCode: loginRes.code, phoneCode, loginType: 'MINIPROGRAM' })
+					this.needBindPhone = false
+					this.completeLogin(res.data)
+				} catch (err) {
+					console.error('绑定失败:', err)
+					if (err && err.code === 4002) {
+						uni.showToast({ title: err.message || '该手机号未注册，请联系管理员', icon: 'none', duration: 3000 })
+					} else {
+						uni.showToast({ title: err?.message || '绑定失败，请重试', icon: 'none' })
+					}
+				} finally { this.loading = false }
+			},
+
+			cancelBind() {
+				this.needBindPhone = false
 			},
 
 			async handleSendCode() {
@@ -177,6 +222,12 @@
 	}
 	.wx-login-btn::after { border: none; }
 	.wx-btn-text { margin-left: 10rpx; }
+
+	.bind-section {
+		display: flex; flex-direction: column; align-items: stretch; gap: 20rpx;
+		.bind-tip { font-size: 26rpx; color: #666; text-align: center; line-height: 1.6; padding: 8rpx 0 12rpx; }
+		.bind-cancel { text-align: center; padding: 8rpx 0; text { font-size: 26rpx; color: #999; } }
+	}
 
 	.divider-line { display: flex; align-items: center; margin: 32rpx 0 20rpx; }
 	.divider-line .line { flex: 1; height: 1rpx; background: #EBEBEB; }
