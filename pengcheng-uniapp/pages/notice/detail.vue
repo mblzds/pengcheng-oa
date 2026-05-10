@@ -8,7 +8,7 @@
 				<text class="meta-tag" v-if="typeLabel">{{ typeLabel }}</text>
 			</view>
 			<view class="content">
-				<rich-text v-if="hasHtml" :nodes="notice.content"></rich-text>
+				<rich-text v-if="hasHtml" :nodes="resolvedContent"></rich-text>
 				<text v-else class="plain">{{ notice.content || '（无正文）' }}</text>
 			</view>
 		</view>
@@ -20,6 +20,18 @@
 
 <script>
 	import { getNoticeDetail, readNotice } from '../../utils/api.js'
+	import { joinBaseUrl } from '../../utils/config.js'
+
+	// 富文本里的 <img src="/api/files/..."> 是后端返回的相对路径，
+	// 在小程序 <rich-text> 里会被解析到 devtools/页面 origin 上而非后端，
+	// 这里把站内相对路径改写为带后端域名的绝对 URL。
+	function resolveHtmlAssetUrls(html) {
+		if (!html) return ''
+		return html.replace(/(<img\b[^>]*?\bsrc\s*=\s*)(["'])([^"']+)\2/gi, (match, prefix, quote, url) => {
+			if (/^(https?:|data:|wxfile:|file:|blob:)/i.test(url)) return match
+			return `${prefix}${quote}${joinBaseUrl(url)}${quote}`
+		})
+	}
 
 	export default {
 		data() {
@@ -32,6 +44,9 @@
 			hasHtml() {
 				const c = this.notice?.content || ''
 				return /<[a-z][^>]*>/i.test(c)
+			},
+			resolvedContent() {
+				return resolveHtmlAssetUrls(this.notice?.content || '')
 			},
 			typeLabel() {
 				const map = { 1: '通知', 2: '公告', 3: '系统', 4: '业务' }

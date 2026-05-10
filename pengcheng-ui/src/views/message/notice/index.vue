@@ -102,6 +102,7 @@
         </n-form-item>
         <n-form-item label="通知内容" path="content">
           <RichTextEditor
+            ref="richTextRef"
             v-model="formData.content"
             placeholder="请输入通知内容"
             @upload-image="handleNoticeImageUpload"
@@ -247,7 +248,7 @@ const formData = reactive<SysNotice>({
 
 const rules: FormRules = {
   title: [{ required: true, message: '请输入通知标题', trigger: 'blur' }],
-  noticeType: [{ required: true, message: '请选择通知类型', trigger: 'change' }],
+  noticeType: [{ required: true, type: 'number', message: '请选择通知类型', trigger: 'change' }],
   content: [{ required: true, message: '请输入通知内容', trigger: 'blur' }]
 }
 
