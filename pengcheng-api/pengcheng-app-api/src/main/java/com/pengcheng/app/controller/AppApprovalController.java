@@ -10,7 +10,9 @@ import com.pengcheng.common.result.Result;
 import com.pengcheng.hr.approval.constant.ApprovalConstants;
 import com.pengcheng.hr.approval.dto.ApprovalProgressVO;
 import com.pengcheng.hr.approval.entity.ApprovalRecordNode;
+import com.pengcheng.hr.approval.entity.GeneralApprovalRequest;
 import com.pengcheng.hr.approval.service.ApprovalFlowService;
+import com.pengcheng.hr.approval.service.GeneralApprovalService;
 import com.pengcheng.hr.attendance.entity.CompensateRequest;
 import com.pengcheng.hr.attendance.entity.LeaveRequest;
 import com.pengcheng.hr.attendance.mapper.CompensateRequestMapper;
@@ -53,6 +55,7 @@ public class AppApprovalController {
     private final CommissionService commissionService;
     private final SysUserService userService;
     private final ApprovalFlowService approvalFlowService;
+    private final GeneralApprovalService generalApprovalService;
 
     /**
      * 待审批列表（聚合查询）
@@ -63,10 +66,11 @@ public class AppApprovalController {
     public Result<ApprovalPendingVO> pending() {
         Long currentUserId = StpUtil.getLoginIdAsLong();
 
-        // 请假/调休/付款：统一从审批流引擎拿当前用户的待办节点（按候选人过滤，已不再全局查付款）
+        // 请假/调休/付款/通用：统一从审批流引擎拿当前用户的待办节点（按候选人过滤）
         List<ApprovalRecordNode> pendingNodes = approvalFlowService.findPending(currentUserId, null);
         List<ApprovalPendingVO.ApprovalItem> leaveItems = new ArrayList<>();
         List<ApprovalPendingVO.ApprovalItem> paymentItems = new ArrayList<>();
+        // 通用审批暂时也并入 leaveItems（前端原 leaveItems 是"非付款单"桶；MVP 不增结构）
         for (ApprovalRecordNode node : pendingNodes) {
             // 仅对最早未审批节点开放（防止越级看到后续节点）
             ApprovalRecordNode current = approvalFlowService.getCurrentNode(node.getBusinessType(), node.getBusinessId());
@@ -82,6 +86,10 @@ public class AppApprovalController {
                     || ApprovalConstants.BUSINESS_TYPE_PREPAY.equals(bt)) {
                 ApprovalPendingVO.ApprovalItem item = buildPaymentItem(node);
                 if (item != null) paymentItems.add(item);
+            } else {
+                // 通用审批：管理后台新建的非内置 business_type
+                ApprovalPendingVO.ApprovalItem item = buildGeneralItem(node);
+                if (item != null) leaveItems.add(item);
             }
         }
 
@@ -123,7 +131,8 @@ public class AppApprovalController {
             case "compensate" -> Result.ok(buildCompensateDetail(id));
             case "expense", "advance", "prepay" -> Result.ok(buildPaymentDetail(id));
             case "commission" -> Result.ok(buildCommissionDetail(id));
-            default -> Result.fail(400, "无效的审批类型: " + type);
+            // 任何非内置 business_type 都走通用审批分支（管理后台新建的类型）
+            default -> Result.ok(buildGeneralDetail(id, type));
         };
     }
 
@@ -146,9 +155,8 @@ public class AppApprovalController {
             case "compensate" -> approveFlow(ApprovalConstants.BUSINESS_TYPE_COMPENSATE, id, approverId, dto);
             case "expense", "advance", "prepay" -> approvePayment(id, approverId, dto.getApproved(), dto.getReason());
             case "commission" -> approveCommission(id, approverId, dto.getApproved(), dto.getReason());
-            default -> {
-                return Result.fail(400, "无效的审批类型: " + type);
-            }
+            // 通用审批：管理后台新建的非内置类型，落到 GeneralApprovalService
+            default -> generalApprovalService.approve(id, approverId, Boolean.TRUE.equals(dto.getApproved()), dto.getReason());
         }
         return Result.ok();
     }
@@ -290,6 +298,39 @@ public class AppApprovalController {
     }
 
     // ========== 辅助方法 ==========
+
+    private ApprovalPendingVO.ApprovalItem buildGeneralItem(ApprovalRecordNode node) {
+        GeneralApprovalRequest req = generalApprovalService.getById(node.getBusinessId());
+        if (req == null) return null;
+        return ApprovalPendingVO.ApprovalItem.builder()
+                .id(req.getId())
+                .type(req.getBusinessType())
+                .applicantName(resolveUserName(req.getApplicantId()))
+                .summary(req.getTitle())
+                .applyTime(req.getCreateTime())
+                .build();
+    }
+
+    private ApprovalDetailVO buildGeneralDetail(Long id, String type) {
+        GeneralApprovalRequest req = generalApprovalService.getById(id);
+        if (req == null) {
+            throw new IllegalArgumentException("申请不存在");
+        }
+        // summary 上把标题 + 简短说明拼起来给审批人看
+        String summary = req.getTitle();
+        if (req.getDescription() != null && !req.getDescription().isBlank()) {
+            summary += " · " + req.getDescription();
+        }
+        return ApprovalDetailVO.builder()
+                .id(req.getId())
+                .type(req.getBusinessType())
+                .applicantName(resolveUserName(req.getApplicantId()))
+                .summary(summary)
+                .status(req.getStatus())
+                .applyTime(req.getCreateTime())
+                .histories(buildFlowHistories(req.getBusinessType(), id))
+                .build();
+    }
 
     private ApprovalPendingVO.ApprovalItem buildPaymentItem(ApprovalRecordNode node) {
         PaymentRequest pr = paymentRequestMapper.selectById(node.getBusinessId());

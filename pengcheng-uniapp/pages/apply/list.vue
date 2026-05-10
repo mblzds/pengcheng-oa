@@ -97,20 +97,25 @@
 				<view class="fab-menu-item" @tap="goApply('/pages/apply/expense')">报销</view>
 				<view class="fab-menu-item" @tap="goApply('/pages/apply/advance')">垫佣</view>
 				<view class="fab-menu-item" @tap="goApply('/pages/apply/prepay')">预付佣</view>
+				<view class="fab-menu-item" v-for="t in generalTypes" :key="t.businessType"
+					@tap="goGeneral(t)">{{ t.label }}</view>
 			</view>
 		</view>
 	</view>
 </template>
 
 <script>
-	import { getLeaveList, getPaymentList, cancelLeave, cancelPayment, getApprovalDetail } from '../../utils/api.js'
+	import {
+		getLeaveList, getPaymentList, cancelLeave, cancelPayment, getApprovalDetail,
+		getGeneralTypes, getGeneralList, cancelGeneral
+	} from '../../utils/api.js'
 
 	export default {
 		data() {
 			return {
 				activeType: 'all',
 				statusFilter: '',
-				typeList: [
+				builtinTypeList: [
 					{ label: '全部', value: 'all' },
 					{ label: '请假', value: 'leave' },
 					{ label: '调休', value: 'compensate' },
@@ -133,18 +138,25 @@
 				refreshing: false,
 				showApplyMenu: false,
 				showDataUpdated: false,
+				generalTypes: [],
 				showTimeline: false,
 				timelineLoading: false,
 				timelineTitle: '审批流程',
 				timelineHistories: []
 			}
 		},
+		computed: {
+			typeList() {
+				return [
+					...this.builtinTypeList,
+					...this.generalTypes.map(t => ({ label: t.label, value: t.businessType }))
+				]
+			}
+		},
 		onLoad(options) {
 			if (options?.type) {
-				const validTypes = this.typeList.map(t => t.value)
-				if (validTypes.includes(options.type)) {
-					this.activeType = options.type
-				}
+				// 这里 typeList 可能未拉到通用类型；若是 general key 也直接信任
+				this.activeType = options.type
 			}
 			if (options?.status) {
 				const validStatuses = this.statusList.map(s => s.value)
@@ -155,6 +167,7 @@
 		},
 		onShow() {
 			uni.$on('app:data-change', this.onDataChange)
+			this.loadGeneralTypes()
 			this.resetAndLoad()
 		},
 		onHide() {
@@ -175,6 +188,19 @@
 			canCancel(item) {
 				// 仅本人发起且仍在审批中的申请允许撤销（列表本身已按当前用户过滤）
 				return item && (item.status === 1 || item.status === 2) && item.cancelKind
+			},
+			async loadGeneralTypes() {
+				try {
+					const res = await getGeneralTypes()
+					this.generalTypes = (res && res.data) || []
+				} catch (err) {
+					this.generalTypes = []
+				}
+			},
+			goGeneral(t) {
+				this.showApplyMenu = false
+				const label = encodeURIComponent(t.label || t.businessType)
+				uni.navigateTo({ url: `/pages/apply/general?type=${t.businessType}&label=${label}` })
 			},
 			// 审批时间线 ==========
 			async openTimeline(item) {
@@ -235,6 +261,8 @@
 						await cancelLeave(item.rawId, item.cancelKind)
 					} else if (item.cancelKind === 'payment') {
 						await cancelPayment(item.rawId)
+					} else if (item.cancelKind === 'general') {
+						await cancelGeneral(item.rawId)
 					}
 					uni.hideLoading()
 					uni.showToast({ title: '已撤销', icon: 'success' })
@@ -364,6 +392,45 @@
 							})
 						})
 					}
+				}
+
+				// 通用审批：在"全部类型"或当前 activeType 命中已注册的非内置类型时拉
+				const isGeneralActive = type !== 'all'
+					&& !['leave', 'compensate', 'expense', 'advance', 'prepay'].includes(type)
+				if (type === 'all' || isGeneralActive) {
+					const genStatusMap = { pending: 1, approved: 2, rejected: 3, cancelled: 4 }
+					const genStatus = this.statusFilter ? genStatusMap[this.statusFilter] : undefined
+					const genRes = await getGeneralList({
+						businessType: isGeneralActive ? type : undefined,
+						status: genStatus,
+						page: this.page,
+						pageSize: this.pageSize
+					}).catch(() => ({ data: { list: [] } }))
+					const genRows = genRes.data?.list || []
+					// 通用类型 label 用 generalTypes 里的映射，回退到原 key
+					const labelOf = (key) => {
+						const t = this.generalTypes.find(g => g.businessType === key)
+						return t ? t.label : key
+					}
+					// 后端 status 1/2/3/4 直接对应 UI 1/3/4/5（与请假同形，2 没用到）
+					const genUiStatus = (s) => ({ 1: 1, 2: 3, 3: 4, 4: 5 })[s] || 1
+					genRows.forEach(r => {
+						rows.push({
+							id: `g-${r.businessType}-${r.id}`,
+							rawId: r.id,
+							cancelKind: 'general',
+							detailType: r.businessType,
+							typeName: labelOf(r.businessType),
+							daysText: '',
+							status: genUiStatus(r.status),
+							amount: null,
+							rangeText: '',
+							reason: r.description || '',
+							createTime: r.createTime,
+							currentNodeName: '',
+							rejectReason: ''
+						})
+					})
 				}
 
 				rows.sort((a, b) => String(b.createTime || '').localeCompare(String(a.createTime || '')))

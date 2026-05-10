@@ -224,6 +224,20 @@ export const getPaymentList = (params) => get('/api/app/payment/list', params)
 /** 撤销付款申请（报销/垫佣/预付佣） */
 export const cancelPayment = (id) => post(`/api/app/payment/${id}/cancel`)
 
+// ==================== 通用审批 ====================
+
+/** 列出可发起的非内置业务类型（FAB 菜单数据源） */
+export const getGeneralTypes = () => get('/api/app/general-approval/types')
+
+/** 提交通用审批：data = { businessType, title, description } */
+export const applyGeneral = (data) => post('/api/app/general-approval', data)
+
+/** 当前用户的通用审批申请列表 */
+export const getGeneralList = (params) => get('/api/app/general-approval/list', params)
+
+/** 撤销通用审批 */
+export const cancelGeneral = (id) => post(`/api/app/general-approval/${id}/cancel`)
+
 /** 小程序真实支付下单 */
 export const createPaymentOrder = (data) => post('/api/app/pay/create', data)
 

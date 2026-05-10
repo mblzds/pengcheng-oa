@@ -151,6 +151,12 @@
 			}
 		},
 		{
+			"path": "pages/apply/general",
+			"style": {
+				"navigationBarTitleText": "通用申请"
+			}
+		},
+		{
 			"path": "pages/apply/list",
 			"style": {
 				"navigationBarTitleText": "申请记录"
