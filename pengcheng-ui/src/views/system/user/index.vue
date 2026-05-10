@@ -134,8 +134,8 @@
         <n-form-item label="用户名" path="username">
           <n-input v-model:value="formData.username" placeholder="请输入用户名" :disabled="!!formData.id" />
         </n-form-item>
-        <n-form-item label="工号" path="employeeNo">
-          <n-input v-model:value="formData.employeeNo" placeholder="请输入工号" />
+        <n-form-item v-if="!!formData.id" label="工号">
+          <n-input :value="formData.employeeNo || '-'" disabled placeholder="系统自动生成" />
         </n-form-item>
         <n-form-item v-if="!formData.id" label="密码" path="password">
           <n-input v-model:value="formData.password" type="password" placeholder="请输入密码，留空默认123456" show-password-on="click" />
@@ -449,7 +449,6 @@ const formData = reactive<SysUser>({
 
 const rules: FormRules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
-  employeeNo: [{ required: true, message: '请输入工号', trigger: ['input', 'blur'] }],
   deptId: [
     {
       required: true,

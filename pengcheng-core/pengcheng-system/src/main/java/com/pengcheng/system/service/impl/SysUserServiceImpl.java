@@ -117,14 +117,17 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
         checkUsernameUnique(user.getUsername(), null);
         checkPhoneUnique(user.getPhone(), null);
         checkOpenIdUnique(user.getOpenId(), null);
-        if (!StringUtils.hasText(user.getEmployeeNo())) {
-            throw new BusinessException("工号不能为空");
-        }
-        checkEmployeeNoUnique(user.getEmployeeNo(), null);
+        // 工号统一由系统自动生成 EMP+id 4 位补零，HR 不录入；以防前端误传，先清空
+        user.setEmployeeNo(null);
         // 加密密码
         String password = StringUtils.hasText(user.getPassword()) ? user.getPassword() : DEFAULT_PASSWORD;
         user.setPassword(BCrypt.hashpw(password));
         this.save(user);
+        SysUser patch = new SysUser();
+        patch.setId(user.getId());
+        patch.setEmployeeNo(String.format("EMP%04d", user.getId()));
+        this.updateById(patch);
+        user.setEmployeeNo(patch.getEmployeeNo());
         // 保存用户角色关联
         saveUserRoles(user.getId(), roleIds);
         // 保存用户岗位关联
