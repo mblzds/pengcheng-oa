@@ -67,32 +67,23 @@ public class AdminApprovalController {
         Long currentUserId = StpUtil.getLoginIdAsLong();
         List<AdminApprovalItemVO> rows = new ArrayList<>();
 
-        // 请假 / 调休：当前用户作为候选审批人 且 是引擎当前节点
+        // 请假 / 调休 / 付款：统一从审批流引擎拿当前用户的待办节点（按候选人过滤）
         List<ApprovalRecordNode> pendingNodes = approvalFlowService.findPending(currentUserId, null);
         for (ApprovalRecordNode node : pendingNodes) {
             ApprovalRecordNode current = approvalFlowService.getCurrentNode(node.getBusinessType(), node.getBusinessId());
             if (current == null || !current.getId().equals(node.getId())) {
                 continue;
             }
-            AdminApprovalItemVO row = buildLeaveOrCompensateRow(node);
-            if (row != null) rows.add(row);
-        }
-
-        // 付款申请（待审批 + 审批中）
-        List<PaymentRequest> pendingPayments = paymentRequestMapper.selectList(
-                new LambdaQueryWrapper<PaymentRequest>()
-                        .in(PaymentRequest::getStatus, PaymentService.STATUS_PENDING, PaymentService.STATUS_IN_PROGRESS)
-                        .orderByDesc(PaymentRequest::getCreateTime));
-        for (PaymentRequest pr : pendingPayments) {
-            rows.add(AdminApprovalItemVO.builder()
-                    .id(pr.getId())
-                    .type(resolvePaymentType(pr.getRequestType()))
-                    .applicantName(resolveUserName(pr.getApplicantId()))
-                    .summary(buildPaymentSummary(pr))
-                    .amount(pr.getAmount())
-                    .applyTime(pr.getCreateTime())
-                    .currentNodeName(pr.getStatus() == PaymentService.STATUS_PENDING ? "财务审批" : "审批中")
-                    .build());
+            String bt = node.getBusinessType();
+            if (ApprovalConstants.BUSINESS_TYPE_LEAVE.equals(bt) || ApprovalConstants.BUSINESS_TYPE_COMPENSATE.equals(bt)) {
+                AdminApprovalItemVO row = buildLeaveOrCompensateRow(node);
+                if (row != null) rows.add(row);
+            } else if (ApprovalConstants.BUSINESS_TYPE_EXPENSE.equals(bt)
+                    || ApprovalConstants.BUSINESS_TYPE_ADVANCE.equals(bt)
+                    || ApprovalConstants.BUSINESS_TYPE_PREPAY.equals(bt)) {
+                AdminApprovalItemVO row = buildPaymentRow(node);
+                if (row != null) rows.add(row);
+            }
         }
 
         // 佣金审核
@@ -295,6 +286,20 @@ public class AdminApprovalController {
     }
 
     // ========== 辅助 ==========
+
+    private AdminApprovalItemVO buildPaymentRow(ApprovalRecordNode node) {
+        PaymentRequest pr = paymentRequestMapper.selectById(node.getBusinessId());
+        if (pr == null) return null;
+        return AdminApprovalItemVO.builder()
+                .id(pr.getId())
+                .type(resolvePaymentType(pr.getRequestType()))
+                .applicantName(resolveUserName(pr.getApplicantId()))
+                .summary(buildPaymentSummary(pr))
+                .amount(pr.getAmount())
+                .applyTime(pr.getCreateTime())
+                .currentNodeName(node.getNodeName())
+                .build();
+    }
 
     private AdminApprovalItemVO buildLeaveOrCompensateRow(ApprovalRecordNode node) {
         if (ApprovalConstants.BUSINESS_TYPE_LEAVE.equals(node.getBusinessType())) {

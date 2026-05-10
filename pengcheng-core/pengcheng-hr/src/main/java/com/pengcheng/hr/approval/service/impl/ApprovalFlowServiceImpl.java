@@ -122,7 +122,26 @@ public class ApprovalFlowServiceImpl implements ApprovalFlowService {
         if (currentStatus == null || currentStatus != ApprovalConstants.STATUS_PENDING) {
             throw new IllegalStateException("当前申请已审批完成或已撤销，不可撤销");
         }
-        // 把所有未审批节点标记为「已撤销」，使审批人待办列表（result IS NULL）不再返回这些节点
+        cancelPendingNodes(businessType, businessId, applicantId);
+        // 业务单整体状态翻转为「已撤销」
+        if (ApprovalConstants.BUSINESS_TYPE_LEAVE.equals(businessType)) {
+            LeaveRequest lr = leaveRequestMapper.selectById(businessId);
+            lr.setStatus(ApprovalConstants.STATUS_CANCELLED);
+            leaveRequestMapper.updateById(lr);
+        } else {
+            CompensateRequest cr = compensateRequestMapper.selectById(businessId);
+            cr.setStatus(ApprovalConstants.STATUS_CANCELLED);
+            compensateRequestMapper.updateById(cr);
+        }
+        // 注意：不发布 ApprovalFinalizedEvent —— 撤销不应触发 AttendanceExemptListener 等"通过"后置动作
+    }
+
+    @Override
+    @Transactional
+    public void cancelPendingNodes(String businessType, Long businessId, Long applicantId) {
+        if (businessType == null || businessId == null) {
+            return;
+        }
         LocalDateTime now = LocalDateTime.now();
         List<ApprovalRecordNode> pendingNodes = recordNodeMapper.selectList(
                 new LambdaQueryWrapper<ApprovalRecordNode>()
@@ -136,17 +155,6 @@ public class ApprovalFlowServiceImpl implements ApprovalFlowService {
             n.setApprovalTime(now);
             recordNodeMapper.updateById(n);
         }
-        // 业务单整体状态翻转为「已撤销」
-        if (ApprovalConstants.BUSINESS_TYPE_LEAVE.equals(businessType)) {
-            LeaveRequest lr = leaveRequestMapper.selectById(businessId);
-            lr.setStatus(ApprovalConstants.STATUS_CANCELLED);
-            leaveRequestMapper.updateById(lr);
-        } else {
-            CompensateRequest cr = compensateRequestMapper.selectById(businessId);
-            cr.setStatus(ApprovalConstants.STATUS_CANCELLED);
-            compensateRequestMapper.updateById(cr);
-        }
-        // 注意：不发布 ApprovalFinalizedEvent —— 撤销不应触发 AttendanceExemptListener 等"通过"后置动作
     }
 
     @Override
@@ -240,6 +248,18 @@ public class ApprovalFlowServiceImpl implements ApprovalFlowService {
     @Override
     public List<ApprovalRecordNode> findPending(Long approverId, String businessType) {
         return recordNodeMapper.findPendingByApprover(approverId, businessType);
+    }
+
+    @Override
+    public List<ApprovalRecordNode> listRecordNodes(String businessType, Long businessId) {
+        if (businessType == null || businessId == null) {
+            return Collections.emptyList();
+        }
+        return recordNodeMapper.selectList(
+                new LambdaQueryWrapper<ApprovalRecordNode>()
+                        .eq(ApprovalRecordNode::getBusinessType, businessType)
+                        .eq(ApprovalRecordNode::getBusinessId, businessId)
+                        .orderByAsc(ApprovalRecordNode::getSeq));
     }
 
     // ========== 审批人解析 ==========
@@ -470,6 +490,8 @@ public class ApprovalFlowServiceImpl implements ApprovalFlowService {
                 compensateRequestMapper.updateById(cr);
             }
         }
+        // 付款类（expense/advance/prepay）业务表在 pengcheng-realty 模块，此处不直接更新；
+        // 由调用方 PaymentService.approvePaymentRequest 在调本引擎 approve 后自行回写 status。
         // 通知业务方（如考勤模块的豁免联动）。注意：监听器应在同一事务里执行（默认行为）以保证一致性
         eventPublisher.publishEvent(new ApprovalFinalizedEvent(this, businessType, businessId, approved));
     }

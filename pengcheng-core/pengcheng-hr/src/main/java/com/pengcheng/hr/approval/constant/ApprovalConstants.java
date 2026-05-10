@@ -10,6 +10,9 @@ public final class ApprovalConstants {
     // 业务类型
     public static final String BUSINESS_TYPE_LEAVE = "leave";
     public static final String BUSINESS_TYPE_COMPENSATE = "compensate";
+    public static final String BUSINESS_TYPE_EXPENSE = "expense";
+    public static final String BUSINESS_TYPE_ADVANCE = "advance";
+    public static final String BUSINESS_TYPE_PREPAY = "prepay";
 
     // 审批人解析方式
     public static final String APPROVER_TYPE_DIRECT_SUPERVISOR = "direct_supervisor";

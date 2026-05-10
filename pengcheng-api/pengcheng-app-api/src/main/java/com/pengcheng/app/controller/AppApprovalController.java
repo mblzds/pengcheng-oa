@@ -64,44 +64,33 @@ public class AppApprovalController {
     public Result<ApprovalPendingVO> pending() {
         Long currentUserId = StpUtil.getLoginIdAsLong();
 
-        // 请假/调休：从审批流引擎拿当前用户的待办节点
+        // 请假/调休/付款：统一从审批流引擎拿当前用户的待办节点（按候选人过滤，已不再全局查付款）
         List<ApprovalRecordNode> pendingNodes = approvalFlowService.findPending(currentUserId, null);
         List<ApprovalPendingVO.ApprovalItem> leaveItems = new ArrayList<>();
+        List<ApprovalPendingVO.ApprovalItem> paymentItems = new ArrayList<>();
         for (ApprovalRecordNode node : pendingNodes) {
             // 仅对最早未审批节点开放（防止越级看到后续节点）
             ApprovalRecordNode current = approvalFlowService.getCurrentNode(node.getBusinessType(), node.getBusinessId());
             if (current == null || !current.getId().equals(node.getId())) {
                 continue;
             }
-            ApprovalPendingVO.ApprovalItem item = buildLeaveOrCompensateItem(node);
-            if (item != null) {
-                leaveItems.add(item);
+            String bt = node.getBusinessType();
+            if (ApprovalConstants.BUSINESS_TYPE_LEAVE.equals(bt) || ApprovalConstants.BUSINESS_TYPE_COMPENSATE.equals(bt)) {
+                ApprovalPendingVO.ApprovalItem item = buildLeaveOrCompensateItem(node);
+                if (item != null) leaveItems.add(item);
+            } else if (ApprovalConstants.BUSINESS_TYPE_EXPENSE.equals(bt)
+                    || ApprovalConstants.BUSINESS_TYPE_ADVANCE.equals(bt)
+                    || ApprovalConstants.BUSINESS_TYPE_PREPAY.equals(bt)) {
+                ApprovalPendingVO.ApprovalItem item = buildPaymentItem(node);
+                if (item != null) paymentItems.add(item);
             }
         }
 
-        // 待审批付款（status=1 待审批 或 status=2 审批中）
-        List<PaymentRequest> pendingPayments = paymentRequestMapper.selectList(
-                new LambdaQueryWrapper<PaymentRequest>()
-                        .in(PaymentRequest::getStatus, PaymentService.STATUS_PENDING, PaymentService.STATUS_IN_PROGRESS)
-                        .orderByDesc(PaymentRequest::getCreateTime));
-
-        // 待审核佣金
+        // 待审核佣金（独立体系，未接审批流引擎）
         List<Commission> pendingCommissions = commissionMapper.selectList(
                 new LambdaQueryWrapper<Commission>()
                         .eq(Commission::getAuditStatus, CommissionService.AUDIT_STATUS_PENDING)
                         .orderByDesc(Commission::getCreateTime));
-
-        List<ApprovalPendingVO.ApprovalItem> paymentItems = new ArrayList<>();
-        for (PaymentRequest pr : pendingPayments) {
-            paymentItems.add(ApprovalPendingVO.ApprovalItem.builder()
-                    .id(pr.getId())
-                    .type(resolvePaymentType(pr.getRequestType()))
-                    .applicantName(resolveUserName(pr.getApplicantId()))
-                    .summary(buildPaymentSummary(pr))
-                    .amount(pr.getAmount())
-                    .applyTime(pr.getCreateTime())
-                    .build());
-        }
 
         List<ApprovalPendingVO.ApprovalItem> commissionItems = new ArrayList<>();
         for (Commission c : pendingCommissions) {
@@ -311,6 +300,19 @@ public class AppApprovalController {
     }
 
     // ========== 辅助方法 ==========
+
+    private ApprovalPendingVO.ApprovalItem buildPaymentItem(ApprovalRecordNode node) {
+        PaymentRequest pr = paymentRequestMapper.selectById(node.getBusinessId());
+        if (pr == null) return null;
+        return ApprovalPendingVO.ApprovalItem.builder()
+                .id(pr.getId())
+                .type(resolvePaymentType(pr.getRequestType()))
+                .applicantName(resolveUserName(pr.getApplicantId()))
+                .summary(buildPaymentSummary(pr))
+                .amount(pr.getAmount())
+                .applyTime(pr.getCreateTime())
+                .build();
+    }
 
     private ApprovalPendingVO.ApprovalItem buildLeaveOrCompensateItem(ApprovalRecordNode node) {
         if (ApprovalConstants.BUSINESS_TYPE_LEAVE.equals(node.getBusinessType())) {

@@ -36,20 +36,24 @@ public interface ApprovalFlowService {
     void approve(Long recordNodeId, Long approverId, boolean approved, String remark);
 
     /**
-     * 申请人主动撤销审批流。
+     * 申请人主动撤销审批流（仅适用于由本引擎管理且业务表在 pengcheng-hr 模块中的类型，
+     * 即 {@link ApprovalConstants#BUSINESS_TYPE_LEAVE} 与 COMPENSATE）。
      * - 仅业务单仍处于 STATUS_PENDING 时允许（已通过/驳回/已撤销不可重复操作）。
-     * - 校验 applicantId 必须是业务单原申请人，防止越权撤销他人申请。
-     * - 把所有 result IS NULL 的节点终态化为 RESULT_CANCELLED 并写 approver_id 为申请人，
-     *   使其从所有审批人的待办列表中消失。
-     * - 业务单 status 翻转为 STATUS_CANCELLED；不发布 ApprovalFinalizedEvent，
-     *   因此不会触发考勤豁免等通过侧后置动作。
+     * - 校验 applicantId 必须是业务单原申请人。
+     * - 内部调用 {@link #cancelPendingNodes} 终态化未审批节点；并把业务表 status 翻转为 STATUS_CANCELLED。
+     * - 不发布 ApprovalFinalizedEvent，因此不会触发"通过侧"后置动作。
      *
-     * @param businessType {@link ApprovalConstants#BUSINESS_TYPE_LEAVE} 或 COMPENSATE
-     * @param businessId   业务单 ID
-     * @param applicantId  当前操作人 ID（必须等于业务单原申请人）
-     * @throws IllegalStateException 业务单不存在 / 已终态 / 操作人不是申请人
+     * 跨模块业务（付款类）应当：调用方先在自己模块完成业务表校验/更新，再调
+     * {@link #cancelPendingNodes} 把节点收尾，无需走此入口。
      */
     void cancel(String businessType, Long businessId, Long applicantId);
+
+    /**
+     * 仅终态化未审批节点（不验证业务单状态、不更新业务表），供跨模块（付款类）的撤销逻辑使用。
+     * 把所有 result IS NULL 的节点设为 RESULT_CANCELLED，并把 approver_id 写为申请人，使其
+     * 从所有审批人的待办列表中消失。多次调用幂等。
+     */
+    void cancelPendingNodes(String businessType, Long businessId, Long applicantId);
 
     /**
      * 查询某业务申请当前可处理的节点（result IS NULL 中 seq 最小者）。
@@ -68,6 +72,12 @@ public interface ApprovalFlowService {
      * @param businessType 可空，为空则不过滤业务类型
      */
     List<ApprovalRecordNode> findPending(Long approverId, String businessType);
+
+    /**
+     * 查询某业务申请的全部审批节点（按 seq 升序），含已审批 + 待审批节点。
+     * 跨模块（如 PaymentService）拉审批历史用，避免直接依赖 ApprovalRecordNodeMapper。
+     */
+    List<ApprovalRecordNode> listRecordNodes(String businessType, Long businessId);
 
     /**
      * 解析某节点模板的候选审批人 ID 列表（按 approver_type 分发）。

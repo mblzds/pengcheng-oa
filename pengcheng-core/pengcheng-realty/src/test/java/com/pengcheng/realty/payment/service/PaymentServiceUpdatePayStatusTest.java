@@ -43,7 +43,8 @@ class PaymentServiceUpdatePayStatusTest {
                 payNotifyLogMapper,
                 mock(com.pengcheng.realty.customer.mapper.CustomerDealMapper.class),
                 mock(com.pengcheng.realty.alliance.mapper.AllianceMapper.class),
-                publisher);
+                publisher,
+                mock(com.pengcheng.hr.approval.service.ApprovalFlowService.class));
     }
 
     private PaymentRequest approvedRequest(String orderNo, BigDecimal amount) {

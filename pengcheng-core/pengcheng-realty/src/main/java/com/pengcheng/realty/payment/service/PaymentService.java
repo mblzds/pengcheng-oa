@@ -5,6 +5,9 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.pengcheng.common.event.DataChangeEvent;
 import com.pengcheng.common.result.PageResult;
+import com.pengcheng.hr.approval.constant.ApprovalConstants;
+import com.pengcheng.hr.approval.entity.ApprovalRecordNode;
+import com.pengcheng.hr.approval.service.ApprovalFlowService;
 import com.pengcheng.realty.alliance.entity.Alliance;
 import com.pengcheng.realty.alliance.mapper.AllianceMapper;
 import com.pengcheng.realty.customer.entity.CustomerDeal;
@@ -44,6 +47,7 @@ public class PaymentService {
     private final CustomerDealMapper customerDealMapper;
     private final AllianceMapper allianceMapper;
     private final ApplicationEventPublisher eventPublisher;
+    private final ApprovalFlowService approvalFlowService;
 
     private static final DateTimeFormatter ORDER_NO_FMT = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
@@ -102,13 +106,33 @@ public class PaymentService {
                 .status(STATUS_PENDING)
                 .build();
         paymentRequestMapper.insert(request);
+        // 实例化审批流（按 approval_flow_node 模板生成 record_node 链，路由到首位审批人）
+        approvalFlowService.start(businessTypeOf(dto.getRequestType()), request.getId(), dto.getApplicantId());
         // 广播数据变更事件
         eventPublisher.publishEvent(new DataChangeEvent(this, "create", "payment", request.getId()));
         return request.getId();
     }
 
     /**
+     * request_type → approval_flow_node.business_type 映射
+     */
+    public static String businessTypeOf(Integer requestType) {
+        if (requestType == null) {
+            throw new IllegalArgumentException("申请类型不能为空");
+        }
+        return switch (requestType) {
+            case TYPE_EXPENSE -> ApprovalConstants.BUSINESS_TYPE_EXPENSE;
+            case TYPE_ADVANCE_COMMISSION -> ApprovalConstants.BUSINESS_TYPE_ADVANCE;
+            case TYPE_PREPAY_COMMISSION -> ApprovalConstants.BUSINESS_TYPE_PREPAY;
+            default -> throw new IllegalArgumentException("无效的申请类型：" + requestType);
+        };
+    }
+
+    /**
      * 审批付款申请（通过/驳回）
+     * 改造后：节点流转完全由 ApprovalFlowService 引擎驱动（按 approval_flow_node 模板路由到候选人，
+     * 并校验 approver 必须是当前节点候选人）。本方法只负责把"引擎判定的整单状态"回写到 payment_request.status：
+     *   驳回 → STATUS_REJECTED；通过且后续无节点 → STATUS_APPROVED；通过但还有后续节点 → STATUS_IN_PROGRESS。
      */
     @Transactional
     public void approvePaymentRequest(PaymentApprovalDTO dto) {
@@ -129,36 +153,26 @@ public class PaymentService {
         if (request == null) {
             throw new IllegalArgumentException("付款申请不存在");
         }
-        if (request.getStatus() == STATUS_APPROVED || request.getStatus() == STATUS_REJECTED) {
-            throw new ApprovalFlowException("该申请已完成审批，不可重复操作");
+        if (request.getStatus() == STATUS_APPROVED
+                || request.getStatus() == STATUS_REJECTED
+                || request.getStatus() == STATUS_CANCELLED) {
+            throw new ApprovalFlowException("该申请已完成审批或已撤销，不可重复操作");
         }
 
-        // Determine current approval order
-        int currentOrder = getNextApprovalOrder(dto.getRequestId());
+        String businessType = businessTypeOf(request.getRequestType());
+        ApprovalRecordNode current = approvalFlowService.getCurrentNode(businessType, request.getId());
+        if (current == null) {
+            throw new ApprovalFlowException("该申请已无可处理审批节点");
+        }
+        // 引擎内部完成：候选人校验、写节点 result/approver_id/remark/approval_time、若末节点通过则在 finalizeBusiness 发事件
+        approvalFlowService.approve(current.getId(), dto.getApproverId(), dto.getApproved(), dto.getRemark());
 
-        // Create approval record
-        PaymentApproval approval = PaymentApproval.builder()
-                .requestId(dto.getRequestId())
-                .approverId(dto.getApproverId())
-                .result(dto.getApproved() ? APPROVAL_RESULT_PASS : APPROVAL_RESULT_REJECT)
-                .remark(dto.getRemark())
-                .approvalOrder(currentOrder)
-                .approvalTime(LocalDateTime.now())
-                .build();
-        paymentApprovalMapper.insert(approval);
-
-        // Update request status based on approval result
+        // 由引擎当前剩余节点状态推导整单状态（finalizeBusiness 不再回写付款表）
         if (!dto.getApproved()) {
-            // Rejected → final state
             request.setStatus(STATUS_REJECTED);
         } else {
-            // Approved → check if all required approvals are done
-            int requiredApprovals = getRequiredApprovalCount(request.getRequestType(), request.getAmount());
-            if (currentOrder >= requiredApprovals) {
-                request.setStatus(STATUS_APPROVED);
-            } else {
-                request.setStatus(STATUS_IN_PROGRESS);
-            }
+            ApprovalRecordNode next = approvalFlowService.getCurrentNode(businessType, request.getId());
+            request.setStatus(next == null ? STATUS_APPROVED : STATUS_IN_PROGRESS);
         }
         paymentRequestMapper.updateById(request);
         // 广播数据变更事件
@@ -189,6 +203,8 @@ public class PaymentService {
         if (request.getPayStatus() != null && request.getPayStatus() != PAY_STATUS_UNPAID) {
             throw new ApprovalFlowException("已发起或完成付款，不可撤销");
         }
+        // 把引擎里仍未审批的节点终态化为「已撤销」，使其从所有审批人待办列表消失
+        approvalFlowService.cancelPendingNodes(businessTypeOf(request.getRequestType()), request.getId(), applicantId);
         request.setStatus(STATUS_CANCELLED);
         paymentRequestMapper.updateById(request);
         eventPublisher.publishEvent(new DataChangeEvent(this, "update", "payment", request.getId()));
@@ -230,31 +246,38 @@ public class PaymentService {
     }
 
     /**
-     * 查询付款申请的审批记录
+     * 查询付款申请的审批记录。改造后审批由 ApprovalFlowService 引擎驱动，
+     * 历史从 approval_record_node 取（仅返回已审批节点 result IS NOT NULL）。
+     * 改造前的旧申请没有 record_node，回退到 payment_approval 表保留可读性。
      */
     public List<PaymentApproval> getApprovalHistory(Long requestId) {
-        LambdaQueryWrapper<PaymentApproval> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(PaymentApproval::getRequestId, requestId)
-                .orderByAsc(PaymentApproval::getApprovalOrder);
-        return paymentApprovalMapper.selectList(wrapper);
-    }
-
-    /**
-     * 根据申请类型和金额确定所需审批人数
-     * 规则：
-     * - 费用报销：金额 <= 5000 需1级审批，> 5000 需2级审批
-     * - 垫佣/预付佣：金额 <= 50000 需2级审批，> 50000 需3级审批
-     */
-    public int getRequiredApprovalCount(Integer requestType, java.math.BigDecimal amount) {
-        if (requestType == null || amount == null) {
-            return 1;
+        if (requestId == null) {
+            return java.util.Collections.emptyList();
         }
-        if (requestType == TYPE_EXPENSE) {
-            return amount.compareTo(new java.math.BigDecimal("5000")) <= 0 ? 1 : 2;
-        } else {
-            // 垫佣 or 预付佣
-            return amount.compareTo(new java.math.BigDecimal("50000")) <= 0 ? 2 : 3;
+        PaymentRequest request = paymentRequestMapper.selectById(requestId);
+        if (request != null && request.getRequestType() != null) {
+            String businessType = businessTypeOf(request.getRequestType());
+            List<ApprovalRecordNode> nodes = approvalFlowService.listRecordNodes(businessType, requestId);
+            List<PaymentApproval> fromEngine = nodes.stream()
+                    .filter(n -> n.getResult() != null)
+                    .map(n -> PaymentApproval.builder()
+                            .requestId(requestId)
+                            .approverId(n.getApproverId())
+                            .result(n.getResult())
+                            .remark(n.getRemark())
+                            .approvalOrder(n.getSeq())
+                            .approvalTime(n.getApprovalTime())
+                            .build())
+                    .toList();
+            if (!fromEngine.isEmpty()) {
+                return fromEngine;
+            }
         }
+        // 回退：改造前旧数据走 payment_approval 表
+        return paymentApprovalMapper.selectList(
+                new LambdaQueryWrapper<PaymentApproval>()
+                        .eq(PaymentApproval::getRequestId, requestId)
+                        .orderByAsc(PaymentApproval::getApprovalOrder));
     }
 
     /**
@@ -318,15 +341,6 @@ public class PaymentService {
         }
     }
 
-    /**
-     * 获取下一个审批顺序号
-     */
-    private int getNextApprovalOrder(Long requestId) {
-        LambdaQueryWrapper<PaymentApproval> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(PaymentApproval::getRequestId, requestId);
-        Long count = paymentApprovalMapper.selectCount(wrapper);
-        return count.intValue() + 1;
-    }
 
     private PaymentVO toVO(PaymentRequest request) {
         PaymentVO vo = PaymentVO.fromEntity(request);
