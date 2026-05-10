@@ -192,6 +192,20 @@ public class AttendanceServiceImpl implements AttendanceService {
         LocalDate today = LocalDate.now();
         LocalDate scopeEnd = today.isAfter(end) ? end : (today.isBefore(start) ? start.minusDays(1) : today);
 
+        // 考勤起算日：优先员工 joinDate，缺失则回退到系统级"考勤启用日期"，再缺失则不设
+        // 之前的日期不算应当出勤、不算缺勤——刚上线/新入职都不要被历史空白天数误伤
+        LocalDate cutoff = null;
+        EmployeeProfile profile = employeeProfileMapper.selectOne(new LambdaQueryWrapper<EmployeeProfile>()
+                .eq(EmployeeProfile::getUserId, userId)
+                .last("LIMIT 1"));
+        if (profile != null && profile.getJoinDate() != null) {
+            cutoff = profile.getJoinDate();
+        } else {
+            cutoff = systemConfigHelper.getAttendanceStartDate();
+        }
+        // 应当出勤的起点 = max(月初, cutoff)；若 cutoff 在本月之内则 expectedWorkdays 应该跳过 cutoff 之前的日子
+        LocalDate effectiveStart = (cutoff != null && cutoff.isAfter(start)) ? cutoff : start;
+
         // attendance_record 的 attendanceDays / lateTimes / earlyLeaveTimes
         // attendanceDays 仅计「应当出勤的工作日」上的打卡——周末/节假日加班打卡不抵缺勤
         List<AttendanceRecord> records = attendanceRecordMapper.selectList(new LambdaQueryWrapper<AttendanceRecord>()
@@ -230,8 +244,9 @@ public class AttendanceServiceImpl implements AttendanceService {
                 .ge(CompensateRequest::getCompensateDate, start)
                 .le(CompensateRequest::getCompensateDate, scopeEnd.isBefore(start) ? start.minusDays(1) : scopeEnd));
 
-        // 应当出勤的工作日：从月初到 min(月末, 今日) 之间的工作日（扣周末/法定节假日，加调休补班）
-        int expectedWorkdays = scopeEnd.isBefore(start) ? 0 : holidayCalendarService.countWorkdays(start, scopeEnd);
+        // 应当出勤的工作日：从 max(月初, cutoff) 到 min(月末, 今日) 之间的工作日
+        // 当 effectiveStart 已越过 scopeEnd（cutoff 在未来 / 整月在 cutoff 之前），expectedWorkdays = 0
+        int expectedWorkdays = (scopeEnd.isBefore(effectiveStart)) ? 0 : holidayCalendarService.countWorkdays(effectiveStart, scopeEnd);
 
         int leaveDaysRounded = (int) Math.round(leaveDays);
         int compensateDaysInt = compensateDays.intValue();
@@ -262,6 +277,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                 .absentDays(absentDays)
                 .holidays(holidays)
                 .makeupWorkdays(makeupWorkdays)
+                .cutoffDate(cutoff != null ? cutoff.toString() : null)
                 .overtimeHours(0.0)
                 .build();
     }

@@ -67,6 +67,7 @@
 		computed: {
 			holidaySet() { return new Set(this.summary?.holidays || []) },
 			makeupWorkdaySet() { return new Set(this.summary?.makeupWorkdays || []) },
+			cutoffDate() { return this.summary?.cutoffDate || '' },
 			calendarDays() {
 				const firstDay = new Date(this.year, this.month - 1, 1).getDay()
 				const daysInMonth = new Date(this.year, this.month, 0).getDate()
@@ -84,10 +85,12 @@
 					const isHoliday = this.holidaySet.has(key)
 					const isMakeup = this.makeupWorkdaySet.has(key)
 					const isWorkday = isMakeup || (!isHoliday && dow !== 0 && dow !== 6)
-					// 状态优先级：实际打卡记录 > 节假日 > 缺勤（仅工作日且已过去）> 空
+					// 状态优先级：实际打卡记录 > 节假日 > 缺勤（仅工作日且已过去且不早于考勤起算日）> 空
+					// cutoffDate = max(员工 joinDate, 系统启用日)；之前的格子是历史空白，不算缺勤
+					const isBeforeCutoff = this.cutoffDate && key < this.cutoffDate
 					let status = rec.status || ''
 					if (!status && isHoliday) status = 'holiday'
-					if (!status && isPastDate && isWorkday) status = 'absent'
+					if (!status && isPastDate && isWorkday && !isBeforeCutoff) status = 'absent'
 					days.push({ date: d, isToday, status, statusLabel: statusMap[status] || '' })
 				}
 				return days

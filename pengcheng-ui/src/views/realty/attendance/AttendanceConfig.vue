@@ -30,6 +30,19 @@
             />
           </n-form-item>
 
+          <n-divider title-placement="left">考勤起算</n-divider>
+
+          <n-form-item label="考勤启用日期">
+            <n-date-picker
+              v-model:formatted-value="form.startDate"
+              value-format="yyyy-MM-dd"
+              type="date"
+              clearable
+              style="width: 200px"
+            />
+            <span class="hint">系统级兜底；员工 joinDate 优先。早于该日期的工作日不算缺勤，留空表示无截止线</span>
+          </n-form-item>
+
           <n-divider title-placement="left">合规打卡位置</n-divider>
 
           <n-alert type="info" :bordered="false" style="margin-bottom: 16px">
@@ -79,6 +92,7 @@ interface AttendanceConfig {
   enforceLocation: boolean
   allowedLocations: AllowedLocation[]
   baiduMapAk: string
+  startDate: string | null
 }
 
 const message = useMessage()
@@ -96,7 +110,8 @@ const form = reactive<AttendanceConfig>({
   enforceTime: true,
   enforceLocation: false,
   allowedLocations: [],
-  baiduMapAk: ''
+  baiduMapAk: '',
+  startDate: null
 })
 
 async function loadConfig() {
@@ -119,6 +134,7 @@ async function loadConfig() {
           }))
         : []
       form.baiduMapAk = parsed.baiduMapAk || ''
+      form.startDate = typeof parsed.startDate === 'string' && parsed.startDate ? parsed.startDate : null
     }
   } finally {
     loading.value = false

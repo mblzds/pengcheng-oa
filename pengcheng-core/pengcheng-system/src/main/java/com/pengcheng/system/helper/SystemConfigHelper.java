@@ -987,4 +987,19 @@ public class SystemConfigHelper implements com.pengcheng.crypto.CryptoConfigProv
     public String getAttendanceBaiduMapAk() {
         return getString(GROUP_ATTENDANCE, "baiduMapAk", "");
     }
+
+    /**
+     * 考勤启用日期（YYYY-MM-DD），系统级兜底截止线。
+     * 早于该日期的工作日不计入应当出勤、不算缺勤；优先级低于员工 joinDate。
+     * 未设置返回 null，调用方按"无截止线"处理。
+     */
+    public java.time.LocalDate getAttendanceStartDate() {
+        String s = getString(GROUP_ATTENDANCE, "startDate", "");
+        if (s == null || s.isBlank()) return null;
+        try {
+            return java.time.LocalDate.parse(s);
+        } catch (Exception e) {
+            return null;
+        }
+    }
 }
