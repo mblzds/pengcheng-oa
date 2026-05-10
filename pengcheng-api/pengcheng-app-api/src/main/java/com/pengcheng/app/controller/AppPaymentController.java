@@ -2,6 +2,8 @@ package com.pengcheng.app.controller;
 
 import cn.dev33.satoken.annotation.SaCheckLogin;
 import cn.dev33.satoken.stp.StpUtil;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pengcheng.app.dto.AppAdvanceDTO;
 import com.pengcheng.app.dto.AppExpenseDTO;
 import com.pengcheng.app.dto.AppPrepayDTO;
@@ -13,6 +15,8 @@ import com.pengcheng.realty.payment.dto.PaymentVO;
 import com.pengcheng.realty.payment.service.PaymentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 /**
  * App端付款申请控制器
@@ -26,6 +30,18 @@ public class AppPaymentController {
 
     private final PaymentService paymentService;
 
+    /** payment_request.attachments 是 MySQL JSON 列，需序列化成 JSON 数组而不是逗号串 */
+    private static final ObjectMapper JSON = new ObjectMapper();
+
+    private static String serializeAttachments(List<String> attachments) {
+        if (attachments == null || attachments.isEmpty()) return null;
+        try {
+            return JSON.writeValueAsString(attachments);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("附件序列化失败", e);
+        }
+    }
+
     /**
      * 提交费用报销申请
      * 请求体含 expenseType/amount/occurTime/description/attachments
@@ -34,11 +50,6 @@ public class AppPaymentController {
     public Result<Long> expense(@RequestBody AppExpenseDTO dto) {
         Long userId = StpUtil.getLoginIdAsLong();
 
-        String attachmentsJson = null;
-        if (dto.getAttachments() != null && !dto.getAttachments().isEmpty()) {
-            attachmentsJson = String.join(",", dto.getAttachments());
-        }
-
         PaymentRequestDTO requestDTO = PaymentRequestDTO.builder()
                 .applicantId(userId)
                 .requestType(PaymentService.TYPE_EXPENSE)
@@ -46,7 +57,7 @@ public class AppPaymentController {
                 .amount(dto.getAmount())
                 .description(dto.getDescription())
                 .occurTime(dto.getOccurTime())
-                .attachments(attachmentsJson)
+                .attachments(serializeAttachments(dto.getAttachments()))
                 .build();
 
         Long requestId = paymentService.createPaymentRequest(requestDTO);

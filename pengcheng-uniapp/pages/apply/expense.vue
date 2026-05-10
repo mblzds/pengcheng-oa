@@ -30,7 +30,7 @@
 					<text class="form-label">票据附件</text>
 					<view class="image-list">
 						<view class="image-item" v-for="(img, i) in attachments" :key="i">
-							<image :src="img" mode="aspectFill" class="att-image"></image>
+							<image :src="resolveImg(img)" mode="aspectFill" class="att-image"></image>
 							<view class="image-del" @tap="removeImage(i)"><u-icon name="close" color="#FFF" size="10"></u-icon></view>
 						</view>
 						<view class="image-add" @tap="chooseImage" v-if="attachments.length < 9">
@@ -59,6 +59,7 @@
 
 <script>
 	import { applyExpense, uploadFile } from '../../utils/api.js'
+	import { joinBaseUrl } from '../../utils/config.js'
 
 	const formatDateTime = (ts) => {
 		const d = new Date(ts)
@@ -117,6 +118,13 @@
 			},
 			removeImage(idx) {
 				this.attachments.splice(idx, 1)
+			},
+			// 后端本地存储返回的是相对路径（如 /api/files/...），小程序按当前 page-frame 域解析会 500，
+			// 渲染前要拼上 API 基地址；本地预览路径（wxfile/file/blob/http(s)）直接透传
+			resolveImg(p) {
+				if (!p) return ''
+				if (/^(wxfile|file|blob|https?):/i.test(p)) return p
+				return joinBaseUrl(p)
 			},
 			async handleSubmit() {
 				if (!this.form.expenseType) return uni.showToast({ title: '请选择报销类型', icon: 'none' })
