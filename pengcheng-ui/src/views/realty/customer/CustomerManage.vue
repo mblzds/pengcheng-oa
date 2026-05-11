@@ -66,7 +66,7 @@
         </n-form>
       </div>
 
-      <div class="table-toolbar">
+      <div class="table-toolbar" v-if="hasPermission('realty:customer:add')">
         <n-button type="primary" @click="openCreateModal">
           <template #icon><n-icon><AddOutline /></n-icon></template>
           报备录入
@@ -193,6 +193,10 @@
 
 <script setup lang="ts">
 import { computed, h, onMounted, reactive, ref } from 'vue'
+
+// V1: 客户报备只在小程序由销售本人操作，管理后台不开放报备入口。
+// 按权限 v-if 守卫：没有 realty:customer:add 权限的用户（含 admin）看不到按钮。
+// 如未来给行政文员等角色配上该权限，按钮自动恢复显示，无需改代码。
 import {
   NButton,
   NIcon,
@@ -204,6 +208,7 @@ import {
   type FormRules
 } from 'naive-ui'
 import { AddOutline, EyeOutline, RefreshOutline, SearchOutline } from '@vicons/ionicons5'
+import { useUserStore } from '@/stores/user'
 import {
   realtyApi,
   type AllianceOption,
@@ -215,6 +220,8 @@ import {
 } from '@/api/realty'
 
 const message = useMessage()
+const userStore = useUserStore()
+const hasPermission = (permission: string) => userStore.hasPermission(permission)
 
 const loading = ref(false)
 const submitting = ref(false)
