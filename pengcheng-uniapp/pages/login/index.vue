@@ -65,6 +65,24 @@
 				<text class="agree-link">《隐私政策》</text>
 			</view>
 		</view>
+
+		<!-- 隐私协议引导弹窗：当系统检测到 needAuthorization 时弹出 -->
+		<view v-if="showPrivacyModal" class="privacy-mask" @tap.stop>
+			<view class="privacy-modal">
+				<view class="privacy-title">隐私协议</view>
+				<view class="privacy-content">
+					使用本小程序前需同意
+					<text class="privacy-link" @tap="openPrivacyContract">《用户隐私保护指引》</text>
+					。同意后才能完成微信登录与手机号绑定。
+				</view>
+				<view class="privacy-actions">
+					<button class="privacy-btn privacy-reject" @tap="rejectPrivacy">拒绝</button>
+					<button class="privacy-btn privacy-agree"
+							open-type="agreePrivacyAuthorization"
+							@agreeprivacyauthorization="onAgreePrivacy">同意并继续</button>
+				</view>
+			</view>
+		</view>
 	</view>
 </template>
 
@@ -80,7 +98,9 @@
 				showPhoneLogin: false,
 				phone: '', smsCode: '', codeCountdown: 0, codeTimer: null,
 				// 微信登录返回 BIND_REQUIRED(4001) 时进入"授权手机号绑定"分支
-				needBindPhone: false
+				needBindPhone: false,
+				// 隐私协议引导弹窗
+				showPrivacyModal: false
 			}
 		},
 		onUnload() { if (this.codeTimer) clearInterval(this.codeTimer) },
@@ -127,7 +147,24 @@
 				if (this.loading) return
 				const phoneCode = e?.detail?.code
 				if (!phoneCode) {
-					uni.showToast({ title: '需授权手机号才能绑定', icon: 'none' })
+					// 拿不到 code 有几种原因，按概率诊断给出具体提示
+					const errMsg = (e?.detail?.errMsg || '').toLowerCase()
+					// #ifdef MP-WEIXIN
+					const needPrivacy = await this.checkPrivacyAuth()
+					if (needPrivacy) {
+						this.showPrivacyModal = true
+						return
+					}
+					// #endif
+					if (errMsg.includes('deny') || errMsg.includes('cancel')) {
+						uni.showToast({ title: '已取消授权', icon: 'none' })
+					} else {
+						uni.showModal({
+							title: '获取手机号失败',
+							content: '请确认小程序后台已：\n1) 通过企业主体认证\n2) 配置并审核通过《用户隐私保护指引》\n3) 已开通"获取手机号"接口\n4) 接口余额充足',
+							showCancel: false
+						})
+					}
 					return
 				}
 				this.loading = true
@@ -151,6 +188,46 @@
 
 			cancelBind() {
 				this.needBindPhone = false
+			},
+
+			// 隐私协议是否需要用户授权（true=需要，调用方应弹引导）
+			checkPrivacyAuth() {
+				// #ifdef MP-WEIXIN
+				return new Promise((resolve) => {
+					if (typeof wx === 'undefined' || !wx.getPrivacySetting) {
+						// 老版本基础库没有该 API，不阻塞流程
+						resolve(false)
+						return
+					}
+					wx.getPrivacySetting({
+						success: (res) => resolve(!!res.needAuthorization),
+						fail: () => resolve(false)
+					})
+				})
+				// #endif
+				// #ifndef MP-WEIXIN
+				return Promise.resolve(false)
+				// #endif
+			},
+
+			onAgreePrivacy() {
+				this.showPrivacyModal = false
+				uni.showToast({ title: '已同意，请再次点击授权手机号', icon: 'none' })
+			},
+
+			rejectPrivacy() {
+				this.showPrivacyModal = false
+				uni.showToast({ title: '未同意隐私协议，无法登录', icon: 'none' })
+			},
+
+			openPrivacyContract() {
+				// #ifdef MP-WEIXIN
+				if (typeof wx !== 'undefined' && wx.openPrivacyContract) {
+					wx.openPrivacyContract({
+						fail: (err) => console.warn('打开隐私协议失败', err)
+					})
+				}
+				// #endif
 			},
 
 			async handleSendCode() {
@@ -271,4 +348,28 @@
 	}
 
 	.placeholder { color: #CCC; }
+
+	.privacy-mask {
+		position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+		display: flex; align-items: center; justify-content: center;
+		z-index: 999;
+	}
+	.privacy-modal {
+		width: 600rpx; background: #FFF; border-radius: 16rpx;
+		padding: 48rpx 36rpx 32rpx;
+	}
+	.privacy-title { font-size: 32rpx; font-weight: 600; color: #333; text-align: center; }
+	.privacy-content {
+		font-size: 26rpx; color: #555; line-height: 1.6;
+		margin: 28rpx 0 36rpx;
+	}
+	.privacy-link { color: #07C160; }
+	.privacy-actions { display: flex; gap: 20rpx; }
+	.privacy-btn {
+		flex: 1; height: 80rpx; line-height: 80rpx; border-radius: 12rpx;
+		font-size: 28rpx; padding: 0;
+	}
+	.privacy-btn::after { border: none; }
+	.privacy-reject { background: #F2F2F2; color: #666; }
+	.privacy-agree { background: #07C160; color: #FFF; }
 </style>
