@@ -5,9 +5,13 @@ import org.apache.ibatis.builder.StaticSqlSource;
 import org.apache.ibatis.mapping.MappedStatement;
 import org.apache.ibatis.mapping.SqlCommandType;
 import org.apache.ibatis.session.Configuration;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.io.Serializable;
 import java.util.List;
@@ -18,6 +22,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 class DataPermissionInterceptorTest {
 
     private final DataPermissionInterceptor interceptor = new DataPermissionInterceptor();
+
+    @AfterEach
+    void clearRequestContext() {
+        RequestContextHolder.resetRequestAttributes();
+    }
+
+    private static void bindRequest(String uri) {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRequestURI(uri);
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+    }
 
     @Test
     @DisplayName("房产业务角色过滤: 驻场 / 联盟商负责人 / 总监")
@@ -176,6 +191,35 @@ class DataPermissionInterceptorTest {
         );
 
         assertThat(filter).isEqualTo("1=0");
+    }
+
+    @Test
+    @DisplayName("isAppEndpoint: 识别 /app/* 与 /api/app/* (ApiPrefixConfig 注入 /api 前缀)")
+    void isAppEndpointDetectsAppUri() {
+        // 无请求上下文 → false（定时任务 / 异步线程 / 测试）
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(interceptor, "isAppEndpoint")).isFalse();
+
+        // 实际线上路径：/api/app/* (ApiPrefixConfig 全局加 /api)
+        bindRequest("/api/app/realty/customer/listPage");
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(interceptor, "isAppEndpoint")).isTrue();
+
+        // 兼容：未加 /api 前缀的 /app/* 也算（防御性，比如未来移除前缀或测试场景）
+        bindRequest("/app/realty/customer/listPage");
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(interceptor, "isAppEndpoint")).isTrue();
+
+        // 管理后台 / 其他接口 → false
+        bindRequest("/api/admin/realty/customer/listPage");
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(interceptor, "isAppEndpoint")).isFalse();
+
+        bindRequest("/api/sys/user/info");
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(interceptor, "isAppEndpoint")).isFalse();
+    }
+
+    @Test
+    @DisplayName("isAppEndpoint: 仅前缀匹配 — 路径里含 /app/ 但开头不一致不算 app 端")
+    void isAppEndpointMatchesOnlyPrefix() {
+        bindRequest("/api/admin/app/diagnostic");
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(interceptor, "isAppEndpoint")).isFalse();
     }
 
     @Test

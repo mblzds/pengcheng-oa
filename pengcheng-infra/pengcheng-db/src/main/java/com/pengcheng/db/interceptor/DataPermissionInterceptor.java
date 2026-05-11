@@ -16,7 +16,11 @@ import org.springframework.context.ApplicationContextAware;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
+import org.springframework.web.context.request.RequestAttributes;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
+import jakarta.servlet.http.HttpServletRequest;
 import java.lang.reflect.Method;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -70,7 +74,9 @@ public class DataPermissionInterceptor implements InnerInterceptor, ApplicationC
         Object roleMapper = applicationContext.getBean("sysRoleMapper");
         Object userMapper = applicationContext.getBean("sysUserMapper");
 
-        if (isAdmin(userId, roleMapper)) {
+        // admin 仅在非 /app/* 接口（管理后台 / 系统接口）享有全量数据 bypass；
+        // 小程序 /app/* 上 admin 视为普通员工，避免工作台"今日报备数"等聚合污染。
+        if (isAdmin(userId, roleMapper) && !isAppEndpoint()) {
             return;
         }
 
@@ -114,6 +120,29 @@ public class DataPermissionInterceptor implements InnerInterceptor, ApplicationC
         } catch (Exception ignored) {
         }
         return null;
+    }
+
+    /**
+     * 当前线程是否处于小程序接口请求（路径段含 /app/）。
+     * <p>
+     * 实际请求 URI 形如 /api/app/realty/customer/listPage —— 全局 /api 前缀由
+     * ApiPrefixConfig 注入。匹配子串 "/app/"，避免硬编码绝对前缀。
+     * 没有 HTTP 上下文（定时任务、异步线程、单测）时返回 false，保留旧行为。
+     */
+    private boolean isAppEndpoint() {
+        try {
+            RequestAttributes attrs = RequestContextHolder.getRequestAttributes();
+            if (!(attrs instanceof ServletRequestAttributes servletAttrs)) {
+                return false;
+            }
+            HttpServletRequest request = servletAttrs.getRequest();
+            String uri = request.getRequestURI();
+            if (uri == null) return false;
+            // ApiPrefixConfig 注入了 /api 前缀，实际请求形如 /api/app/...
+            return uri.startsWith("/api/app/") || uri.startsWith("/app/");
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 
     private boolean isAdmin(Long userId, Object roleMapper) {
