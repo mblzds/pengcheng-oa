@@ -42,7 +42,7 @@ class DataPermissionInterceptorTest {
         DataScope residentScope = scope("", "", "alliance_id", "id");
 
         String residentFilter = ReflectionTestUtils.invokeMethod(
-                interceptor, "buildRealtyDataScopeFilter", 99L, residentScope, residentMapper, userMapper);
+                interceptor, "buildRealtyDataScopeFilter", 99L, residentScope, residentMapper, userMapper, false);
         assertThat(residentFilter)
                 .contains("id IN")
                 .contains("SELECT cp.customer_id FROM customer_project cp")
@@ -50,14 +50,14 @@ class DataPermissionInterceptorTest {
 
         FakeRoleMapper allianceManagerMapper = new FakeRoleMapper(List.of(role("alliance_manager", null)));
         String allianceFilter = ReflectionTestUtils.invokeMethod(
-                interceptor, "buildRealtyDataScopeFilter", 88L, residentScope, allianceManagerMapper, userMapper);
+                interceptor, "buildRealtyDataScopeFilter", 88L, residentScope, allianceManagerMapper, userMapper, false);
         assertThat(allianceFilter)
                 .contains("alliance_id IN")
                 .contains("user_id = 88");
 
         FakeRoleMapper directorMapper = new FakeRoleMapper(List.of(role("resident_director", null)));
         String directorFilter = ReflectionTestUtils.invokeMethod(
-                interceptor, "buildRealtyDataScopeFilter", 66L, residentScope, directorMapper, userMapper);
+                interceptor, "buildRealtyDataScopeFilter", 66L, residentScope, directorMapper, userMapper, false);
         assertThat(directorFilter).isEmpty();
     }
 
@@ -68,7 +68,7 @@ class DataPermissionInterceptorTest {
 
         String filter = ReflectionTestUtils.invokeMethod(
                 interceptor, "buildRealtyDataScopeFilter", 77L,
-                scope("", "", "alliance_id", "id"), roleMapper, new FakeUserMapper(user(1L)));
+                scope("", "", "alliance_id", "id"), roleMapper, new FakeUserMapper(user(1L)), false);
 
         assertThat(filter).isEqualTo("1=0");
     }
@@ -78,7 +78,7 @@ class DataPermissionInterceptorTest {
     void buildRealtyDataScopeFilterFailsClosedOnError() {
         String filter = ReflectionTestUtils.invokeMethod(
                 interceptor, "buildRealtyDataScopeFilter", 55L,
-                scope("", "", "alliance_id", "id"), new ExplodingRoleMapper(), new FakeUserMapper(user(1L)));
+                scope("", "", "alliance_id", "id"), new ExplodingRoleMapper(), new FakeUserMapper(user(1L)), false);
 
         assertThat(filter).isEqualTo("1=0");
     }
@@ -91,7 +91,7 @@ class DataPermissionInterceptorTest {
         DataScope customerScope = scope("", "creator_id", "alliance_id", "id");
 
         String filter = ReflectionTestUtils.invokeMethod(
-                interceptor, "buildRealtyDataScopeFilter", 1001L, customerScope, userMapper, new FakeUserMapper(user(10L)));
+                interceptor, "buildRealtyDataScopeFilter", 1001L, customerScope, userMapper, new FakeUserMapper(user(10L)), false);
 
         // 应有: 仅本人 + 组织驱动子查询。不应有: 通用 data_scope=3 的"本部门所有创建者"扩展
         assertThat(filter)
@@ -100,15 +100,32 @@ class DataPermissionInterceptorTest {
     }
 
     @Test
-    @DisplayName("房产业务数据权限: sys_role.data_scope=1 仍然授予全部权限（admin/总经理用）")
+    @DisplayName("房产业务数据权限: 非 /app/* 上下文中 data_scope=1 授予全部权限（admin/总经理后台视图）")
     void buildRealtyDataScopeFilterAppliesDataScopeOne() {
         FakeRoleMapper gmMapper = new FakeRoleMapper(List.of(role("general_manager", 1)));
         DataScope salesScope = scope("", "creator_id", "alliance_id", "id");
 
         String filter = ReflectionTestUtils.invokeMethod(
-                interceptor, "buildRealtyDataScopeFilter", 3003L, salesScope, gmMapper, new FakeUserMapper(user(30L)));
+                interceptor, "buildRealtyDataScopeFilter", 3003L, salesScope, gmMapper, new FakeUserMapper(user(30L)), false);
 
         assertThat(filter).isEmpty();
+    }
+
+    @Test
+    @DisplayName("房产业务数据权限: /app/* 上下文中 data_scope=1 不再短路，admin 仍按本人 + 组织驱动过滤")
+    void buildRealtyDataScopeFilterDoesNotShortCircuitDataScopeOneOnApp() {
+        // admin 角色，sys_role.data_scope=1，但请求落在小程序 /app/*：
+        // 不能短路，必须按个人视角（本人 + leader 子查询）过滤。
+        FakeRoleMapper adminMapper = new FakeRoleMapper(List.of(role("admin", 1)));
+        DataScope customerScope = scope("", "creator_id", "alliance_id", "id");
+
+        String filter = ReflectionTestUtils.invokeMethod(
+                interceptor, "buildRealtyDataScopeFilter", 18L, customerScope, adminMapper, new FakeUserMapper(user(110L)), true);
+
+        assertThat(filter)
+                .isNotEmpty()
+                .contains("creator_id = 18")
+                .contains("d1.leader_id = 18");
     }
 
     @Test
@@ -119,7 +136,7 @@ class DataPermissionInterceptorTest {
         DataScope customerScope = scope("", "creator_id", "alliance_id", "id");
 
         String filter = ReflectionTestUtils.invokeMethod(
-                interceptor, "buildRealtyDataScopeFilter", 4004L, customerScope, userMapper, new FakeUserMapper(user(40L)));
+                interceptor, "buildRealtyDataScopeFilter", 4004L, customerScope, userMapper, new FakeUserMapper(user(40L)), false);
 
         // 应同时包含: 仅本人条件 + 部门负责人下钻子查询
         assertThat(filter)
@@ -137,7 +154,7 @@ class DataPermissionInterceptorTest {
 
         String filter = ReflectionTestUtils.invokeMethod(
                 interceptor, "buildRealtyDataScopeFilter", 5005L,
-                residentScopeNoUserAlias, residentMapper, new FakeUserMapper(user(50L)));
+                residentScopeNoUserAlias, residentMapper, new FakeUserMapper(user(50L)), false);
 
         assertThat(filter).doesNotContain("d1.leader_id");
     }

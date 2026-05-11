@@ -76,7 +76,8 @@ public class DataPermissionInterceptor implements InnerInterceptor, ApplicationC
 
         // admin 仅在非 /app/* 接口（管理后台 / 系统接口）享有全量数据 bypass；
         // 小程序 /app/* 上 admin 视为普通员工，避免工作台"今日报备数"等聚合污染。
-        if (isAdmin(userId, roleMapper) && !isAppEndpoint()) {
+        boolean isAppEndpoint = isAppEndpoint();
+        if (isAdmin(userId, roleMapper) && !isAppEndpoint) {
             return;
         }
 
@@ -88,7 +89,7 @@ public class DataPermissionInterceptor implements InnerInterceptor, ApplicationC
                 || StringUtils.hasText(dataScope.projectAlias());
 
         if (isRealtyScope) {
-            filterSql = buildRealtyDataScopeFilter(userId, dataScope, roleMapper, userMapper);
+            filterSql = buildRealtyDataScopeFilter(userId, dataScope, roleMapper, userMapper, isAppEndpoint);
         } else {
             filterSql = buildDataScopeFilter(userId, dataScope, roleMapper, userMapper);
         }
@@ -177,7 +178,7 @@ public class DataPermissionInterceptor implements InnerInterceptor, ApplicationC
      * 通过 sys_dept.leader_id 注册组织负责人 或 挂全局角色（director/admin_clerk
      * 或 data_scope=1）。
      */
-    private String buildRealtyDataScopeFilter(Long userId, DataScope dataScope, Object roleMapper, Object userMapper) {
+    private String buildRealtyDataScopeFilter(Long userId, DataScope dataScope, Object roleMapper, Object userMapper, boolean isAppEndpoint) {
         try {
             Method selectRoles = roleMapper.getClass().getMethod("selectRolesByUserId", Long.class);
             List<?> roles = (List<?>) selectRoles.invoke(roleMapper, userId);
@@ -209,7 +210,9 @@ public class DataPermissionInterceptor implements InnerInterceptor, ApplicationC
             }
 
             // sys_role.data_scope = 1 → 全部数据权限
-            if (dataScopes.contains(1)) {
+            // 但在小程序 /app/* 上下文中收紧：data_scope=1 是 admin/总经理"管理员视角"标识，
+            // 小程序展示的是个人/团队视角，不能让 admin 的"今日报备数"混入他人客户。
+            if (dataScopes.contains(1) && !isAppEndpoint) {
                 return "";
             }
 
