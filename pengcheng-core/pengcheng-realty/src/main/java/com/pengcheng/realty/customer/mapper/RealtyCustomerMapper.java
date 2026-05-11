@@ -30,13 +30,13 @@ public interface RealtyCustomerMapper extends BaseMapper<Customer> {
      * 分页查询客户列表（带数据权限过滤）
      */
     @Select("SELECT * FROM customer ${ew.customSqlSegment}")
-    @DataScope(allianceAlias = "alliance_id", projectAlias = "id")
+    @DataScope(allianceAlias = "alliance_id", projectAlias = "id", userAlias = "creator_id")
     IPage<Customer> selectPageWithScope(IPage<Customer> page, @Param(Constants.WRAPPER) Wrapper<Customer> queryWrapper);
 
     /**
      * 查询客户列表（带数据权限过滤）
      */
     @Select("SELECT * FROM customer ${ew.customSqlSegment}")
-    @DataScope(allianceAlias = "alliance_id", projectAlias = "id")
+    @DataScope(allianceAlias = "alliance_id", projectAlias = "id", userAlias = "creator_id")
     List<Customer> selectListWithScope(@Param(Constants.WRAPPER) Wrapper<Customer> queryWrapper);
 }

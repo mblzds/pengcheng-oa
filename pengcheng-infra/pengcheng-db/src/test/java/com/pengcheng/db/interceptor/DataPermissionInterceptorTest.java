@@ -22,11 +22,12 @@ class DataPermissionInterceptorTest {
     @Test
     @DisplayName("房产业务角色过滤: 驻场 / 联盟商负责人 / 总监")
     void buildRealtyDataScopeFilterMatchesRoleRules() {
+        FakeUserMapper userMapper = new FakeUserMapper(user(1L));
         FakeRoleMapper residentMapper = new FakeRoleMapper(List.of(role("resident", null)));
         DataScope residentScope = scope("", "", "alliance_id", "id");
 
         String residentFilter = ReflectionTestUtils.invokeMethod(
-                interceptor, "buildRealtyDataScopeFilter", 99L, residentScope, residentMapper);
+                interceptor, "buildRealtyDataScopeFilter", 99L, residentScope, residentMapper, userMapper);
         assertThat(residentFilter)
                 .contains("id IN")
                 .contains("SELECT cp.customer_id FROM customer_project cp")
@@ -34,14 +35,14 @@ class DataPermissionInterceptorTest {
 
         FakeRoleMapper allianceManagerMapper = new FakeRoleMapper(List.of(role("alliance_manager", null)));
         String allianceFilter = ReflectionTestUtils.invokeMethod(
-                interceptor, "buildRealtyDataScopeFilter", 88L, residentScope, allianceManagerMapper);
+                interceptor, "buildRealtyDataScopeFilter", 88L, residentScope, allianceManagerMapper, userMapper);
         assertThat(allianceFilter)
                 .contains("alliance_id IN")
                 .contains("user_id = 88");
 
         FakeRoleMapper directorMapper = new FakeRoleMapper(List.of(role("resident_director", null)));
         String directorFilter = ReflectionTestUtils.invokeMethod(
-                interceptor, "buildRealtyDataScopeFilter", 66L, residentScope, directorMapper);
+                interceptor, "buildRealtyDataScopeFilter", 66L, residentScope, directorMapper, userMapper);
         assertThat(directorFilter).isEmpty();
     }
 
@@ -51,7 +52,8 @@ class DataPermissionInterceptorTest {
         FakeRoleMapper roleMapper = new FakeRoleMapper(List.of(role("guest", null)));
 
         String filter = ReflectionTestUtils.invokeMethod(
-                interceptor, "buildRealtyDataScopeFilter", 77L, scope("", "", "alliance_id", "id"), roleMapper);
+                interceptor, "buildRealtyDataScopeFilter", 77L,
+                scope("", "", "alliance_id", "id"), roleMapper, new FakeUserMapper(user(1L)));
 
         assertThat(filter).isEqualTo("1=0");
     }
@@ -60,9 +62,79 @@ class DataPermissionInterceptorTest {
     @DisplayName("房产业务角色过滤: 异常路径 fail closed")
     void buildRealtyDataScopeFilterFailsClosedOnError() {
         String filter = ReflectionTestUtils.invokeMethod(
-                interceptor, "buildRealtyDataScopeFilter", 55L, scope("", "", "alliance_id", "id"), new ExplodingRoleMapper());
+                interceptor, "buildRealtyDataScopeFilter", 55L,
+                scope("", "", "alliance_id", "id"), new ExplodingRoleMapper(), new FakeUserMapper(user(1L)));
 
         assertThat(filter).isEqualTo("1=0");
+    }
+
+    @Test
+    @DisplayName("房产业务数据权限: sys_role.data_scope=5 仅本人（叠加 userAlias）")
+    void buildRealtyDataScopeFilterAppliesDataScopeFive() {
+        FakeRoleMapper saleMapper = new FakeRoleMapper(List.of(role("sales", 5)));
+        DataScope salesScope = scope("", "creator_id", "alliance_id", "id");
+
+        String filter = ReflectionTestUtils.invokeMethod(
+                interceptor, "buildRealtyDataScopeFilter", 1001L, salesScope, saleMapper, new FakeUserMapper(user(10L)));
+
+        assertThat(filter).contains("creator_id = 1001");
+    }
+
+    @Test
+    @DisplayName("房产业务数据权限: sys_role.data_scope=4 本部门及以下")
+    void buildRealtyDataScopeFilterAppliesDataScopeFour() {
+        FakeRoleMapper managerMapper = new FakeRoleMapper(List.of(role("sales_manager", 4)));
+        DataScope salesScope = scope("", "creator_id", "alliance_id", "id");
+
+        String filter = ReflectionTestUtils.invokeMethod(
+                interceptor, "buildRealtyDataScopeFilter", 2002L, salesScope, managerMapper, new FakeUserMapper(user(20L)));
+
+        assertThat(filter)
+                .contains("creator_id IN (SELECT id FROM sys_user")
+                .contains("FIND_IN_SET(20, ancestors)");
+    }
+
+    @Test
+    @DisplayName("房产业务数据权限: sys_role.data_scope=1 全部不加过滤")
+    void buildRealtyDataScopeFilterAppliesDataScopeOne() {
+        FakeRoleMapper gmMapper = new FakeRoleMapper(List.of(role("general_manager", 1)));
+        DataScope salesScope = scope("", "creator_id", "alliance_id", "id");
+
+        String filter = ReflectionTestUtils.invokeMethod(
+                interceptor, "buildRealtyDataScopeFilter", 3003L, salesScope, gmMapper, new FakeUserMapper(user(30L)));
+
+        assertThat(filter).isEmpty();
+    }
+
+    @Test
+    @DisplayName("房产业务数据权限: 组织驱动 —— 部门负责人(leader_id)自动看本部门及以下")
+    void buildRealtyDataScopeFilterAppliesOrganizationDrivenLeader() {
+        // 仅挂基础销售员角色（仅本人），靠 sys_dept.leader_id 自动放宽
+        FakeRoleMapper saleMapper = new FakeRoleMapper(List.of(role("sales", 5)));
+        DataScope salesScope = scope("", "creator_id", "alliance_id", "id");
+
+        String filter = ReflectionTestUtils.invokeMethod(
+                interceptor, "buildRealtyDataScopeFilter", 4004L, salesScope, saleMapper, new FakeUserMapper(user(40L)));
+
+        // 应同时包含: 仅本人条件 + 部门负责人下钻子查询
+        assertThat(filter)
+                .contains("creator_id = 4004")
+                .contains("WHERE d1.leader_id = 4004")
+                .contains("FIND_IN_SET(d1.id, d2.ancestors)");
+    }
+
+    @Test
+    @DisplayName("房产业务数据权限: 仅 userAlias 缺失时不叠加组织驱动子查询")
+    void buildRealtyDataScopeFilterSkipsOrgDrivenWhenUserAliasMissing() {
+        // userAlias 为空 — 即使是部门负责人也无法叠加（依赖归属销售字段）
+        FakeRoleMapper residentMapper = new FakeRoleMapper(List.of(role("resident", null)));
+        DataScope residentScopeNoUserAlias = scope("", "", "alliance_id", "id");
+
+        String filter = ReflectionTestUtils.invokeMethod(
+                interceptor, "buildRealtyDataScopeFilter", 5005L,
+                residentScopeNoUserAlias, residentMapper, new FakeUserMapper(user(50L)));
+
+        assertThat(filter).doesNotContain("d1.leader_id");
     }
 
     @Test

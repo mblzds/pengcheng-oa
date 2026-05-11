@@ -82,7 +82,7 @@ public class DataPermissionInterceptor implements InnerInterceptor, ApplicationC
                 || StringUtils.hasText(dataScope.projectAlias());
 
         if (isRealtyScope) {
-            filterSql = buildRealtyDataScopeFilter(userId, dataScope, roleMapper);
+            filterSql = buildRealtyDataScopeFilter(userId, dataScope, roleMapper, userMapper);
         } else {
             filterSql = buildDataScopeFilter(userId, dataScope, roleMapper, userMapper);
         }
@@ -132,15 +132,21 @@ public class DataPermissionInterceptor implements InnerInterceptor, ApplicationC
     /**
      * 构建房产业务数据权限过滤条件。
      * <p>
-     * 角色-数据范围映射：
+     * 角色-数据范围映射（取所有规则的 OR，命中任一即可见）：
      * <ul>
-     *   <li>驻场 → 仅负责项目的客户（通过 customer_project + project 关联 creator_id）</li>
+     *   <li>驻场 → 仅负责项目的客户（通过 customer_project + project 关联 contact_person）</li>
      *   <li>渠道 → 仅对接联盟商的客户（通过 alliance.channel_user_id）</li>
      *   <li>驻场总监/渠道总监/行政总监/行政文员 → 全部（不加过滤）</li>
      *   <li>联盟商负责人 → 仅本联盟商数据（通过 alliance.user_id）</li>
+     *   <li>sys_role.data_scope = 1 → 全部</li>
+     *   <li>sys_role.data_scope = 2 → 自定义部门（sys_role_dept）下用户报备的</li>
+     *   <li>sys_role.data_scope = 3 → 本部门用户报备的（按 userAlias）</li>
+     *   <li>sys_role.data_scope = 4 → 本部门及以下用户报备的（FIND_IN_SET 祖级路径）</li>
+     *   <li>sys_role.data_scope = 5 → 仅本人报备的（按 userAlias）</li>
+     *   <li>组织驱动：当前用户是任意 sys_dept.leader_id → 自动看本部门及以下成员报备的</li>
      * </ul>
      */
-    private String buildRealtyDataScopeFilter(Long userId, DataScope dataScope, Object roleMapper) {
+    private String buildRealtyDataScopeFilter(Long userId, DataScope dataScope, Object roleMapper, Object userMapper) {
         try {
             Method selectRoles = roleMapper.getClass().getMethod("selectRolesByUserId", Long.class);
             List<?> roles = (List<?>) selectRoles.invoke(roleMapper, userId);
@@ -149,11 +155,24 @@ public class DataPermissionInterceptor implements InnerInterceptor, ApplicationC
             }
 
             List<String> roleCodes = new ArrayList<>();
+            List<Integer> dataScopes = new ArrayList<>();
+            List<Long> customDeptRoleIds = new ArrayList<>();
             for (Object role : roles) {
                 Method getCode = role.getClass().getMethod("getCode");
                 String code = (String) getCode.invoke(role);
                 if (code != null) {
                     roleCodes.add(code);
+                }
+
+                Integer scope = (Integer) role.getClass().getMethod("getDataScope").invoke(role);
+                if (scope != null) {
+                    dataScopes.add(scope);
+                    if (scope == 2) {
+                        Long roleId = (Long) role.getClass().getMethod("getId").invoke(role);
+                        if (roleId != null) {
+                            customDeptRoleIds.add(roleId);
+                        }
+                    }
                 }
             }
 
@@ -162,6 +181,11 @@ public class DataPermissionInterceptor implements InnerInterceptor, ApplicationC
                     || roleCodes.contains(ROLE_CHANNEL_DIRECTOR)
                     || roleCodes.contains(ROLE_ADMIN_DIRECTOR)
                     || roleCodes.contains(ROLE_ADMIN_CLERK)) {
+                return "";
+            }
+
+            // sys_role.data_scope = 1 → 全部数据权限
+            if (dataScopes.contains(1)) {
                 return "";
             }
 
@@ -195,6 +219,50 @@ public class DataPermissionInterceptor implements InnerInterceptor, ApplicationC
                         + "SELECT id FROM alliance WHERE user_id = " + userId
                         + " AND deleted = 0"
                         + ")");
+            }
+
+            // 通用 data_scope 规则：依赖 userAlias 指向"归属销售/创建人"字段（如 creator_id）
+            String userAlias = dataScope.userAlias();
+            if (StringUtils.hasText(userAlias)) {
+                Long userDeptId = null;
+                if ((dataScopes.contains(3) || dataScopes.contains(4)) && userMapper != null) {
+                    Method selectUser = userMapper.getClass().getMethod("selectById", java.io.Serializable.class);
+                    Object user = selectUser.invoke(userMapper, userId);
+                    if (user != null) {
+                        userDeptId = (Long) user.getClass().getMethod("getDeptId").invoke(user);
+                    }
+                }
+
+                // scope = 5 仅本人
+                if (dataScopes.contains(5)) {
+                    conditions.add(userAlias + " = " + userId);
+                }
+                // scope = 3 本部门
+                if (dataScopes.contains(3) && userDeptId != null) {
+                    conditions.add(userAlias + " IN (SELECT id FROM sys_user WHERE dept_id = " + userDeptId + " AND deleted = 0)");
+                }
+                // scope = 4 本部门及以下
+                if (dataScopes.contains(4) && userDeptId != null) {
+                    conditions.add(userAlias + " IN (SELECT id FROM sys_user WHERE dept_id IN ("
+                            + "SELECT id FROM sys_dept WHERE id = " + userDeptId
+                            + " OR FIND_IN_SET(" + userDeptId + ", ancestors)) AND deleted = 0)");
+                }
+                // scope = 2 自定义部门
+                for (Long roleId : customDeptRoleIds) {
+                    conditions.add(userAlias + " IN (SELECT id FROM sys_user WHERE dept_id IN ("
+                            + "SELECT dept_id FROM sys_role_dept WHERE role_id = " + roleId
+                            + ") AND deleted = 0)");
+                }
+
+                // 组织驱动：当前用户是任意部门的 leader_id 时，自动叠加"本部门及以下"
+                // 用 sys_dept.ancestors 路径递归下钻；若用户不带任何部门，子查询返回空集合，不影响其他条件
+                conditions.add(userAlias + " IN ("
+                        + "SELECT u.id FROM sys_user u "
+                        + "WHERE u.deleted = 0 AND u.dept_id IN ("
+                        + "  SELECT d2.id FROM sys_dept d2 "
+                        + "  INNER JOIN sys_dept d1 ON (d2.id = d1.id OR FIND_IN_SET(d1.id, d2.ancestors)) "
+                        + "  WHERE d1.leader_id = " + userId + " AND d1.deleted = 0 AND d2.deleted = 0"
+                        + "))");
             }
 
             if (conditions.isEmpty()) {

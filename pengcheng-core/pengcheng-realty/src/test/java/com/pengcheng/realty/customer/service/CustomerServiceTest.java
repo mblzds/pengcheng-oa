@@ -174,6 +174,7 @@ class CustomerServiceTest {
                 .reportNo("BP202604220001")
                 .customerName("王")
                 .phone("13800000000")
+                .phoneMasked("138****0000")
                 .agentPhone("13900000000")
                 .status(1)
                 .poolType(2)

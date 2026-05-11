@@ -1,5 +1,6 @@
 package com.pengcheng.realty.customer.service;
 
+import cn.dev33.satoken.stp.StpUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -115,6 +116,7 @@ public class CustomerService {
                 .poolType(2) // 私海
                 .protectionExpireTime(now.plusDays(DEFAULT_PROTECTION_DAYS))
                 .lastFollowTime(now)
+                .creatorId(resolveCurrentUserId())
                 .build();
         customerMapper.insert(customer);
 
@@ -137,6 +139,23 @@ public class CustomerService {
                 .analysisMessage(aiResult != null ? aiResult.analysisMessage() : null)
                 .existingCustomers(aiResult != null ? aiResult.existingCustomers() : Collections.emptyList())
                 .build();
+    }
+
+    /**
+     * 安全获取当前登录用户 ID。
+     * <p>
+     * 单元测试或后台任务等无 Sa-Token 上下文场景下 StpUtil 会抛 InvalidContextException，
+     * 此时返回 null，跳过 creatorId 填充。
+     */
+    private Long resolveCurrentUserId() {
+        try {
+            if (StpUtil.isLogin()) {
+                return StpUtil.getLoginIdAsLong();
+            }
+        } catch (Exception ignored) {
+            // no Sa-Token context (unit test / async job) — caller will get null
+        }
+        return null;
     }
 
     /**
