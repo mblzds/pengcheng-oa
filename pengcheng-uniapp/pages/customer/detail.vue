@@ -25,16 +25,24 @@
 					<text class="info-value">{{ report.agentPhone || '--' }}</text>
 				</view>
 				<view class="info-row">
+					<text class="info-label">带看人数</text>
+					<text class="info-value">{{ report.visitCount ? report.visitCount + ' 人' : '--' }}</text>
+				</view>
+				<view class="info-row">
+					<text class="info-label">约定带看时间</text>
+					<text class="info-value">{{ formatTime(report.visitTime) }}</text>
+				</view>
+				<view class="info-row">
 					<text class="info-label">报备编号</text>
 					<text class="info-value">{{ report.reportNo || '--' }}</text>
 				</view>
 				<view class="info-row">
 					<text class="info-label">报备时间</text>
-					<text class="info-value">{{ report.createTime || '--' }}</text>
+					<text class="info-value">{{ formatTime(report.createTime) }}</text>
 				</view>
 				<view class="info-row">
 					<text class="info-label">当前状态</text>
-					<view class="status-tag" :class="'status-' + report.status">
+					<view class="status-tag" :class="'status-' + getStatusKey(report.status)">
 						<text>{{ getStatusText(report.status) }}</text>
 					</view>
 				</view>
@@ -49,8 +57,9 @@
 				<view class="visit-item" v-for="(v, i) in detail.visits || []" :key="i">
 					<view class="timeline-dot"></view>
 					<view class="visit-info">
-						<text class="visit-time">{{ v.actualVisitTime }}</text>
+						<text class="visit-time">{{ formatTime(v.actualVisitTime) }}</text>
 						<text class="visit-desc">到访人数：{{ v.actualVisitCount }}人 | 接待：{{ v.receptionist || '--' }}</text>
+						<text class="visit-remark" v-if="v.remark">备注：{{ v.remark }}</text>
 					</view>
 				</view>
 				<view class="empty-tip" v-if="!detail.visits || detail.visits.length === 0">
@@ -75,7 +84,15 @@
 					</view>
 					<view class="info-row">
 						<text class="info-label">成交时间</text>
-						<text class="info-value">{{ detail.deal.dealTime || '--' }}</text>
+						<text class="info-value">{{ formatTime(detail.deal.dealTime) }}</text>
+					</view>
+					<view class="info-row">
+						<text class="info-label">签约状态</text>
+						<text class="info-value">{{ getSignStatusLabel(detail.deal.signStatus) }}</text>
+					</view>
+					<view class="info-row">
+						<text class="info-label">认购类型</text>
+						<text class="info-value">{{ getSubscribeTypeLabel(detail.deal.subscribeType) }}</text>
 					</view>
 				</view>
 				<view class="empty-tip" v-else>
@@ -88,11 +105,11 @@
 				<view class="card-title">跟进历史</view>
 				<view class="timeline">
 					<view class="timeline-item" v-for="(t, i) in detail.timeline" :key="i">
-						<view class="tl-dot" :class="{ active: i === 0 }"></view>
+						<view class="tl-dot" :class="['type-' + (t.eventType || 'follow'), { active: i === 0 }]"></view>
 						<view class="tl-line" v-if="i < detail.timeline.length - 1"></view>
 						<view class="tl-content">
 							<text class="tl-title">{{ t.description }}</text>
-							<text class="tl-time">{{ t.eventTime }}</text>
+							<text class="tl-time">{{ formatTime(t.eventTime) }}</text>
 						</view>
 					</view>
 				</view>
@@ -236,6 +253,24 @@
 				const map = { 1: '已报备', 2: '已到访', 3: '已成交' }
 				return map[status] || status || '--'
 			},
+			getStatusKey(status) {
+				// 与 SCSS .status-reported / .status-visited / .status-dealt / .status-expired 对齐
+				return { 1: 'reported', 2: 'visited', 3: 'dealt' }[status] || 'expired'
+			},
+			formatTime(value) {
+				if (!value) return '--'
+				return String(value).replace('T', ' ').slice(0, 16)
+			},
+			getSignStatusLabel(value) {
+				if (value == null) return '--'
+				const item = this.signStatusList.find(s => s.value === value)
+				return item ? item.label : String(value)
+			},
+			getSubscribeTypeLabel(value) {
+				if (value == null) return '--'
+				const item = this.subscribeTypes.find(s => s.value === value)
+				return item ? item.label : String(value)
+			},
 			async loadDetail() {
 				try {
 					const res = await getCustomerDetail(this.customerId)
@@ -349,6 +384,7 @@
 	.visit-info { flex: 1; }
 	.visit-time { font-size: 26rpx; color: #333; display: block; }
 	.visit-desc { font-size: 22rpx; color: #999; margin-top: 4rpx; display: block; }
+	.visit-remark { font-size: 22rpx; color: #595959; margin-top: 4rpx; display: block; }
 	.empty-tip { padding: 24rpx 0; text-align: center; text { font-size: 24rpx; color: #CCC; } }
 
 	/* 时间线 */
@@ -357,7 +393,11 @@
 	.tl-dot {
 		width: 16rpx; height: 16rpx; border-radius: 50%; background: #DDD;
 		margin-right: 20rpx; margin-top: 6rpx; flex-shrink: 0; z-index: 1;
-		&.active { background: #07C160; }
+		&.type-report { background: #1890FF; }
+		&.type-visit  { background: #52C41A; }
+		&.type-deal   { background: #FA8C16; }
+		&.type-follow { background: #722ED1; }
+		&.active { transform: scale(1.3); box-shadow: 0 0 0 4rpx rgba(7,193,96,0.15); }
 	}
 	.tl-line {
 		position: absolute; left: 7rpx; top: 22rpx; bottom: 0; width: 2rpx; background: #E8E8E8;
