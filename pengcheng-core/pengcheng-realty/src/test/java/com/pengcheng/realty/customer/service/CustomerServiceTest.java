@@ -132,6 +132,17 @@ class CustomerServiceTest {
     }
 
     @Test
+    @DisplayName("createCustomer 手机号格式不正确时拒绝创建")
+    void createCustomerRejectsInvalidPhoneFormat() {
+        CustomerCreateDTO dto = validCreateDto();
+        dto.setPhone("12345");
+
+        assertThatThrownBy(() -> service.createCustomer(dto))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("手机号格式不正确");
+    }
+
+    @Test
     @DisplayName("createCustomer 保护期内同手机号报备时拒绝创建（跨项目也算冲突）")
     void createCustomerRejectsProtectedDuplicate() {
         CustomerCreateDTO dto = validCreateDto();
@@ -139,12 +150,11 @@ class CustomerServiceTest {
         alliance.setStatus(1);
 
         when(allianceMapper.selectById(dto.getAllianceId())).thenReturn(alliance);
-        // 模拟保护期内存在该手机号客户（按手机号判定即冲突，无需关联项目）
         when(customerMapper.exists(any())).thenReturn(true);
 
         assertThatThrownBy(() -> service.createCustomer(dto))
                 .isInstanceOf(CustomerDuplicateException.class)
-                .hasMessageContaining("保护期");
+                .hasMessageContaining("该手机号已存在");
     }
 
     @Test

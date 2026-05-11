@@ -64,6 +64,10 @@ public class CustomerService {
     private static final DateTimeFormatter REPORT_NO_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
     private static final AtomicLong REPORT_NO_SEQUENCE = new AtomicLong();
 
+    /** 中国大陆手机号正则（11 位、1 开头、第二位 3-9） */
+    private static final java.util.regex.Pattern CHINA_MOBILE_PATTERN =
+            java.util.regex.Pattern.compile("^1[3-9]\\d{9}$");
+
     /**
      * 手机号加密器：LambdaQueryWrapper.eq() 不会触发 @TableField TypeHandler，
      * 所以在 isInProtectionPeriod 比对 phone 列前要手动加密明文 → 密文，否则
@@ -99,7 +103,7 @@ public class CustomerService {
 
         // 保护期内去重检查（同一手机号即视为同一客户，跨项目也不允许重复报备）
         if (isInProtectionPeriod(dto.getPhone())) {
-            throw new CustomerDuplicateException("该客户已被报备且处于保护期内，请联系归属销售协调");
+            throw new CustomerDuplicateException("该手机号已存在，请勿重复报备");
         }
 
         // AI 智能判客：比对公海池和私海池中已有客户
@@ -278,6 +282,9 @@ public class CustomerService {
         }
         if (!StringUtils.hasText(dto.getPhone())) {
             throw new IllegalArgumentException("联系方式不能为空");
+        }
+        if (!CHINA_MOBILE_PATTERN.matcher(dto.getPhone()).matches()) {
+            throw new IllegalArgumentException("手机号格式不正确");
         }
         if (dto.getVisitCount() == null) {
             throw new IllegalArgumentException("带看人数不能为空");

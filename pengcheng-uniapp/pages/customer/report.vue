@@ -155,6 +155,7 @@
 				if (!this.form.projectIds.length) return uni.showToast({ title: '请选择带看项目', icon: 'none' })
 				if (!this.form.customerName.trim()) return uni.showToast({ title: '请输入客户姓氏', icon: 'none' })
 				if (!this.form.phone.trim()) return uni.showToast({ title: '请输入联系方式', icon: 'none' })
+				if (!/^1[3-9]\d{9}$/.test(this.form.phone.trim())) return uni.showToast({ title: '手机号格式不正确', icon: 'none' })
 				if (!this.form.visitTime) return uni.showToast({ title: '请选择带看时间', icon: 'none' })
 				if (!this.form.allianceId) return uni.showToast({ title: '请选择带看公司', icon: 'none' })
 				if (!this.form.agentName.trim()) return uni.showToast({ title: '请输入经纪人姓名', icon: 'none' })
