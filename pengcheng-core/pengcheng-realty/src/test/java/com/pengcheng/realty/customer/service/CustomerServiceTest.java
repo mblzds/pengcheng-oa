@@ -132,21 +132,15 @@ class CustomerServiceTest {
     }
 
     @Test
-    @DisplayName("createCustomer 保护期内重复报备时拒绝创建")
+    @DisplayName("createCustomer 保护期内同手机号报备时拒绝创建（跨项目也算冲突）")
     void createCustomerRejectsProtectedDuplicate() {
         CustomerCreateDTO dto = validCreateDto();
         Alliance alliance = new Alliance();
         alliance.setStatus(1);
 
-        Customer protectedCustomer = Customer.builder()
-                .phone(dto.getPhone())
-                .protectionExpireTime(LocalDateTime.now().plusDays(1))
-                .build();
-        protectedCustomer.setId(11L);
-
         when(allianceMapper.selectById(dto.getAllianceId())).thenReturn(alliance);
-        when(customerMapper.selectList(any())).thenReturn(List.of(protectedCustomer));
-        when(customerProjectMapper.selectCount(any())).thenReturn(1L);
+        // 模拟保护期内存在该手机号客户（按手机号判定即冲突，无需关联项目）
+        when(customerMapper.exists(any())).thenReturn(true);
 
         assertThatThrownBy(() -> service.createCustomer(dto))
                 .isInstanceOf(CustomerDuplicateException.class)
@@ -154,17 +148,11 @@ class CustomerServiceTest {
     }
 
     @Test
-    @DisplayName("isInProtectionPeriod 在同项目存在有效客户时返回 true")
-    void isInProtectionPeriodReturnsTrueWhenSameProjectExists() {
-        Customer existing = Customer.builder()
-                .phone("13800000000")
-                .protectionExpireTime(LocalDateTime.now().plusHours(2))
-                .build();
-        existing.setId(7L);
-        when(customerMapper.selectList(any())).thenReturn(List.of(existing));
-        when(customerProjectMapper.selectCount(any())).thenReturn(1L);
+    @DisplayName("isInProtectionPeriod 在保护期内存在该手机号客户时返回 true")
+    void isInProtectionPeriodReturnsTrueWhenPhoneExists() {
+        when(customerMapper.exists(any())).thenReturn(true);
 
-        assertThat(service.isInProtectionPeriod("13800000000", 200L)).isTrue();
+        assertThat(service.isInProtectionPeriod("13800000000")).isTrue();
     }
 
     @Test

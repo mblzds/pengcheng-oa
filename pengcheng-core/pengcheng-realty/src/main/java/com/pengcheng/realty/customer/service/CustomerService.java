@@ -10,6 +10,7 @@ import com.pengcheng.realty.alliance.entity.Alliance;
 import com.pengcheng.realty.alliance.mapper.AllianceMapper;
 import com.pengcheng.realty.common.exception.AllianceDisabledException;
 import com.pengcheng.realty.common.exception.CustomerDuplicateException;
+import com.pengcheng.realty.common.handler.PhoneEncryptTypeHandler;
 import com.pengcheng.realty.common.util.PhoneMaskUtil;
 import com.pengcheng.realty.customer.dto.CustomerCreateDTO;
 import com.pengcheng.realty.customer.dto.CustomerCreateResultVO;
@@ -64,6 +65,14 @@ public class CustomerService {
     private static final AtomicLong REPORT_NO_SEQUENCE = new AtomicLong();
 
     /**
+     * 手机号加密器：LambdaQueryWrapper.eq() 不会触发 @TableField TypeHandler，
+     * 所以在 isInProtectionPeriod 比对 phone 列前要手动加密明文 → 密文，否则
+     * 永远拿明文跟 DB 中密文比对，导致保护期判重失效（撞单 bug）。
+     * AES-ECB 模式同明文恒等于同密文，可直接用于等值匹配。
+     */
+    private static final PhoneEncryptTypeHandler PHONE_ENCRYPTER = new PhoneEncryptTypeHandler();
+
+    /**
      * 创建客户报备（集成 AI 智能判客）
      * <p>
      * 报备流程：
@@ -88,11 +97,9 @@ public class CustomerService {
             throw new AllianceDisabledException("该联盟商已停用，无法选择");
         }
 
-        // 保护期内去重检查（同一手机号+同一项目）
-        for (Long projectId : dto.getProjectIds()) {
-            if (isInProtectionPeriod(dto.getPhone(), projectId)) {
-                throw new CustomerDuplicateException("该客户在项目中已存在有效保护期内的报备记录");
-            }
+        // 保护期内去重检查（同一手机号即视为同一客户，跨项目也不允许重复报备）
+        if (isInProtectionPeriod(dto.getPhone())) {
+            throw new CustomerDuplicateException("该客户已被报备且处于保护期内，请联系归属销售协调");
         }
 
         // AI 智能判客：比对公海池和私海池中已有客户
@@ -217,29 +224,20 @@ public class CustomerService {
     }
 
     /**
-     * 检查客户是否在保护期内（同项目+同手机号）
+     * 检查客户是否在保护期内（按手机号判定，跨项目同样视为冲突）
+     * <p>
+     * 业务规则：同一手机号即视为同一客户。只要 DB 中存在该手机号且
+     * protection_expire_time > now 的活跃客户，就视为保护期内、不允许新报备。
+     * 保护期到期后客户自动转公海，下一个销售可重新报备。
      */
-    public boolean isInProtectionPeriod(String phone, Long projectId) {
-        // 查找该手机号的所有客户
+    public boolean isInProtectionPeriod(String phone) {
+        // ⚠️ 必须用加密后的密文跟 DB 中加密的 phone 列比对，否则永远查不到（撞单 bug 根因）
+        String encryptedPhone = PHONE_ENCRYPTER.encrypt(phone);
+
         LambdaQueryWrapper<Customer> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(Customer::getPhone, phone)
+        wrapper.eq(Customer::getPhone, encryptedPhone)
                 .gt(Customer::getProtectionExpireTime, LocalDateTime.now());
-        List<Customer> customers = customerMapper.selectList(wrapper);
-
-        if (customers.isEmpty()) {
-            return false;
-        }
-
-        // 检查是否有关联到同一项目的
-        for (Customer c : customers) {
-            LambdaQueryWrapper<CustomerProject> cpWrapper = new LambdaQueryWrapper<>();
-            cpWrapper.eq(CustomerProject::getCustomerId, c.getId())
-                    .eq(CustomerProject::getProjectId, projectId);
-            if (customerProjectMapper.selectCount(cpWrapper) > 0) {
-                return true;
-            }
-        }
-        return false;
+        return customerMapper.exists(wrapper);
     }
 
     /**

@@ -69,33 +69,23 @@ class DataPermissionInterceptorTest {
     }
 
     @Test
-    @DisplayName("房产业务数据权限: sys_role.data_scope=5 仅本人（叠加 userAlias）")
-    void buildRealtyDataScopeFilterAppliesDataScopeFive() {
-        FakeRoleMapper saleMapper = new FakeRoleMapper(List.of(role("sales", 5)));
-        DataScope salesScope = scope("", "creator_id", "alliance_id", "id");
+    @DisplayName("房产业务数据权限: 普通员工默认仅看本人创建的（不受 data_scope=3/4 影响）")
+    void buildRealtyDataScopeFilterDefaultsToOwnerOnly() {
+        // 普通员工 user 角色, data_scope=3 本部门 —— 在房产分支不生效
+        FakeRoleMapper userMapper = new FakeRoleMapper(List.of(role("user", 3)));
+        DataScope customerScope = scope("", "creator_id", "alliance_id", "id");
 
         String filter = ReflectionTestUtils.invokeMethod(
-                interceptor, "buildRealtyDataScopeFilter", 1001L, salesScope, saleMapper, new FakeUserMapper(user(10L)));
+                interceptor, "buildRealtyDataScopeFilter", 1001L, customerScope, userMapper, new FakeUserMapper(user(10L)));
 
-        assertThat(filter).contains("creator_id = 1001");
-    }
-
-    @Test
-    @DisplayName("房产业务数据权限: sys_role.data_scope=4 本部门及以下")
-    void buildRealtyDataScopeFilterAppliesDataScopeFour() {
-        FakeRoleMapper managerMapper = new FakeRoleMapper(List.of(role("sales_manager", 4)));
-        DataScope salesScope = scope("", "creator_id", "alliance_id", "id");
-
-        String filter = ReflectionTestUtils.invokeMethod(
-                interceptor, "buildRealtyDataScopeFilter", 2002L, salesScope, managerMapper, new FakeUserMapper(user(20L)));
-
+        // 应有: 仅本人 + 组织驱动子查询。不应有: 通用 data_scope=3 的"本部门所有创建者"扩展
         assertThat(filter)
-                .contains("creator_id IN (SELECT id FROM sys_user")
-                .contains("FIND_IN_SET(20, ancestors)");
+                .contains("creator_id = 1001")
+                .doesNotContain("SELECT id FROM sys_user WHERE dept_id = 10");
     }
 
     @Test
-    @DisplayName("房产业务数据权限: sys_role.data_scope=1 全部不加过滤")
+    @DisplayName("房产业务数据权限: sys_role.data_scope=1 仍然授予全部权限（admin/总经理用）")
     void buildRealtyDataScopeFilterAppliesDataScopeOne() {
         FakeRoleMapper gmMapper = new FakeRoleMapper(List.of(role("general_manager", 1)));
         DataScope salesScope = scope("", "creator_id", "alliance_id", "id");
@@ -109,12 +99,12 @@ class DataPermissionInterceptorTest {
     @Test
     @DisplayName("房产业务数据权限: 组织驱动 —— 部门负责人(leader_id)自动看本部门及以下")
     void buildRealtyDataScopeFilterAppliesOrganizationDrivenLeader() {
-        // 仅挂基础销售员角色（仅本人），靠 sys_dept.leader_id 自动放宽
-        FakeRoleMapper saleMapper = new FakeRoleMapper(List.of(role("sales", 5)));
-        DataScope salesScope = scope("", "creator_id", "alliance_id", "id");
+        // 普通员工角色，靠 sys_dept.leader_id 自动放宽到本部门及以下
+        FakeRoleMapper userMapper = new FakeRoleMapper(List.of(role("user", 3)));
+        DataScope customerScope = scope("", "creator_id", "alliance_id", "id");
 
         String filter = ReflectionTestUtils.invokeMethod(
-                interceptor, "buildRealtyDataScopeFilter", 4004L, salesScope, saleMapper, new FakeUserMapper(user(40L)));
+                interceptor, "buildRealtyDataScopeFilter", 4004L, customerScope, userMapper, new FakeUserMapper(user(40L)));
 
         // 应同时包含: 仅本人条件 + 部门负责人下钻子查询
         assertThat(filter)

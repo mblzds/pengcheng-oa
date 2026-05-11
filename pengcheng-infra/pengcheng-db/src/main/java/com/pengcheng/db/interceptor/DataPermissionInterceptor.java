@@ -139,12 +139,14 @@ public class DataPermissionInterceptor implements InnerInterceptor, ApplicationC
      *   <li>驻场总监/渠道总监/行政总监/行政文员 → 全部（不加过滤）</li>
      *   <li>联盟商负责人 → 仅本联盟商数据（通过 alliance.user_id）</li>
      *   <li>sys_role.data_scope = 1 → 全部</li>
-     *   <li>sys_role.data_scope = 2 → 自定义部门（sys_role_dept）下用户报备的</li>
-     *   <li>sys_role.data_scope = 3 → 本部门用户报备的（按 userAlias）</li>
-     *   <li>sys_role.data_scope = 4 → 本部门及以下用户报备的（FIND_IN_SET 祖级路径）</li>
-     *   <li>sys_role.data_scope = 5 → 仅本人报备的（按 userAlias）</li>
-     *   <li>组织驱动：当前用户是任意 sys_dept.leader_id → 自动看本部门及以下成员报备的</li>
+     *   <li>默认（无特权角色）→ 仅本人创建的（按 userAlias = userId）</li>
+     *   <li>组织驱动：当前用户是任意 sys_dept.leader_id → 自动看本部门及以下成员创建的</li>
      * </ul>
+     * <p>
+     * 注意：通用 data_scope 的 2/3/4/5 在房产分支**不生效**。客户隐私归属应由
+     * creator_id 决定，部门级"本部门可见"会越权暴露同事客户。如需扩大可见范围，
+     * 通过 sys_dept.leader_id 注册组织负责人 或 挂全局角色（director/admin_clerk
+     * 或 data_scope=1）。
      */
     private String buildRealtyDataScopeFilter(Long userId, DataScope dataScope, Object roleMapper, Object userMapper) {
         try {
@@ -156,7 +158,6 @@ public class DataPermissionInterceptor implements InnerInterceptor, ApplicationC
 
             List<String> roleCodes = new ArrayList<>();
             List<Integer> dataScopes = new ArrayList<>();
-            List<Long> customDeptRoleIds = new ArrayList<>();
             for (Object role : roles) {
                 Method getCode = role.getClass().getMethod("getCode");
                 String code = (String) getCode.invoke(role);
@@ -167,12 +168,6 @@ public class DataPermissionInterceptor implements InnerInterceptor, ApplicationC
                 Integer scope = (Integer) role.getClass().getMethod("getDataScope").invoke(role);
                 if (scope != null) {
                     dataScopes.add(scope);
-                    if (scope == 2) {
-                        Long roleId = (Long) role.getClass().getMethod("getId").invoke(role);
-                        if (roleId != null) {
-                            customDeptRoleIds.add(roleId);
-                        }
-                    }
                 }
             }
 
@@ -221,38 +216,12 @@ public class DataPermissionInterceptor implements InnerInterceptor, ApplicationC
                         + ")");
             }
 
-            // 通用 data_scope 规则：依赖 userAlias 指向"归属销售/创建人"字段（如 creator_id）
+            // 客户归属规则：仅本人创建 + 组织驱动叠加
+            // 通用 data_scope 2/3/4/5 在房产分支**不生效** —— 客户隐私不允许按部门通用规则放开
             String userAlias = dataScope.userAlias();
             if (StringUtils.hasText(userAlias)) {
-                Long userDeptId = null;
-                if ((dataScopes.contains(3) || dataScopes.contains(4)) && userMapper != null) {
-                    Method selectUser = userMapper.getClass().getMethod("selectById", java.io.Serializable.class);
-                    Object user = selectUser.invoke(userMapper, userId);
-                    if (user != null) {
-                        userDeptId = (Long) user.getClass().getMethod("getDeptId").invoke(user);
-                    }
-                }
-
-                // scope = 5 仅本人
-                if (dataScopes.contains(5)) {
-                    conditions.add(userAlias + " = " + userId);
-                }
-                // scope = 3 本部门
-                if (dataScopes.contains(3) && userDeptId != null) {
-                    conditions.add(userAlias + " IN (SELECT id FROM sys_user WHERE dept_id = " + userDeptId + " AND deleted = 0)");
-                }
-                // scope = 4 本部门及以下
-                if (dataScopes.contains(4) && userDeptId != null) {
-                    conditions.add(userAlias + " IN (SELECT id FROM sys_user WHERE dept_id IN ("
-                            + "SELECT id FROM sys_dept WHERE id = " + userDeptId
-                            + " OR FIND_IN_SET(" + userDeptId + ", ancestors)) AND deleted = 0)");
-                }
-                // scope = 2 自定义部门
-                for (Long roleId : customDeptRoleIds) {
-                    conditions.add(userAlias + " IN (SELECT id FROM sys_user WHERE dept_id IN ("
-                            + "SELECT dept_id FROM sys_role_dept WHERE role_id = " + roleId
-                            + ") AND deleted = 0)");
-                }
+                // 默认：仅本人创建的（替代原 data_scope=5 的语义，但对所有人生效）
+                conditions.add(userAlias + " = " + userId);
 
                 // 组织驱动：当前用户是任意部门的 leader_id 时，自动叠加"本部门及以下"
                 // 用 sys_dept.ancestors 路径递归下钻；若用户不带任何部门，子查询返回空集合，不影响其他条件

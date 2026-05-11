@@ -51,25 +51,25 @@ public class DashboardService {
         LocalDateTime start = resolveStart(startDate);
         LocalDateTime end = resolveEnd(endDate);
 
-        // 报备数：时间范围内创建的客户
-        long reportCount = customerMapper.selectCount(
+        // 报备数：时间范围内创建的客户（走 selectListWithScope 让数据权限生效，避免普通员工看到他人数据）
+        long reportCount = customerMapper.selectListWithScope(
                 new LambdaQueryWrapper<Customer>()
                         .ge(Customer::getCreateTime, start)
-                        .le(Customer::getCreateTime, end));
+                        .le(Customer::getCreateTime, end)).size();
 
         // 到访数：状态>=2（已到访或已成交）且在时间范围内创建
-        long visitCount = customerMapper.selectCount(
+        long visitCount = customerMapper.selectListWithScope(
                 new LambdaQueryWrapper<Customer>()
                         .ge(Customer::getStatus, 2)
                         .ge(Customer::getCreateTime, start)
-                        .le(Customer::getCreateTime, end));
+                        .le(Customer::getCreateTime, end)).size();
 
         // 成交数：状态=3（已成交）且在时间范围内创建
-        long dealCount = customerMapper.selectCount(
+        long dealCount = customerMapper.selectListWithScope(
                 new LambdaQueryWrapper<Customer>()
                         .eq(Customer::getStatus, 3)
                         .ge(Customer::getCreateTime, start)
-                        .le(Customer::getCreateTime, end));
+                        .le(Customer::getCreateTime, end)).size();
 
         // 成交金额：时间范围内的成交记录金额汇总
         List<CustomerDeal> deals = customerDealMapper.selectList(
