@@ -191,12 +191,15 @@ public class AllianceService {
 
     /**
      * 查询启用状态的联盟商列表（用于报备时选择，排除已停用）
+     * <p>
+     * 不走数据权限：报备下拉是产品级"全局可选"动作，销售应能选任意启用联盟商。
+     * 这与"联盟商管理列表"（pageAlliances 走 scope，按归属隔离）是两种语义。
      */
     public List<AllianceVO> listEnabled() {
         LambdaQueryWrapper<Alliance> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Alliance::getStatus, 1);
         wrapper.orderByDesc(Alliance::getCreateTime);
-        List<Alliance> list = allianceMapper.selectListWithScope(wrapper);
+        List<Alliance> list = allianceMapper.selectList(wrapper);
         return list.stream().map(AllianceVO::fromEntity).toList();
     }
 
