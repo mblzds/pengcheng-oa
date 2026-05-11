@@ -30,19 +30,16 @@
 			</view>
 			<view class="customer-item" v-for="item in list" :key="item.id" @tap="goDetail(item)">
 				<view class="item-top">
-					<text class="item-name">{{ item.customerName }}</text>
-					<view class="item-status" :class="'status-' + getStatusKey(item.status)">
+					<text class="item-name">{{ item.customerName }}{{ item.phoneMasked ? ' (' + item.phoneMasked + ')' : '' }}</text>
+					<view class="item-status" :class="'status-' + item.status">
 						<text>{{ getStatusText(item.status) }}</text>
 					</view>
-				</view>
-				<view class="item-info" v-if="item.phoneMasked">
-					<text class="info-text">手机：{{ item.phoneMasked }}</text>
 				</view>
 				<view class="item-info">
 					<text class="info-text">报备编号：{{ item.reportNo || '--' }}</text>
 				</view>
 				<view class="item-info">
-					<text class="info-text">报备时间：{{ formatDateTime(item.createTime) }}</text>
+					<text class="info-text">报备时间：{{ item.createTime || '--' }}</text>
 				</view>
 			</view>
 
@@ -63,10 +60,6 @@
 
 <script>
 	import { getCustomerList, searchCustomerProjects } from '../../utils/api.js'
-	import { FEATURES } from '../../utils/featureFlags.js'
-
-	// V1 只做客户报备，不接受 visit/deal 自动跳转
-	const ALLOWED_ACTIONS = FEATURES.ENABLE_VISIT_AND_DEAL ? ['visit', 'deal'] : []
 
 	export default {
 		data() {
@@ -99,7 +92,7 @@
 			uni.$off('app:data-change', this.onDataChange)
 		},
 		onLoad(opts) {
-			if (opts?.action && ALLOWED_ACTIONS.includes(opts.action)) this.pendingAction = opts.action
+			if (opts?.action) this.pendingAction = opts.action
 			this.loadProjects()
 		},
 		methods: {
@@ -113,14 +106,6 @@
 			getStatusText(status) {
 				const map = { 1: '已报备', 2: '已到访', 3: '已成交' }
 				return map[status] || status || '--'
-			},
-			getStatusKey(status) {
-				// 与 SCSS 中 .status-reported / .status-visited / .status-dealt / .status-expired 对齐
-				return { 1: 'reported', 2: 'visited', 3: 'dealt' }[status] || 'expired'
-			},
-			formatDateTime(value) {
-				if (!value) return '--'
-				return String(value).replace('T', ' ').slice(0, 16)
 			},
 			async loadProjects() {
 				try {
