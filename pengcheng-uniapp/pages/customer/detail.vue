@@ -48,8 +48,8 @@
 				</view>
 			</view>
 
-			<!-- 到访记录 -->
-			<view class="card">
+			<!-- 到访记录（V1 暂未开放，由 FEATURES.ENABLE_VISIT_AND_DEAL 控制） -->
+			<view class="card" v-if="enableVisitAndDeal">
 				<view class="card-header">
 					<text class="card-title">到访记录</text>
 					<text class="card-action" @tap="showVisitForm = true">+录入到访</text>
@@ -67,8 +67,8 @@
 				</view>
 			</view>
 
-			<!-- 成交信息 -->
-			<view class="card">
+			<!-- 成交信息（V1 暂未开放，由 FEATURES.ENABLE_VISIT_AND_DEAL 控制） -->
+			<view class="card" v-if="enableVisitAndDeal">
 				<view class="card-header">
 					<text class="card-title">成交信息</text>
 					<text class="card-action" @tap="showDealForm = true">+录入成交</text>
@@ -116,8 +116,8 @@
 			</view>
 		</scroll-view>
 
-		<!-- 到访表单弹窗 -->
-		<u-popup :show="showVisitForm" mode="bottom" round="16" @close="showVisitForm = false">
+		<!-- 到访表单弹窗（V1 暂未开放） -->
+		<u-popup v-if="enableVisitAndDeal" :show="showVisitForm" mode="bottom" round="16" @close="showVisitForm = false">
 			<view class="popup-content">
 				<view class="popup-title">录入到访</view>
 				<view class="form-item" @tap="openVisitTimePicker">
@@ -138,8 +138,8 @@
 			</view>
 		</u-popup>
 
-		<!-- 成交表单弹窗 -->
-		<u-popup :show="showDealForm" mode="bottom" round="16" @close="showDealForm = false">
+		<!-- 成交表单弹窗（V1 暂未开放） -->
+		<u-popup v-if="enableVisitAndDeal" :show="showDealForm" mode="bottom" round="16" @close="showDealForm = false">
 			<view class="popup-content">
 				<view class="popup-title">录入成交</view>
 				<view class="form-item">
@@ -206,6 +206,7 @@
 
 <script>
 	import { getCustomerDetail, addCustomerVisit, addCustomerDeal } from '../../utils/api.js'
+	import { FEATURES } from '../../utils/featureFlags.js'
 
 	const formatDateTime = (ts) => {
 		const d = new Date(ts)
@@ -242,11 +243,18 @@
 				return
 			}
 			this.customerId = opts.id
-			if (opts.action === 'visit') this.showVisitForm = true
-			if (opts.action === 'deal') this.showDealForm = true
+			if (FEATURES.ENABLE_VISIT_AND_DEAL) {
+				if (opts.action === 'visit') this.showVisitForm = true
+				if (opts.action === 'deal') this.showDealForm = true
+			}
 		},
 		onShow() {
 			if (this.customerId) this.loadDetail()
+		},
+		computed: {
+			enableVisitAndDeal() {
+				return FEATURES.ENABLE_VISIT_AND_DEAL
+			}
 		},
 		methods: {
 			getStatusText(status) {

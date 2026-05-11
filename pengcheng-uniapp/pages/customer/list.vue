@@ -63,6 +63,10 @@
 
 <script>
 	import { getCustomerList, searchCustomerProjects } from '../../utils/api.js'
+	import { FEATURES } from '../../utils/featureFlags.js'
+
+	// V1 只做客户报备，不接受 visit/deal 自动跳转
+	const ALLOWED_ACTIONS = FEATURES.ENABLE_VISIT_AND_DEAL ? ['visit', 'deal'] : []
 
 	export default {
 		data() {
@@ -95,7 +99,7 @@
 			uni.$off('app:data-change', this.onDataChange)
 		},
 		onLoad(opts) {
-			if (opts?.action) this.pendingAction = opts.action
+			if (opts?.action && ALLOWED_ACTIONS.includes(opts.action)) this.pendingAction = opts.action
 			this.loadProjects()
 		},
 		methods: {
