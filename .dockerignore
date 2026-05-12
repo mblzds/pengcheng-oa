@@ -1,0 +1,51 @@
+# 加速 docker build 的关键 —— 减少 build context 传输
+# 任何下面列出的路径都不会被 COPY . . 拿到 builder
+
+# Node / 前端构建产物
+**/node_modules
+**/dist
+pengcheng-ui/.vite
+pengcheng-uniapp/unpackage
+pengcheng-uniapp/.hbuilderx
+
+# Maven 构建产物
+**/target
+**/*.class
+
+# IDE / OS 杂项
+.idea
+.vscode
+*.iml
+.DS_Store
+Thumbs.db
+
+# Git
+.git
+.gitignore
+.github
+
+# 日志和本地运行产物
+*.log
+dev-app.log
+**/logs/
+
+# Claude / 本地工作笔记
+.claude
+.claude-cache
+P0需求/
+测试用例/
+doc/
+
+# 测试报告 / 临时文件
+**/coverage
+**/.nyc_output
+**/junit.xml
+**/test-results
+**/*.bak
+**/*.swp
+
+# Docker 自身（避免递归）
+docker-compose.override.yml
+.env
+.env.*
+!.env.example
