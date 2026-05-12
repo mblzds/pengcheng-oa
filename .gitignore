@@ -47,5 +47,5 @@ uploads/
 .nginx.conf.original
 dev-app.log
 
-# 前端构建产物（npm run build 输出，由开发者/CI 在打包前生成，不入仓）
-pengcheng-starter/src/main/resources/static/
+# 前端构建产物：开发者本地 npm run build 后 commit，部署端不参与编译
+# pengcheng-starter/src/main/resources/static/
