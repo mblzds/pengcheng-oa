@@ -133,8 +133,8 @@ export const transferGroupOwner = (groupId, newOwnerId) =>
 
 // ==================== 文件相关 ====================
 
-/** 上传文件 */
-export const uploadFile = (filePath) => upload('/api/sys/file/upload', filePath)
+/** 上传文件（小程序场景：聊天发图、头像、发票等，仅校验登录） */
+export const uploadFile = (filePath) => upload('/api/app/file/upload', filePath)
 
 // ==================== 系统通知 ====================
 
