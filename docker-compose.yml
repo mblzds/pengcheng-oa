@@ -197,6 +197,8 @@ services:
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ./pengcheng-starter/src/main/resources/static:/usr/share/nginx/html:ro
+      # SSL 证书目录：cert/ 不入 git，需要单独 scp 到部署机
+      - ./cert:/etc/nginx/cert:ro
       - nginx-logs:/var/log/nginx
     depends_on:
       - app
