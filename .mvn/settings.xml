@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Maven 仓库镜像配置（仅在 Docker 构建阶段使用，本地开发不强制）
+  Maven Central 在国内拉取经常 <5 KB/s，构建 5-10 分钟。
+  使用阿里云镜像后通常 10-30 秒就能完成依赖下载。
+-->
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0
+                              http://maven.apache.org/xsd/settings-1.0.0.xsd">
+  <mirrors>
+    <!-- 主镜像：代理 Maven Central + 常见公开仓库 -->
+    <mirror>
+      <id>aliyun-public</id>
+      <name>Aliyun Public Mirror</name>
+      <mirrorOf>central</mirrorOf>
+      <url>https://maven.aliyun.com/repository/public</url>
+    </mirror>
+
+    <!-- Spring 自家仓库（Spring AI / Boot 里程碑、快照） -->
+    <mirror>
+      <id>aliyun-spring</id>
+      <name>Aliyun Spring Mirror</name>
+      <mirrorOf>spring-milestones,spring-snapshots</mirrorOf>
+      <url>https://maven.aliyun.com/repository/spring</url>
+    </mirror>
+  </mirrors>
+</settings>

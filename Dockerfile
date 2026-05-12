@@ -6,6 +6,9 @@
 FROM maven:3.9-eclipse-temurin-17 AS builder
 WORKDIR /build
 
+# 先 COPY maven 镜像配置，让后续所有 mvn 命令走阿里云仓库（国内拉 Central 极慢）
+COPY .mvn/settings.xml /root/.m2/settings.xml
+
 COPY pom.xml .
 COPY pengcheng-common/pom.xml pengcheng-common/
 COPY pengcheng-infra/ pengcheng-infra/
