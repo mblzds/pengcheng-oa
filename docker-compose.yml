@@ -11,6 +11,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      target: app
     container_name: masterlife-app
     restart: unless-stopped
     ports:
@@ -184,17 +185,22 @@ services:
     networks:
       - masterlife-net
 
-  # ======================== Nginx (反向代理) ========================
+  # ======================== Nginx (反向代理 + 前端静态资源) ========================
   nginx:
-    image: nginx:alpine
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: nginx
+    image: pengcheng-oa-nginx:latest
     container_name: masterlife-nginx
     restart: unless-stopped
     ports:
       - "80:80"
       - "443:443"
     volumes:
+      # 只挂 nginx.conf 方便不重建镜像也能改路由
+      # 前端静态资源已经内置在镜像 /usr/share/nginx/html，不再挂宿主目录
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./pengcheng-starter/src/main/resources/static:/usr/share/nginx/html:ro
       - nginx-logs:/var/log/nginx
     depends_on:
       - app
