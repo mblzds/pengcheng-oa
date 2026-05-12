@@ -32,4 +32,14 @@ public class AppFileController {
             @RequestParam(required = false) String path) {
         return Result.ok(fileService.upload(file, path));
     }
+
+    /**
+     * 上传图片（带 images/ 子目录前缀，与后台 /sys/file/upload/image 行为一致）。
+     * 用于聊天发图、富文本图等需要分组到图片目录的场景。
+     */
+    @PostMapping("/upload/image")
+    @SaCheckLogin
+    public Result<SysFile> uploadImage(@RequestParam("file") MultipartFile file) {
+        return Result.ok(fileService.uploadImage(file));
+    }
 }

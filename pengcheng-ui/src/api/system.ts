@@ -358,6 +358,31 @@ export const fileApi = {
       data: formData
     })
   },
+
+  /**
+   * 聊天场景上传文件 —— 走 /app/file/*，仅需登录态，
+   * 不撞后台「文件管理」的 sys:file:upload 权限节点。
+   * 用于即时聊天、群聊等普通员工日常上传。
+   */
+  uploadForChat(file: File): Promise<SysFile> {
+    const formData = new FormData()
+    formData.append('file', file)
+    return request({
+      url: '/app/file/upload',
+      method: 'post',
+      data: formData
+    })
+  },
+
+  uploadImageForChat(file: File): Promise<SysFile> {
+    const formData = new FormData()
+    formData.append('file', file)
+    return request({
+      url: '/app/file/upload/image',
+      method: 'post',
+      data: formData
+    })
+  },
   
   getDownloadUrl(id: number): string {
     return `/api/sys/file/download/${id}`

@@ -1093,8 +1093,8 @@ async function handleUploadImage(options: UploadCustomRequestOptions) {
   }
 
   try {
-    // 上传图片
-    const result = await fileApi.uploadImage(options.file.file as File)
+    // 上传图片（聊天场景走 /app/file/upload/image，仅需登录）
+    const result = await fileApi.uploadImageForChat(options.file.file as File)
 
     // 发送图片消息
     const msg = await chatApi.send({
@@ -1124,9 +1124,9 @@ async function handleUploadFile(options: UploadCustomRequestOptions) {
   }
 
   try {
-    // 上传文件
-    const result = await fileApi.upload(options.file.file as File)
-    
+    // 上传文件（聊天场景走 /app/file/upload，仅需登录）
+    const result = await fileApi.uploadForChat(options.file.file as File)
+
     // 构建文件消息内容（JSON）
     const fileContent = JSON.stringify({
       url: result.url,
@@ -1311,7 +1311,7 @@ async function handleUploadGroupImage(options: UploadCustomRequestOptions) {
   }
   
   try {
-    const result = await fileApi.uploadImage(options.file.file as File)
+    const result = await fileApi.uploadImageForChat(options.file.file as File)
     const msg = await groupChatApi.sendMessage(
       selectedGroup.value.id!,
       result.url,
@@ -1337,8 +1337,8 @@ async function handleUploadGroupFile(options: UploadCustomRequestOptions) {
   }
   
   try {
-    const result = await fileApi.upload(options.file.file as File)
-    
+    const result = await fileApi.uploadForChat(options.file.file as File)
+
     const fileContent = JSON.stringify({
       url: result.url,
       name: result.originalName,
