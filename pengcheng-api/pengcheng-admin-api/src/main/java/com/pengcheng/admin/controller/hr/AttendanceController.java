@@ -62,6 +62,20 @@ public class AttendanceController {
         return Result.ok(attendanceService.getMonthlySummary(userId, year, month));
     }
 
+    /**
+     * 批量月度汇总 —— 按当前登录用户角色自动决定可见员工范围：
+     * - HR / 管理员 → 全员
+     * - 部门主管（任意 sys_dept.leader_id=自己）→ 本部门及下钻
+     * - 普通员工 → 仅自己（这种情况退化为单人列表，前端可直接走 /monthly）
+     */
+    @GetMapping("/monthly/batch")
+    public Result<List<AttendanceMonthlyVO>> monthlySummaryBatch(
+            @RequestParam Integer year,
+            @RequestParam Integer month) {
+        Set<Long> allowed = scopeHelper.visibleUserIds();
+        return Result.ok(attendanceService.getMonthlySummaryBatch(allowed, year, month));
+    }
+
     @GetMapping("/records")
     @SaCheckPermission("realty:attendance:list")
     public Result<List<AttendanceRecord>> records(

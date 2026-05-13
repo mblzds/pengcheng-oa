@@ -13,6 +13,10 @@ import java.util.List;
 @AllArgsConstructor
 public class AttendanceMonthlyVO {
     private Long userId;
+    /** 用户昵称（批量列表视图填充，单人详情可为 null） */
+    private String nickname;
+    /** 部门名称（批量列表视图填充，单人详情可为 null） */
+    private String deptName;
     private Integer year;
     private Integer month;
 

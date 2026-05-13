@@ -50,22 +50,34 @@
       <n-card title="月度考勤汇总报表">
         <n-form inline :model="summaryFilter">
           <n-form-item label="选择用户">
-            <n-select v-model:value="summaryFilter.userId" :options="userOptions" label-field="nickname" value-field="id" filterable placeholder="选择用户" clearable style="width: 200px" />
+            <n-select v-model:value="summaryFilter.userId" :options="userOptions" label-field="nickname" value-field="id" filterable placeholder="不选则显示可见范围内的全员" clearable style="width: 260px" :disabled="isEmployeeOnly" />
           </n-form-item>
           <n-form-item label="月份">
             <n-date-picker v-model:value="summaryFilter.month" type="month" style="width: 180px" />
           </n-form-item>
           <n-form-item>
-            <n-button type="primary" @click="loadMonthlySummary">查询汇总</n-button>
+            <n-button type="primary" @click="loadMonthlySummary">查询</n-button>
           </n-form-item>
         </n-form>
 
-        <n-grid v-if="monthlySummary" :cols="4" :x-gap="12" :y-gap="12" style="margin-top: 12px">
+        <!-- 单人详情视图：选了具体用户时 -->
+        <n-grid v-if="monthlySummary && summaryFilter.userId != null" :cols="4" :x-gap="12" :y-gap="12" style="margin-top: 12px">
           <n-gi><n-statistic label="出勤天数" :value="monthlySummary.attendanceDays || 0" /></n-gi>
           <n-gi><n-statistic label="迟到次数" :value="monthlySummary.lateTimes || 0" /></n-gi>
           <n-gi><n-statistic label="早退次数" :value="monthlySummary.earlyLeaveTimes || 0" /></n-gi>
           <n-gi><n-statistic label="请假天数" :value="monthlySummary.leaveDays || 0" /></n-gi>
         </n-grid>
+
+        <!-- 批量列表视图：HR / 部门主管 默认看到全员 -->
+        <n-data-table
+          v-if="summaryFilter.userId == null"
+          :columns="monthlyBatchColumns"
+          :data="monthlyBatchData"
+          :pagination="{ pageSize: 20 }"
+          :bordered="false"
+          size="small"
+          style="margin-top: 12px"
+        />
       </n-card>
 
       <n-card title="请假/调休审批列表">
@@ -172,6 +184,28 @@ function openDetail(row: AttendanceRecordItem) {
 const leaveData = ref<LeaveRequestItem[]>([])
 const compensateData = ref<CompensateRequestItem[]>([])
 const monthlySummary = ref<AttendanceMonthlyVO | null>(null)
+const monthlyBatchData = ref<AttendanceMonthlyVO[]>([])
+
+const monthlyBatchColumns = [
+  { title: '姓名', key: 'nickname', width: 120 },
+  { title: '部门', key: 'deptName', width: 140 },
+  { title: '应出勤', key: 'expectedWorkdays', width: 90, align: 'right' },
+  { title: '出勤天数', key: 'attendanceDays', width: 90, align: 'right' },
+  { title: '迟到', key: 'lateTimes', width: 70, align: 'right' },
+  { title: '早退', key: 'earlyLeaveTimes', width: 70, align: 'right' },
+  { title: '请假', key: 'leaveDays', width: 70, align: 'right' },
+  { title: '调休', key: 'compensateDays', width: 70, align: 'right' },
+  {
+    title: '缺勤',
+    key: 'absentDays',
+    width: 80,
+    align: 'right',
+    render: (row: AttendanceRecordItem & { absentDays?: number }) => {
+      const v = (row as any).absentDays ?? 0
+      return v > 0 ? h('span', { style: 'color:#d03050;font-weight:600' }, v) : v
+    }
+  }
+] as any[]
 
 // 默认日期 = 今天（避免打开就拉全月/全历史）
 function todayRange(): [number, number] {
@@ -515,16 +549,24 @@ function resetRecordFilter() {
 }
 
 async function loadMonthlySummary() {
-  if (summaryFilter.userId == null) return
   const monthDate = new Date(summaryFilter.month)
   const year = monthDate.getFullYear()
   const month = monthDate.getMonth() + 1
-  const res: any = await attendanceApi.monthly({
-    userId: summaryFilter.userId,
-    year,
-    month
-  })
-  monthlySummary.value = res?.data ?? res ?? null
+  if (summaryFilter.userId != null) {
+    // 选了具体用户 → 单人详情
+    const res: any = await attendanceApi.monthly({
+      userId: summaryFilter.userId,
+      year,
+      month
+    })
+    monthlySummary.value = res?.data ?? res ?? null
+    monthlyBatchData.value = []
+  } else {
+    // 未选用户 → 批量列表（HR/主管视图）
+    const res: any = await attendanceApi.monthlyBatch({ year, month })
+    monthlyBatchData.value = (res?.data ?? res ?? []) as AttendanceMonthlyVO[]
+    monthlySummary.value = null
+  }
 }
 
 async function loadApprovalLists() {
@@ -547,10 +589,13 @@ async function loadApprovalLists() {
   }
 }
 
-onMounted(() => {
-  loadUserOptions()
+onMounted(async () => {
+  // 先把 visible-users 拿到（员工被锁到自己；HR/主管 保持 null），
+  // 月度汇总根据 userId 状态自动决定走单人 / 批量
+  await loadUserOptions()
   loadAttendanceRecords()
   loadApprovalLists()
+  loadMonthlySummary()
 })
 </script>
 

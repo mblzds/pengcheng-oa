@@ -23,12 +23,19 @@ export interface AttendanceRecordItem {
 /** 月度汇总（与后端 AttendanceMonthlyVO 对应） */
 export interface AttendanceMonthlyVO {
   userId: number
+  /** 仅 batch 接口填充，单人 monthly 详情可为空 */
+  nickname?: string
+  /** 仅 batch 接口填充 */
+  deptName?: string
   year: number
   month: number
   attendanceDays: number
   lateTimes: number
   earlyLeaveTimes: number
   leaveDays: number
+  compensateDays?: number
+  expectedWorkdays?: number
+  absentDays?: number
   overtimeHours?: number
 }
 
@@ -66,6 +73,10 @@ export const attendanceApi = {
   },
   monthly(params: { userId: number; year: number; month: number }) {
     return request<AttendanceMonthlyVO>({ url: '/admin/attendance/monthly', method: 'get', params })
+  },
+  /** 批量月度汇总：后端按当前登录角色自动决定范围（HR=全员，主管=本部门，员工=仅自己） */
+  monthlyBatch(params: { year: number; month: number }) {
+    return request<AttendanceMonthlyVO[]>({ url: '/admin/attendance/monthly/batch', method: 'get', params })
   },
   leaveList(params: { userId?: number; status?: number }) {
     return request<LeaveRequestItem[]>({ url: '/admin/attendance/leave/list', method: 'get', params })

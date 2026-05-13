@@ -311,6 +311,47 @@ public class AttendanceServiceImpl implements AttendanceService {
     }
 
     @Override
+    public List<AttendanceMonthlyVO> getMonthlySummaryBatch(Set<Long> userIds, int year, int month) {
+        Set<Long> targetIds;
+        if (userIds == null) {
+            // 全员：所有 status=1 的启用用户
+            targetIds = sysUserMapper.selectList(
+                    new LambdaQueryWrapper<SysUser>().eq(SysUser::getStatus, 1))
+                    .stream().map(SysUser::getId).collect(Collectors.toSet());
+        } else if (userIds.isEmpty()) {
+            return Collections.emptyList();
+        } else {
+            targetIds = userIds;
+        }
+        if (targetIds.isEmpty()) return Collections.emptyList();
+
+        // 一次性把 nickname + deptName 缓存好，避免 N+1
+        List<SysUser> users = sysUserMapper.selectList(
+                new LambdaQueryWrapper<SysUser>().in(SysUser::getId, targetIds));
+        Map<Long, String> deptNameMap = sysDeptMapper.selectList(null).stream()
+                .collect(Collectors.toMap(SysDept::getId, SysDept::getDeptName, (a, b) -> a));
+
+        // 逐人调单人汇总，回填 nickname / deptName
+        // N 增大后可优化为批量 SQL；当前公司规模够用
+        List<AttendanceMonthlyVO> result = new java.util.ArrayList<>(users.size());
+        for (SysUser u : users) {
+            AttendanceMonthlyVO vo = getMonthlySummary(u.getId(), year, month);
+            vo.setNickname(u.getNickname());
+            vo.setDeptName(u.getDeptId() != null ? deptNameMap.get(u.getDeptId()) : null);
+            result.add(vo);
+        }
+        // 按部门 + 用户 id 稳定排序，方便前端表格展示
+        result.sort((a, b) -> {
+            String da = a.getDeptName() == null ? "" : a.getDeptName();
+            String db = b.getDeptName() == null ? "" : b.getDeptName();
+            int c = da.compareTo(db);
+            if (c != 0) return c;
+            return Long.compare(a.getUserId(), b.getUserId());
+        });
+        return result;
+    }
+
+    @Override
     public List<AttendanceRecord> listAttendanceRecords(Long userId, LocalDate startDate, LocalDate endDate) {
         return listAttendanceRecords(userId, null, startDate, endDate);
     }

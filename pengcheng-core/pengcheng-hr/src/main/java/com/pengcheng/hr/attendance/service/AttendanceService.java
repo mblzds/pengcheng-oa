@@ -26,6 +26,12 @@ public interface AttendanceService {
 
     AttendanceMonthlyVO getMonthlySummary(Long userId, int year, int month);
 
+    /**
+     * 批量取多用户月度汇总（用于 HR / 部门主管"全员"列表视图）。
+     * @param userIds null = 全公司在职启用用户；非空集合 = 仅这些 userId；空集合 = 直接返回空 list
+     */
+    List<AttendanceMonthlyVO> getMonthlySummaryBatch(Set<Long> userIds, int year, int month);
+
     List<AttendanceRecord> listAttendanceRecords(Long userId, LocalDate startDate, LocalDate endDate);
 
     /**
