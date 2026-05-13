@@ -1,6 +1,10 @@
 package com.pengcheng.realty.dashboard.service;
 
+import cn.dev33.satoken.stp.StpUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.pengcheng.hr.approval.entity.ApprovalRecordNode;
+import com.pengcheng.hr.approval.mapper.ApprovalRecordNodeMapper;
+import com.pengcheng.hr.approval.service.ApprovalFlowService;
 import com.pengcheng.realty.alliance.entity.Alliance;
 import com.pengcheng.realty.alliance.mapper.AllianceMapper;
 import com.pengcheng.realty.commission.entity.Commission;
@@ -41,6 +45,8 @@ public class DashboardService {
     private final CommissionMapper commissionMapper;
     private final ProjectMapper projectMapper;
     private final AllianceMapper allianceMapper;
+    private final ApprovalRecordNodeMapper approvalRecordNodeMapper;
+    private final ApprovalFlowService approvalFlowService;
 
     /**
      * 获取核心指标概览
@@ -98,6 +104,30 @@ public class DashboardService {
                 .filter(Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
+        // 待审批数：与欢迎栏 /admin/approval/pending 同口径——只算"当前能立刻批"的：
+        //   ① 用户是候选审批人 + 该节点是业务单的当前活跃节点（leave/compensate/expense/advance/prepay）
+        //   ② 加上全部待审核佣金（与欢迎栏一致，按全集返回，权限靠菜单授予）
+        // 不直接 count findPendingByApprover —— 那个包含未来节点（如 seq=2 待 seq=1 先批），用户实际审不到
+        int pendingApproval = 0;
+        try {
+            Long currentUid = StpUtil.getLoginIdAsLong();
+            List<ApprovalRecordNode> candidateNodes = approvalRecordNodeMapper.findPendingByApprover(currentUid, null);
+            for (ApprovalRecordNode node : candidateNodes) {
+                ApprovalRecordNode current = approvalFlowService.getCurrentNode(node.getBusinessType(), node.getBusinessId());
+                if (current != null && current.getId().equals(node.getId())) {
+                    pendingApproval++;
+                }
+            }
+            // 加上待审核佣金
+            Long pendingCommissionCount = commissionMapper.selectCount(
+                    new LambdaQueryWrapper<Commission>().eq(Commission::getAuditStatus, 1));
+            if (pendingCommissionCount != null) {
+                pendingApproval += pendingCommissionCount.intValue();
+            }
+        } catch (Exception ignored) {
+            // 无登录上下文（如批处理）静默处理
+        }
+
         return DashboardOverviewVO.builder()
                 .reportCount(reportCount)
                 .visitCount(visitCount)
@@ -105,6 +135,7 @@ public class DashboardService {
                 .dealAmount(dealAmount)
                 .receivableCommission(receivable)
                 .settledCommission(settled)
+                .pendingApproval(pendingApproval)
                 .build();
     }
 

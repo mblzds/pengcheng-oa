@@ -11,13 +11,19 @@
       </template>
 
       <n-space vertical :size="12">
-        <n-space>
+        <n-space :wrap="false" style="flex-wrap: wrap">
+          <n-input
+            v-model:value="keyword"
+            placeholder="搜申请人 / 部门 / 摘要"
+            clearable
+            style="width: 260px"
+          />
           <n-select
             v-model:value="typeFilter"
             :options="typeOptions"
             clearable
             placeholder="按类型筛选"
-            style="width: 200px"
+            style="width: 180px"
           />
           <n-button type="primary" @click="loadList" :loading="loading">刷新</n-button>
           <n-tag v-if="rows.length" type="info" :bordered="false">
@@ -26,7 +32,7 @@
         </n-space>
 
         <n-data-table
-          :columns="activeColumns"
+          :columns="unifiedColumns"
           :data="filteredRows"
           :loading="loading"
           :pagination="{ pageSize: 10 }"
@@ -148,29 +154,26 @@
 import { computed, h, onMounted, reactive, ref } from 'vue'
 import { NButton, NImage, NImageGroup, NSpace, NTag, useMessage, type DataTableColumns } from 'naive-ui'
 import { approvalApi, approvalFlowApi, type ApprovalDetail, type ApprovalItem, type ApprovalType, type BusinessTypeOption } from '@/api/approval'
+import { formatDateTime } from '@/utils/datetime'
 
 const message = useMessage()
 const loading = ref(false)
 const rows = ref<ApprovalItem[]>([])
 const typeFilter = ref<ApprovalType | null>(null)
+const keyword = ref('')
 
-// 类型筛选/展示从 approval_business_type 表实时拉，支持运营新建的自定义类型；
-// commission 不在 approval_business_type 里（独立审计入口），这里手动追加
-const typeOptions = ref<{ label: string, value: string }[]>([
-  { label: '佣金审核', value: 'commission' }
-])
+// 类型筛选/展示从 approval_business_type 表实时拉，支持运营新建的自定义类型
+// commission（佣金审核）有独立的审计入口，不放在此筛选里——表格里如果出现佣金行用户也能直接看到
+const typeOptions = ref<{ label: string, value: string }[]>([])
 const businessTypes = ref<BusinessTypeOption[]>([])
 
 async function loadBusinessTypes() {
   try {
     businessTypes.value = await approvalFlowApi.businessTypes()
-    typeOptions.value = [
-      ...businessTypes.value.map(t => ({
-        label: t.builtin === 1 ? builtinFullLabel(t.businessType, t.label) : t.label,
-        value: t.businessType
-      })),
-      { label: '佣金审核', value: 'commission' }
-    ]
+    typeOptions.value = businessTypes.value.map(t => ({
+      label: t.builtin === 1 ? builtinFullLabel(t.businessType, t.label) : t.label,
+      value: t.businessType
+    }))
   } catch (e) {
     // 拉不到也不阻塞页面
   }
@@ -188,9 +191,69 @@ function builtinFullLabel(key: string, label: string): string {
   return fullMap[key] || label
 }
 
-const filteredRows = computed(() =>
-  typeFilter.value ? rows.value.filter(r => r.type === typeFilter.value) : rows.value
-)
+const filteredRows = computed(() => {
+  let result = rows.value
+  if (typeFilter.value) {
+    result = result.filter(r => r.type === typeFilter.value)
+  }
+  const kw = keyword.value.trim().toLowerCase()
+  if (kw) {
+    result = result.filter(r =>
+      (r.applicantName || '').toLowerCase().includes(kw) ||
+      (r.applicantDept || '').toLowerCase().includes(kw) ||
+      (r.summary || '').toLowerCase().includes(kw) ||
+      (r.reason || '').toLowerCase().includes(kw)
+    )
+  }
+  return result
+})
+
+/** 数字千分位 + 2 位小数 */
+function formatAmount(v?: number | null): string {
+  if (v == null) return '—'
+  return '¥ ' + Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+/** "已等待"格式化：< 1h 显示分钟；< 1d 显示小时；其它显示天 */
+function formatWaiting(applyTime?: string | null): { text: string; level: 'normal' | 'warn' | 'urgent' } {
+  if (!applyTime) return { text: '—', level: 'normal' }
+  const ms = Date.now() - new Date(applyTime).getTime()
+  if (ms < 0) return { text: '刚刚', level: 'normal' }
+  const minutes = Math.floor(ms / 60000)
+  const hours = Math.floor(ms / 3600000)
+  const days = Math.floor(ms / 86400000)
+  let text: string
+  if (minutes < 60) text = `${minutes} 分钟`
+  else if (hours < 24) text = `${hours} 小时`
+  else text = `${days} 天`
+  const level: 'normal' | 'warn' | 'urgent' = days >= 3 ? 'urgent' : hours >= 24 ? 'warn' : 'normal'
+  return { text, level }
+}
+
+/** 列表"类型"列展示：拼接基础类型 + 子类型，例如 "请假·事假" / "报销·餐饮" */
+function buildTypeDisplay(row: ApprovalItem): string {
+  const base = typeLabel(row.type)
+  if ((row.type === 'leave') && row.leaveTypeLabel) {
+    return `${base}·${row.leaveTypeLabel}`
+  }
+  if (row.type === 'expense' && row.expenseTypeLabel) {
+    return `${base}·${row.expenseTypeLabel}`
+  }
+  return base
+}
+
+/** 按类型拼装"关键内容"列文案 */
+function buildKeyContent(row: ApprovalItem): string {
+  if (row.type === 'leave' || row.type === 'compensate') {
+    const parts: string[] = []
+    if (row.days != null) parts.push(`${row.days} 天`)
+    if (row.dateRange) parts.push(row.dateRange)
+    if (row.leaveTypeLabel) parts.push(row.leaveTypeLabel)
+    if (row.reason) parts.push(row.reason)
+    return parts.join(' · ') || row.summary || '—'
+  }
+  return row.summary || '—'
+}
 
 function typeLabel(t?: string | null): string {
   return typeOptions.value.find(o => o.value === t)?.label || (t || '审批')
@@ -212,9 +275,9 @@ function typeTagType(t: string): 'info' | 'success' | 'warning' | 'error' | 'def
   }
 }
 
+// 走统一工具 formatDateTime（utils/datetime.ts）；保留 formatTime 函数名兼容现有 8 处调用
 function formatTime(t?: string | null): string {
-  if (!t) return ''
-  return t.replace('T', ' ').slice(0, 19)
+  return formatDateTime(t, '')
 }
 
 /** 后端本地存储返回 /api/files/...，浏览器在 admin 域上能否解析取决于反代；
@@ -258,71 +321,79 @@ function historyContent(h: { approverName: string; remark?: string | null; resul
   return parts.join('\n')
 }
 
-// 通用列定义工厂（避免在多套列里重复写）
-const colApplicant = (): DataTableColumns<ApprovalItem>[number] => ({ title: '申请人', key: 'applicantName', width: 100 })
-const colTypeTag = (): DataTableColumns<ApprovalItem>[number] => ({
-  title: '类型', key: 'type', width: 90,
-  render: row => h(NTag, { type: typeTagType(row.type), size: 'small', bordered: false }, { default: () => typeLabel(row.type) })
-})
-const colCurrentNode = (): DataTableColumns<ApprovalItem>[number] => ({
-  title: '当前节点', key: 'currentNodeName', width: 110,
-  render: row => row.currentNodeName || '—'
-})
-const colApplyTime = (): DataTableColumns<ApprovalItem>[number] => ({
-  title: '申请时间', key: 'applyTime', width: 160,
-  render: row => formatTime(row.applyTime)
-})
-const colActions = (): DataTableColumns<ApprovalItem>[number] => ({
-  title: '操作', key: 'actions', width: 240, fixed: 'right',
-  render: row =>
-    h(NSpace, { size: 'small' }, {
-      default: () => [
-        h(NButton, { size: 'small', type: 'primary', secondary: true, onClick: () => openDetail(row) }, { default: () => '详情' }),
-        h(NButton, { size: 'small', type: 'primary', onClick: () => openAction(row, true) }, { default: () => '通过' }),
-        h(NButton, { size: 'small', type: 'error', ghost: true, onClick: () => openAction(row, false) }, { default: () => '驳回' })
-      ]
-    })
-})
-
-// 假期类型（leave / compensate）—— 拆分字段，无金额列
-const leaveColumns: DataTableColumns<ApprovalItem> = [
-  colApplicant(),
-  { title: '假期类型', key: 'leaveTypeLabel', width: 90, render: row => row.leaveTypeLabel || '—' },
-  { title: '起止', key: 'dateRange', width: 200, render: row => row.dateRange || '—' },
-  { title: '天数', key: 'days', width: 80, render: row => row.days != null ? `${row.days} 天` : '—' },
-  { title: '原因', key: 'reason', minWidth: 180, ellipsis: { tooltip: true }, render: row => row.reason || '—' },
-  colCurrentNode(),
-  colApplyTime(),
-  colActions()
-]
-
-// 付款类（expense / advance / prepay）—— 摘要 + 金额
-const paymentColumns: DataTableColumns<ApprovalItem> = [
-  colApplicant(),
-  colTypeTag(),
-  { title: '摘要', key: 'summary', minWidth: 220, ellipsis: { tooltip: true } },
-  { title: '金额', key: 'amount', width: 120, render: row => row.amount != null ? `¥ ${row.amount}` : '—' },
-  colCurrentNode(),
-  colApplyTime(),
-  colActions()
-]
-
-// 默认（全部 / 佣金等）—— 通用混合列
-// 不放金额列：请假/调休行根本没金额，混在表格里会让审批人误读；付款类要看金额请切到对应筛选或点详情。
-const defaultColumns: DataTableColumns<ApprovalItem> = [
-  colApplicant(),
-  colTypeTag(),
-  { title: '摘要', key: 'summary', minWidth: 240, ellipsis: { tooltip: true } },
-  colCurrentNode(),
-  colApplyTime(),
-  colActions()
-]
-
-const activeColumns = computed<DataTableColumns<ApprovalItem>>(() => {
-  if (typeFilter.value === 'leave' || typeFilter.value === 'compensate') return leaveColumns
-  if (typeFilter.value === 'expense' || typeFilter.value === 'advance' || typeFilter.value === 'prepay') return paymentColumns
-  return defaultColumns
-})
+// 统一列定义：不再按 typeFilter 切换列集
+// 设计参照 doc/PERMISSION-AND-ROLES.md 配套的方案 C：审批人多半要快速扫读 + 跨类决策，统一表格更高效
+const unifiedColumns = computed<DataTableColumns<ApprovalItem>>(() => [
+  {
+    title: '申请人',
+    key: 'applicantName',
+    width: 130,
+    render: row => h('div', { style: 'line-height:1.4' }, [
+      h('div', { style: 'font-weight:500' }, row.applicantName || '—'),
+      row.applicantDept
+        ? h('div', { style: 'color:#999;font-size:12px;margin-top:2px' }, row.applicantDept)
+        : null
+    ])
+  },
+  {
+    title: '类型',
+    key: 'type',
+    width: 110,
+    render: row => h(NTag, { type: typeTagType(row.type), size: 'small', bordered: false }, { default: () => buildTypeDisplay(row) })
+  },
+  {
+    title: '关键内容',
+    key: 'keyContent',
+    minWidth: 240,
+    ellipsis: { tooltip: true },
+    render: row => buildKeyContent(row)
+  },
+  {
+    title: '金额',
+    key: 'amount',
+    width: 130,
+    align: 'right' as const,
+    sorter: (a: ApprovalItem, b: ApprovalItem) => (a.amount || 0) - (b.amount || 0),
+    render: row => row.amount != null ? formatAmount(row.amount) : h('span', { style: 'color:#bbb' }, '—')
+  },
+  {
+    title: '已等',
+    key: 'waiting',
+    width: 100,
+    sorter: (a: ApprovalItem, b: ApprovalItem) => {
+      const ta = a.applyTime ? new Date(a.applyTime).getTime() : 0
+      const tb = b.applyTime ? new Date(b.applyTime).getTime() : 0
+      return ta - tb  // 申请时间早的 → 已等时间长 → 排前
+    },
+    defaultSortOrder: 'ascend' as const,
+    render: row => {
+      const w = formatWaiting(row.applyTime)
+      const color = w.level === 'urgent' ? '#d03050' : w.level === 'warn' ? '#f0a020' : '#666'
+      const weight = w.level === 'urgent' ? '600' : '400'
+      return h('span', { style: `color:${color};font-weight:${weight}` }, w.text)
+    }
+  },
+  {
+    title: '当前节点',
+    key: 'currentNodeName',
+    width: 110,
+    render: row => row.currentNodeName || '—'
+  },
+  {
+    title: '操作',
+    key: 'actions',
+    width: 220,
+    fixed: 'right' as const,
+    render: row =>
+      h(NSpace, { size: 'small' }, {
+        default: () => [
+          h(NButton, { size: 'small', type: 'primary', secondary: true, onClick: () => openDetail(row) }, { default: () => '详情' }),
+          h(NButton, { size: 'small', type: 'primary', onClick: () => openAction(row, true) }, { default: () => '通过' }),
+          h(NButton, { size: 'small', type: 'error', ghost: true, onClick: () => openAction(row, false) }, { default: () => '驳回' })
+        ]
+      })
+  }
+])
 
 async function loadList() {
   loading.value = true

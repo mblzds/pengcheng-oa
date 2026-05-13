@@ -25,8 +25,10 @@ import com.pengcheng.realty.payment.dto.PaymentApprovalDTO;
 import com.pengcheng.realty.payment.entity.PaymentRequest;
 import com.pengcheng.realty.payment.mapper.PaymentRequestMapper;
 import com.pengcheng.realty.payment.service.PaymentService;
+import com.pengcheng.system.entity.SysDept;
 import com.pengcheng.system.entity.SysUser;
 import com.pengcheng.system.helper.SystemConfigHelper;
+import com.pengcheng.system.mapper.SysDeptMapper;
 import com.pengcheng.system.service.SysUserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -57,6 +59,7 @@ public class AdminApprovalController {
     private final CommissionMapper commissionMapper;
     private final CommissionService commissionService;
     private final SysUserService userService;
+    private final SysDeptMapper sysDeptMapper;
     private final ApprovalFlowService approvalFlowService;
     private final SystemConfigHelper systemConfigHelper;
 
@@ -95,6 +98,7 @@ public class AdminApprovalController {
                     .id(c.getId())
                     .type("commission")
                     .applicantName(resolveUserName(c.getCreateBy()))
+                    .applicantDept(resolveUserDept(c.getCreateBy()))
                     .summary("佣金审核 - 应收: " + c.getReceivableAmount())
                     .amount(c.getReceivableAmount())
                     .applyTime(c.getCreateTime())
@@ -300,10 +304,12 @@ public class AdminApprovalController {
                 .id(pr.getId())
                 .type(resolvePaymentType(pr.getRequestType()))
                 .applicantName(resolveUserName(pr.getApplicantId()))
+                .applicantDept(resolveUserDept(pr.getApplicantId()))
                 .summary(buildPaymentSummary(pr))
                 .amount(pr.getAmount())
                 .applyTime(pr.getCreateTime())
                 .currentNodeName(node.getNodeName())
+                .expenseTypeLabel(resolveExpenseTypeLabel(pr.getExpenseType()))
                 .build();
     }
 
@@ -315,6 +321,7 @@ public class AdminApprovalController {
                     .id(lr.getId())
                     .type("leave")
                     .applicantName(resolveUserName(lr.getUserId()))
+                    .applicantDept(resolveUserDept(lr.getUserId()))
                     .summary(buildLeaveSummary(lr))
                     .applyTime(lr.getCreateTime())
                     .currentNodeName(node.getNodeName())
@@ -331,6 +338,7 @@ public class AdminApprovalController {
                     .id(cr.getId())
                     .type("compensate")
                     .applicantName(resolveUserName(cr.getUserId()))
+                    .applicantDept(resolveUserDept(cr.getUserId()))
                     .summary("调休申请 - " + cr.getCompensateDate())
                     .applyTime(cr.getCreateTime())
                     .currentNodeName(node.getNodeName())
@@ -347,6 +355,15 @@ public class AdminApprovalController {
         if (userId == null) return "未知";
         SysUser u = userService.getById(userId);
         return u != null ? u.getNickname() : "未知";
+    }
+
+    /** 取申请人部门名（用于前端列表副标题）；找不到返回 null（前端兜底显示） */
+    private String resolveUserDept(Long userId) {
+        if (userId == null) return null;
+        SysUser u = userService.getById(userId);
+        if (u == null || u.getDeptId() == null) return null;
+        SysDept d = sysDeptMapper.selectById(u.getDeptId());
+        return d != null ? d.getDeptName() : null;
     }
 
     private String buildLeaveSummary(LeaveRequest lr) {
@@ -416,6 +433,19 @@ public class AdminApprovalController {
             case PaymentService.TYPE_ADVANCE_COMMISSION -> "advance";
             case PaymentService.TYPE_PREPAY_COMMISSION -> "prepay";
             default -> "expense";
+        };
+    }
+
+    /** 报销类型显示名（与 PaymentRequest.expenseType 字段对齐：1交通 / 2餐饮 / 3住宿 / 4办公 / 5其他） */
+    private static String resolveExpenseTypeLabel(Integer expenseType) {
+        if (expenseType == null) return null;
+        return switch (expenseType) {
+            case 1 -> "交通";
+            case 2 -> "餐饮";
+            case 3 -> "住宿";
+            case 4 -> "办公";
+            case 5 -> "其他";
+            default -> null;
         };
     }
 }

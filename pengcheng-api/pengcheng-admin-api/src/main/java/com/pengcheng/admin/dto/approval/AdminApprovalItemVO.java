@@ -24,6 +24,8 @@ public class AdminApprovalItemVO {
     private Long id;
     private String type;
     private String applicantName;
+    /** 申请人所在部门名（用于前端副标题展示，部门经理审批时一眼判断"是不是我管的人"） */
+    private String applicantDept;
     private String summary;
     private BigDecimal amount;
     private LocalDateTime applyTime;
@@ -37,4 +39,6 @@ public class AdminApprovalItemVO {
     private Double days;
     /** 申请原因；付款类摘要里已包含金额，仅假期类填此字段 */
     private String reason;
+    /** 报销类型显示名（交通/餐饮/住宿/办公/其他）；非报销类型为 null */
+    private String expenseTypeLabel;
 }

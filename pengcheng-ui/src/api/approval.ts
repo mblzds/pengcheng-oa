@@ -71,6 +71,8 @@ export interface ApprovalItem {
   id: number
   type: ApprovalType
   applicantName: string
+  /** 申请人部门名（部门经理审批时判断"是不是我管的人"） */
+  applicantDept?: string | null
   summary: string
   amount?: number | null
   applyTime: string
@@ -80,6 +82,8 @@ export interface ApprovalItem {
   dateRange?: string | null
   days?: number | null
   reason?: string | null
+  /** 报销类型显示名（交通/餐饮/住宿/办公/其他）；仅 expense 才有 */
+  expenseTypeLabel?: string | null
 }
 
 export interface ApprovalHistory {

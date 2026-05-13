@@ -306,15 +306,17 @@ const userRole = computed(() => {
   const roles = user?.roles || user?.roleIds || userStore.roles || []
   if (Array.isArray(roles)) {
     const roleNames = roles.map((r: any) => typeof r === 'string' ? r : r.roleKey || r.roleName || '')
-    if (roleNames.some((r: string) => ['admin', 'super_admin'].includes(r))) return 'admin'
-    if (roleNames.some((r: string) => ['manager', 'director'].includes(r))) return 'manager'
+    // 与 V72 角色清单对齐；保留 manager/director 等兼容老数据
+    if (roleNames.some((r: string) => ['admin', 'super_admin', 'chairman', 'general_manager'].includes(r))) return 'admin'
+    if (roleNames.some((r: string) => ['dept_manager', 'manager', 'director'].includes(r))) return 'manager'
     if (roleNames.some((r: string) => ['hr', 'attendance'].includes(r))) return 'hr'
+    if (roleNames.some((r: string) => ['finance', 'cw'].includes(r))) return 'finance'
   }
   return 'sales'
 })
 
 const roleLabel = computed(() => {
-  const map: Record<string, string> = { admin: '管理员', manager: '管理者', hr: '人事', sales: '销售' }
+  const map: Record<string, string> = { admin: '管理员', manager: '部门经理', hr: '人事', finance: '财务', sales: '销售' }
   return map[userRole.value] || '销售'
 })
 
@@ -439,7 +441,7 @@ const todos = ref<any[]>([])
 const myTasks = ref<any[]>([])
 
 // 角色对应的待办标题、空态文案、"更多"跳转
-const isApprover = computed(() => ['admin', 'manager', 'hr'].includes(userRole.value))
+const isApprover = computed(() => ['admin', 'manager', 'hr', 'finance'].includes(userRole.value))
 const todoTitle = computed(() => isApprover.value ? '待我审批' : '我的待办')
 const todoMoreRoute = computed(() => isApprover.value ? '/hr/approval-pending' : '/smart-table')
 const todoEmptyText = computed(() => isApprover.value ? '暂无待审批事项' : '暂无待办任务')

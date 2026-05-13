@@ -1,5 +1,6 @@
 package com.pengcheng.admin.controller.hr;
 
+import cn.dev33.satoken.annotation.SaCheckLogin;
 import cn.dev33.satoken.annotation.SaCheckPermission;
 import com.pengcheng.common.result.Result;
 import com.pengcheng.hr.approval.dto.ApprovalFlowNodeVO;
@@ -30,9 +31,13 @@ public class ApprovalFlowController {
     /**
      * 列举管理后台 tab 用的业务类型（数据源：approval_business_type 表）。
      * 含 builtin 标识与 nodeCount 已配置节点数。
+     *
+     * 仅校验登录（不查 system:approval-flow:list 权限）——该列表是给审批人页面拉筛选选项的
+     * 元数据，非敏感；按写权限 list 卡住会让"我的待审批"普通审批人看不到筛选下拉。
+     * 写操作（POST/PUT/DELETE）仍保留 system:approval-flow:edit 权限。
      */
     @GetMapping("/business-types")
-    @SaCheckPermission("system:approval-flow:list")
+    @SaCheckLogin
     public Result<List<BusinessTypeOption>> businessTypes() {
         return Result.ok(approvalFlowService.listBusinessTypes());
     }
