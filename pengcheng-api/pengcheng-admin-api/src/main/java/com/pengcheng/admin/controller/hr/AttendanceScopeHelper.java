@@ -4,8 +4,10 @@ import cn.dev33.satoken.stp.StpUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.pengcheng.common.exception.BusinessException;
 import com.pengcheng.system.entity.SysDept;
+import com.pengcheng.system.entity.SysRole;
 import com.pengcheng.system.entity.SysUser;
 import com.pengcheng.system.mapper.SysDeptMapper;
+import com.pengcheng.system.mapper.SysRoleMapper;
 import com.pengcheng.system.mapper.SysUserMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -16,12 +18,13 @@ import java.util.stream.Collectors;
 /**
  * 考勤数据可见性范围决策
  * 三档：
- *   - HR / 管理员（全公司）→ 不限
+ *   - 任一角色 sys_role.data_scope=1（全部）→ 不限
  *   - 部门主管（担任至少一个 dept.leader_id 的用户）→ 本部门 + 所有下级部门成员
  *   - 普通员工 → 仅自己
  *
- * 不依赖 sys_role.data_scope，直接看「角色编码 + 是否担任部门负责人」，
- * 与该项目当前的角色体系一致（admin / flow_hr 等），后期若需要可改造。
+ * "全公司可见"原本写死了一组角色编码（admin / hr / flow_hr 等），改成读
+ * sys_role.data_scope=1，与项目其它模块（DataPermissionInterceptor）保持一致；
+ * 后续 HR 在角色管理后台调整 data_scope 即可改变考勤可见范围，不再需要改代码。
  */
 @Component
 @RequiredArgsConstructor
@@ -29,11 +32,10 @@ public class AttendanceScopeHelper {
 
     private final SysUserMapper userMapper;
     private final SysDeptMapper deptMapper;
+    private final SysRoleMapper roleMapper;
 
-    /** 视为"全公司可见"的角色编码 */
-    private static final Set<String> UNRESTRICTED_ROLES = Set.of(
-            "admin", "super_admin", "HR", "hr", "flow_hr"
-    );
+    /** sys_role.data_scope=1（全部） */
+    private static final int DATA_SCOPE_ALL = 1;
 
     /**
      * 当前登录用户在考勤数据上的可见 userId 集合
@@ -41,36 +43,78 @@ public class AttendanceScopeHelper {
      */
     public Set<Long> visibleUserIds() {
         Long currentUid = StpUtil.getLoginIdAsLong();
-        List<String> roles = StpUtil.getRoleList();
-        for (String code : roles) {
-            if (UNRESTRICTED_ROLES.contains(code)) {
+        List<SysRole> userRoles = roleMapper.selectRolesByUserId(currentUid).stream()
+                .filter(r -> r != null && Integer.valueOf(1).equals(r.getStatus()))
+                .collect(Collectors.toList());
+
+        // 任一启用角色 data_scope=1（全部）→ 不限
+        for (SysRole r : userRoles) {
+            if (Integer.valueOf(DATA_SCOPE_ALL).equals(r.getDataScope())) {
                 return null;
             }
         }
-        // 担任了任意部门的 leader_id ?
-        List<SysDept> ledDepts = deptMapper.selectList(
-                new LambdaQueryWrapper<SysDept>()
-                        .eq(SysDept::getLeaderId, currentUid));
-        if (ledDepts.isEmpty()) {
-            return Set.of(currentUid);  // 普通员工
-        }
-        // 部门主管：本部门 + 所有后代部门
-        Set<Long> deptIds = new HashSet<>();
-        for (SysDept d : ledDepts) {
-            deptIds.add(d.getId());
-            // ancestors 形如 "0,1,200"，找包含 d.id 的所有部门
-            List<SysDept> descendants = deptMapper.selectList(
-                    new LambdaQueryWrapper<SysDept>()
-                            .apply("FIND_IN_SET({0}, ancestors)", d.getId().toString()));
-            for (SysDept desc : descendants) {
-                deptIds.add(desc.getId());
+
+        // 多角色取并集（按 data_scope 各自展开后合并）
+        Set<Long> result = new HashSet<>();
+        result.add(currentUid);  // 始终包含自己
+
+        SysUser me = userMapper.selectById(currentUid);
+        Long myDeptId = (me != null) ? me.getDeptId() : null;
+
+        for (SysRole r : userRoles) {
+            Integer ds = r.getDataScope();
+            if (ds == null) continue;
+            switch (ds) {
+                case 4:  // 本部门及以下
+                    if (myDeptId != null) {
+                        result.addAll(usersInDeptAndDescendants(myDeptId));
+                    }
+                    break;
+                case 3:  // 本部门
+                    if (myDeptId != null) {
+                        result.addAll(usersInDept(myDeptId));
+                    }
+                    break;
+                case 2:  // 自定义（sys_role_dept 关联部门 + 下钻）
+                    // 暂不实现：项目当前无角色走 data_scope=2，留 TODO
+                    break;
+                case 5:  // 仅本人
+                default:
+                    break;
             }
         }
-        List<SysUser> users = userMapper.selectList(
-                new LambdaQueryWrapper<SysUser>().in(SysUser::getDeptId, deptIds));
-        Set<Long> result = users.stream().map(SysUser::getId).collect(Collectors.toSet());
-        result.add(currentUid);  // 主管自己也包含
+
+        // 兼容：sys_dept.leader_id 历史兜底——即便角色没配 data_scope=4，
+        // 只要被设为某部门 leader_id 也获得"本部门及以下"可见权
+        List<SysDept> ledDepts = deptMapper.selectList(
+                new LambdaQueryWrapper<SysDept>().eq(SysDept::getLeaderId, currentUid));
+        for (SysDept d : ledDepts) {
+            result.addAll(usersInDeptAndDescendants(d.getId()));
+        }
+
         return result;
+    }
+
+    /** 拉指定部门下（不下钻）所有启用员工的 userId */
+    private Set<Long> usersInDept(Long deptId) {
+        return userMapper.selectList(
+                        new LambdaQueryWrapper<SysUser>().eq(SysUser::getDeptId, deptId))
+                .stream().map(SysUser::getId).collect(Collectors.toSet());
+    }
+
+    /** 拉指定部门 + 所有后代部门下的员工 userId */
+    private Set<Long> usersInDeptAndDescendants(Long deptId) {
+        Set<Long> deptIds = new HashSet<>();
+        deptIds.add(deptId);
+        List<SysDept> descendants = deptMapper.selectList(
+                new LambdaQueryWrapper<SysDept>()
+                        .apply("FIND_IN_SET({0}, ancestors)", deptId.toString()));
+        for (SysDept d : descendants) {
+            deptIds.add(d.getId());
+        }
+        return userMapper.selectList(
+                        new LambdaQueryWrapper<SysUser>().in(SysUser::getDeptId, deptIds))
+                .stream().map(SysUser::getId).collect(Collectors.toSet());
     }
 
     /**

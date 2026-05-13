@@ -114,3 +114,5 @@ return Result.fail("msg");  // 500
 `docker-compose.yml` 启动：`masterlife-app`、`masterlife-mysql`（端口 3307）、`masterlife-redis`（6379）、`masterlife-postgres`（5432）、`masterlife-minio`（9000/9001）、`masterlife-kkfileview`（8012）、`masterlife-nginx`（80/443）。OnlyOffice 在 `profiles: optional` 下，需显式指定 `--profile optional` 才会启动。
 
 必填 `.env` 变量：`DB_USERNAME`、`DB_PASSWORD`、`REDIS_PASSWORD`、`PG_PASSWORD`、`DASHSCOPE_API_KEY`。完整列表参见 `.env.example`。
+
+
