@@ -13,11 +13,35 @@
                 type="daterange"
                 clearable
                 :shortcuts="dateShortcuts"
-                :update-value-on-close="false"
+                :update-value-on-close="true"
                 format="yyyy-MM-dd"
                 start-placeholder="开始日期"
                 end-placeholder="结束日期"
                 style="width: 320px"
+              />
+            </n-form-item>
+            <n-form-item v-if="!isEmployeeOnly && recordFilter.userId == null" label="部门">
+              <n-tree-select
+                v-model:value="recordFilter.deptIds"
+                :options="summaryDeptOptions"
+                key-field="id"
+                label-field="deptName"
+                children-field="children"
+                multiple
+                checkable
+                cascade
+                filterable
+                clearable
+                placeholder="不选则全部"
+                style="width: 220px"
+              />
+            </n-form-item>
+            <n-form-item v-if="!isEmployeeOnly && recordFilter.userId == null" label="姓名/工号">
+              <n-input
+                v-model:value="recordFilter.nameKeyword"
+                placeholder="支持姓名/工号"
+                clearable
+                style="width: 180px"
               />
             </n-form-item>
             <n-form-item label="状态">
@@ -192,13 +216,22 @@ const recordData = ref<AttendanceRecordItem[]>([])
 const detailVisible = ref(false)
 const detailRow = ref<AttendanceRecordItem | null>(null)
 function openDetail(row: AttendanceRecordItem) {
+  console.log('[attendance] openDetail called, row=', row)
   detailRow.value = row
   detailVisible.value = true
+  console.log('[attendance] detailVisible set to', detailVisible.value)
 }
 
 // 整行可点击打开详情；按钮 / 链接等内部交互元素拦截掉，不触发行级 onClick
 function recordRowProps(row: AttendanceRecordItem) {
+  const cls: string[] = []
+  if (row.exemptReason) {
+    cls.push('attendance-row--exempt')
+  } else if (!row.clockInTime && !row.clockOutTime) {
+    cls.push('attendance-row--absent')
+  }
   return {
+    class: cls.join(' '),
     style: 'cursor: pointer;',
     onClick: (e: MouseEvent) => {
       const target = e.target as HTMLElement
@@ -243,16 +276,23 @@ function todayRange(): [number, number] {
 const recordFilter = reactive<{
   userId: number | null
   dateRange: [number, number] | null
+  deptIds: number[]
+  nameKeyword: string
   statusFilter: string  // 'all' | 'abnormal' | 'normal' | 'leave' | 'compensate'
 }>({
   userId: null,
   dateRange: todayRange(),
+  deptIds: [],
+  nameKeyword: '',
   statusFilter: 'all'
 })
 
 const statusFilterOptions = [
   { label: '全部', value: 'all' },
   { label: '仅异常', value: 'abnormal' },
+  { label: '迟到', value: 'late' },
+  { label: '早退', value: 'early' },
+  { label: '缺勤', value: 'absent' },
   { label: '正常', value: 'normal' },
   { label: '请假', value: 'leave' },
   { label: '调休', value: 'compensate' }
@@ -283,18 +323,55 @@ const dateShortcuts = {
 // 普通员工 = 后端 visible-users 只回自己一条
 const isEmployeeOnly = computed(() => userOptions.value.length === 1)
 
-// 前端按 statusFilter 过滤；状态由 deriveDayStatus 派生，不需要后端配合
+// 部门树 id → deptName 映射，给前端按部门过滤用（records 返回里只有 deptName，没有 deptId）
+const deptNameById = computed(() => {
+  const map = new Map<number, string>()
+  const walk = (nodes: any[]) => {
+    for (const n of nodes || []) {
+      if (n && n.id != null) map.set(n.id, n.deptName)
+      if (n && n.children?.length) walk(n.children)
+    }
+  }
+  walk(summaryDeptOptions.value)
+  return map
+})
+
+// 前端聚合过滤：状态 + 部门 + 姓名/工号 关键字
 const filteredRecordData = computed(() => {
+  let rows = recordData.value
+  if (recordFilter.deptIds.length > 0) {
+    const names = new Set(
+      recordFilter.deptIds
+        .map(id => deptNameById.value.get(id))
+        .filter((v): v is string => !!v)
+    )
+    if (names.size > 0) {
+      rows = rows.filter(r => r.deptName && names.has(r.deptName))
+    }
+  }
+  const kw = recordFilter.nameKeyword.trim().toLowerCase()
+  if (kw) {
+    rows = rows.filter(r =>
+      (r.userName || '').toLowerCase().includes(kw) ||
+      (r.employeeNo || '').toLowerCase().includes(kw)
+    )
+  }
   const f = recordFilter.statusFilter
-  if (f === 'all') return recordData.value
-  return recordData.value.filter(row => {
-    const s = deriveDayStatus(row)
-    if (f === 'abnormal') return s.type === 'error' || s.type === 'warning'
-    if (f === 'normal') return s.type === 'success'
-    if (f === 'leave') return s.label.startsWith('请假')
-    if (f === 'compensate') return s.label === '调休'
-    return true
-  })
+  if (f !== 'all') {
+    rows = rows.filter(row => {
+      const s = deriveDayStatus(row)
+      if (f === 'abnormal') return s.type === 'error' || s.type === 'warning'
+      if (f === 'normal') return s.type === 'success'
+      if (f === 'leave') return s.label.startsWith('请假')
+      if (f === 'compensate') return s.label === '调休'
+      // 迟到 / 早退 — "迟到+早退" 同时匹配这两个筛选，与月度汇总语义一致
+      if (f === 'late') return s.label.includes('迟到')
+      if (f === 'early') return s.label.includes('早退')
+      if (f === 'absent') return s.label === '缺勤'
+      return true
+    })
+  }
+  return rows
 })
 
 // 表格分页（前端分页）
@@ -318,9 +395,9 @@ const summaryFilter = reactive<{
 
 const abnormalFilterOptions = [
   { label: '全部', value: 'all' },
-  { label: '仅有迟到', value: 'late' },
-  { label: '仅有早退', value: 'early' },
-  { label: '仅有缺勤', value: 'absent' },
+  { label: '迟到', value: 'late' },
+  { label: '早退', value: 'early' },
+  { label: '缺勤', value: 'absent' },
   { label: '任一异常', value: 'any' }
 ]
 
@@ -424,33 +501,22 @@ const approvalStatusOptions = [
 
 const recordColumns: DataTableColumns<AttendanceRecordItem> = [
   { title: '员工', key: 'userName', width: 220, render: row => renderEmployee(row) },
-  {
-    title: '日考勤状态',
-    key: 'dayStatus',
-    width: 100,
-    align: 'center',
-    titleAlign: 'center',
-    render: row => {
-      const s = deriveDayStatus(row)
-      return h(NTag, { size: 'small', type: s.type }, { default: () => s.label })
-    }
-  },
   { title: '日期', key: 'attendanceDate', width: 100, align: 'center', titleAlign: 'center' },
   {
     title: '上班打卡',
     key: 'clockInTime',
-    width: 90,
+    width: 130,
     align: 'center',
     titleAlign: 'center',
-    render: row => formatTimeOnly(row.clockInTime)
+    render: row => renderClockCell(row.clockInTime, row.clockInStatus, true)
   },
   {
     title: '下班打卡',
     key: 'clockOutTime',
-    width: 90,
+    width: 130,
     align: 'center',
     titleAlign: 'center',
-    render: row => formatTimeOnly(row.clockOutTime)
+    render: row => renderClockCell(row.clockOutTime, row.clockOutStatus, false)
   },
   {
     title: '工时',
@@ -459,6 +525,14 @@ const recordColumns: DataTableColumns<AttendanceRecordItem> = [
     align: 'center',
     titleAlign: 'center',
     render: row => calcWorkHours(row.clockInTime, row.clockOutTime)
+  },
+  {
+    title: '备注',
+    key: 'remark',
+    width: 130,
+    align: 'center',
+    titleAlign: 'center',
+    render: row => renderRemark(row)
   },
   {
     title: '操作',
@@ -557,6 +631,41 @@ function calcWorkHours(clockIn?: string, clockOut?: string) {
   return ((end - start) / 3600000).toFixed(1) + 'h'
 }
 
+/** 打卡时间格：正常显示时间；异常(status≠1)贴红/橙 chip；无时间显示 '—' */
+function renderClockCell(time?: string, status?: number, isIn = true) {
+  if (!time) {
+    return h('span', { style: 'color:#bbb' }, '—')
+  }
+  const timeStr = formatTimeOnly(time)
+  if (status == null || status === 1) {
+    return timeStr
+  }
+  const label = isIn ? '迟到' : '早退'
+  const type: 'error' | 'warning' = isIn ? 'error' : 'warning'
+  return h('span', { style: 'display:inline-flex;align-items:center;gap:6px' }, [
+    h('span', null, timeStr),
+    h(NTag, { size: 'small', type, bordered: false }, { default: () => label })
+  ])
+}
+
+/** 备注列：缺勤 / 请假·xx / 调休 / 缺卡；正常打卡留空避免噪声 */
+function renderRemark(row: AttendanceRecordItem) {
+  if (row.exemptReason) {
+    let label = '请假'
+    if (row.exemptReason.startsWith('leave-')) label = '请假·' + row.exemptReason.slice(6)
+    else if (row.exemptReason === 'compensate') label = '调休'
+    else if (!row.exemptReason.startsWith('leave')) label = row.exemptReason
+    return h(NTag, { size: 'small', type: 'info', bordered: false }, { default: () => label })
+  }
+  if (!row.clockInTime && !row.clockOutTime) {
+    return h(NTag, { size: 'small', type: 'error', bordered: false }, { default: () => '缺勤' })
+  }
+  if (!row.clockInTime || !row.clockOutTime) {
+    return h(NTag, { size: 'small', type: 'warning', bordered: false }, { default: () => '缺卡' })
+  }
+  return ''
+}
+
 /**
  * 由打卡情况 + 豁免原因推导日考勤状态汇总
  * 豁免（请假 / 调休）优先级高于打卡判定：当天请假即使没打卡也不算缺卡
@@ -598,7 +707,7 @@ function toDateString(ms: number) {
 
 function renderClockStatus(status?: number, isIn = true) {
   if (status === undefined || status === null) {
-    return '-'
+    return h('span', '-')
   }
   const text = isIn ? (status === 1 ? '正常' : '迟到') : status === 1 ? '正常' : '早退'
   const type: 'success' | 'warning' = status === 1 ? 'success' : 'warning'
@@ -647,6 +756,8 @@ function resetRecordFilter() {
     ? userOptions.value[0].id
     : null
   recordFilter.dateRange = todayRange()
+  recordFilter.deptIds = []
+  recordFilter.nameKeyword = ''
   recordFilter.statusFilter = 'all'
   loadAttendanceRecords()
 }
@@ -727,5 +838,13 @@ onMounted(async () => {
   font-size: 12px;
   color: #909399;
   text-align: right;
+}
+
+/* 行底色：缺勤淡红 / 请假调休淡蓝；naive 的 tr 不带 scoped 属性，用 :deep 穿透 */
+:deep(.attendance-row--absent) td {
+  background-color: rgba(208, 48, 80, 0.06) !important;
+}
+:deep(.attendance-row--exempt) td {
+  background-color: rgba(32, 128, 192, 0.05) !important;
 }
 </style>

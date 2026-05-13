@@ -215,9 +215,13 @@ public class AttendanceServiceImpl implements AttendanceService {
         int attendanceDays = 0, lateTimes = 0, earlyLeaveTimes = 0;
         for (AttendanceRecord r : records) {
             boolean isOnWorkday = r.getAttendanceDate() != null && holidayCalendarService.isWorkday(r.getAttendanceDate());
+            // 当天有 exempt_reason（请假/调休审批通过后由 AttendanceExemptListener 写入）
+            // → 不计入迟到/早退次数（避免事后补假被同时算"请假+迟到"双重处罚）
+            // attendanceDays 仍按是否打过卡算，否则当天既不算出勤也不算异常会让 absentDays 错增
+            boolean exempt = r.getExemptReason() != null && !r.getExemptReason().isBlank();
             if (isOnWorkday && (r.getClockInTime() != null || r.getClockOutTime() != null)) attendanceDays++;
-            if (r.getClockInStatus() != null && r.getClockInStatus() == CLOCK_IN_LATE) lateTimes++;
-            if (r.getClockOutStatus() != null && r.getClockOutStatus() == CLOCK_OUT_EARLY) earlyLeaveTimes++;
+            if (!exempt && r.getClockInStatus() != null && r.getClockInStatus() == CLOCK_IN_LATE) lateTimes++;
+            if (!exempt && r.getClockOutStatus() != null && r.getClockOutStatus() == CLOCK_OUT_EARLY) earlyLeaveTimes++;
         }
 
         // 已通过请假覆盖到本月的真实天数（按上下班时段算，区别于历史"条数"）
@@ -381,56 +385,87 @@ public class AttendanceServiceImpl implements AttendanceService {
     public List<AttendanceRecord> listAttendanceRecordsWithAbsent(Long userId, Set<Long> allowedUserIds,
                                                                   LocalDate startDate, LocalDate endDate) {
         List<AttendanceRecord> existing = listAttendanceRecords(userId, allowedUserIds, startDate, endDate);
-        // 仅在单人查询 + 日期范围明确时补全缺勤；否则原样返回（全员视图数据量过大、意义有限）
-        if (userId == null || startDate == null || endDate == null) {
+        if (startDate == null || endDate == null || startDate.isAfter(endDate)) {
             return existing;
         }
-        if (startDate.isAfter(endDate)) {
-            return existing;
-        }
-
-        // 计算 cutoff（入职前 / 系统启用前不算缺勤）
-        EmployeeProfile profile = employeeProfileMapper.selectOne(new LambdaQueryWrapper<EmployeeProfile>()
-                .eq(EmployeeProfile::getUserId, userId)
-                .last("LIMIT 1"));
-        LocalDate cutoff = (profile != null && profile.getJoinDate() != null)
-                ? profile.getJoinDate()
-                : systemConfigHelper.getAttendanceStartDate();
         LocalDate today = LocalDate.now();
-        LocalDate effectiveStart = (cutoff != null && cutoff.isAfter(startDate)) ? cutoff : startDate;
         // 未来日期不算缺勤
         LocalDate effectiveEnd = today.isBefore(endDate) ? today : endDate;
-        if (effectiveStart.isAfter(effectiveEnd)) {
+        if (effectiveEnd.isBefore(startDate)) {
             return existing;
         }
 
-        // 已有记录的日期集合，跳过
-        Set<LocalDate> existingDates = existing.stream()
-                .map(AttendanceRecord::getAttendanceDate)
-                .filter(Objects::nonNull)
+        // 目标用户集合：单人 → 该 userId；多人 → allowedUserIds，null 时退化为全员启用账号
+        List<Long> targetUserIds;
+        if (userId != null) {
+            targetUserIds = java.util.List.of(userId);
+        } else if (allowedUserIds != null) {
+            if (allowedUserIds.isEmpty()) return existing;
+            targetUserIds = new java.util.ArrayList<>(allowedUserIds);
+        } else {
+            // admin / HR 全员可见：拉所有启用用户
+            targetUserIds = sysUserMapper.selectList(
+                    new LambdaQueryWrapper<SysUser>().eq(SysUser::getStatus, 1)
+            ).stream().map(SysUser::getId).collect(Collectors.toList());
+            if (targetUserIds.isEmpty()) return existing;
+        }
+
+        // 防爆量：多人视图限制总单元格规模（用户数 × 天数）
+        if (userId == null) {
+            long days = java.time.temporal.ChronoUnit.DAYS.between(startDate, effectiveEnd) + 1;
+            long capacity = (long) targetUserIds.size() * days;
+            final long MAX_CELLS = 1000L;
+            if (capacity > MAX_CELLS) {
+                return existing;
+            }
+        }
+
+        // 系统启动日期（兜底 cutoff），员工 profile 中的入职日期优先
+        LocalDate systemStart = systemConfigHelper.getAttendanceStartDate();
+
+        // 批量预加载，避免 N+1
+        List<EmployeeProfile> profiles = employeeProfileMapper.selectList(
+                new LambdaQueryWrapper<EmployeeProfile>().in(EmployeeProfile::getUserId, targetUserIds)
+        );
+        Map<Long, EmployeeProfile> profileByUser = profiles.stream()
+                .collect(Collectors.toMap(EmployeeProfile::getUserId, p -> p, (a, b) -> a));
+        List<SysUser> users = sysUserMapper.selectBatchIds(targetUserIds);
+        Map<Long, SysUser> userById = users.stream()
+                .collect(Collectors.toMap(SysUser::getId, u -> u, (a, b) -> a));
+        Set<Long> deptIds = users.stream().map(SysUser::getDeptId).filter(Objects::nonNull).collect(Collectors.toSet());
+        Map<Long, String> deptNameById = deptIds.isEmpty()
+                ? java.util.Collections.emptyMap()
+                : sysDeptMapper.selectBatchIds(deptIds).stream()
+                        .collect(Collectors.toMap(SysDept::getId, SysDept::getDeptName, (a, b) -> a));
+
+        // 已有 (userId, date) 记录的集合，跳过补全
+        Set<String> existingKeys = existing.stream()
+                .filter(r -> r.getUserId() != null && r.getAttendanceDate() != null)
+                .map(r -> r.getUserId() + "|" + r.getAttendanceDate())
                 .collect(Collectors.toSet());
 
-        // 准备显示字段（一次性查 user / dept / profile，避免每条 enrich）
-        SysUser u = sysUserMapper.selectById(userId);
-        String userName = u != null ? u.getNickname() : null;
-        String deptName = (u != null && u.getDeptId() != null)
-                ? java.util.Optional.ofNullable(sysDeptMapper.selectById(u.getDeptId()))
-                        .map(SysDept::getDeptName).orElse(null)
-                : null;
-        String employeeNo = profile != null ? profile.getEmployeeNo() : null;
-
         List<AttendanceRecord> absentRows = new java.util.ArrayList<>();
-        for (LocalDate d = effectiveStart; !d.isAfter(effectiveEnd); d = d.plusDays(1)) {
-            if (existingDates.contains(d)) continue;
-            if (!holidayCalendarService.isWorkday(d)) continue;
-            AttendanceRecord absent = AttendanceRecord.builder()
-                    .userId(userId)
-                    .attendanceDate(d)
-                    .build();
-            absent.setUserName(userName);
-            absent.setEmployeeNo(employeeNo);
-            absent.setDeptName(deptName);
-            absentRows.add(absent);
+        for (Long uid : targetUserIds) {
+            EmployeeProfile profile = profileByUser.get(uid);
+            LocalDate cutoff = (profile != null && profile.getJoinDate() != null) ? profile.getJoinDate() : systemStart;
+            LocalDate effectiveStart = (cutoff != null && cutoff.isAfter(startDate)) ? cutoff : startDate;
+            if (effectiveStart.isAfter(effectiveEnd)) continue;
+            SysUser u = userById.get(uid);
+            String userName = u != null ? u.getNickname() : null;
+            String employeeNo = profile != null ? profile.getEmployeeNo() : null;
+            String deptName = (u != null && u.getDeptId() != null) ? deptNameById.get(u.getDeptId()) : null;
+            for (LocalDate d = effectiveStart; !d.isAfter(effectiveEnd); d = d.plusDays(1)) {
+                if (existingKeys.contains(uid + "|" + d)) continue;
+                if (!holidayCalendarService.isWorkday(d)) continue;
+                AttendanceRecord absent = AttendanceRecord.builder()
+                        .userId(uid)
+                        .attendanceDate(d)
+                        .build();
+                absent.setUserName(userName);
+                absent.setEmployeeNo(employeeNo);
+                absent.setDeptName(deptName);
+                absentRows.add(absent);
+            }
         }
         if (absentRows.isEmpty()) {
             return existing;
