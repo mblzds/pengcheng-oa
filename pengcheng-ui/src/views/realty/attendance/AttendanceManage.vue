@@ -78,22 +78,13 @@
           <n-form-item>
             <n-space>
               <n-button type="primary" @click="loadMonthlySummary">查询</n-button>
-              <n-button v-if="summaryFilter.userId == null" @click="exportMonthlyCsv" :disabled="!filteredMonthlyBatchData.length">导出 CSV</n-button>
+              <n-button @click="exportMonthlyCsv" :disabled="!filteredMonthlyBatchData.length">导出 CSV</n-button>
             </n-space>
           </n-form-item>
         </n-form>
 
-        <!-- 单人详情视图：选了具体用户时 -->
-        <n-grid v-if="monthlySummary && summaryFilter.userId != null" :cols="4" :x-gap="12" :y-gap="12" style="margin-top: 12px">
-          <n-gi><n-statistic label="出勤天数" :value="monthlySummary.attendanceDays || 0" /></n-gi>
-          <n-gi><n-statistic label="迟到次数" :value="monthlySummary.lateTimes || 0" /></n-gi>
-          <n-gi><n-statistic label="早退次数" :value="monthlySummary.earlyLeaveTimes || 0" /></n-gi>
-          <n-gi><n-statistic label="请假天数" :value="monthlySummary.leaveDays || 0" /></n-gi>
-        </n-grid>
-
-        <!-- 批量列表视图：HR / 部门主管 默认看到全员 -->
+        <!-- 统一表格视图：单人 1 行 / 全员多行；columns 一致便于 HR 横向对比 -->
         <n-data-table
-          v-if="summaryFilter.userId == null"
           :columns="monthlyBatchColumns"
           :data="filteredMonthlyBatchData"
           :pagination="{ pageSize: 20 }"
@@ -664,25 +655,18 @@ async function loadMonthlySummary() {
   const monthDate = new Date(summaryFilter.month)
   const year = monthDate.getFullYear()
   const month = monthDate.getMonth() + 1
-  if (summaryFilter.userId != null) {
-    // 选了具体用户 → 单人详情
-    const res: any = await attendanceApi.monthly({
-      userId: summaryFilter.userId,
-      year,
-      month
-    })
-    monthlySummary.value = res?.data ?? res ?? null
-    monthlyBatchData.value = []
-  } else {
-    // 未选用户 → 批量列表（HR/主管视图）；带上部门筛选
-    const params: { year: number; month: number; deptIds?: number[] } = { year, month }
-    if (summaryFilter.deptIds && summaryFilter.deptIds.length > 0) {
-      params.deptIds = summaryFilter.deptIds
-    }
-    const res: any = await attendanceApi.monthlyBatch(params)
-    monthlyBatchData.value = (res?.data ?? res ?? []) as AttendanceMonthlyVO[]
-    monthlySummary.value = null
+  // 单人 / 全员都走 batch；后端按可见范围 + dept + userIds 收紧，
+  // 单选用户时 userIds=[id] 返回 1 行，与多行视图同一张表格
+  const params: { year: number; month: number; deptIds?: number[]; userIds?: number[] } = { year, month }
+  if (summaryFilter.deptIds && summaryFilter.deptIds.length > 0) {
+    params.deptIds = summaryFilter.deptIds
   }
+  if (summaryFilter.userId != null) {
+    params.userIds = [summaryFilter.userId]
+  }
+  const res: any = await attendanceApi.monthlyBatch(params)
+  monthlyBatchData.value = (res?.data ?? res ?? []) as AttendanceMonthlyVO[]
+  monthlySummary.value = null
 }
 
 async function loadApprovalLists() {

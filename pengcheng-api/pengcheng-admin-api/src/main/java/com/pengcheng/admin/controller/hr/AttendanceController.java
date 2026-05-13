@@ -74,9 +74,16 @@ public class AttendanceController {
     public Result<List<AttendanceMonthlyVO>> monthlySummaryBatch(
             @RequestParam Integer year,
             @RequestParam Integer month,
-            @RequestParam(required = false) List<Long> deptIds) {
+            @RequestParam(required = false) List<Long> deptIds,
+            @RequestParam(required = false) List<Long> userIds) {
         Set<Long> allowed = scopeHelper.visibleUserIds();
         Set<Long> filtered = scopeHelper.intersectWithDepts(allowed, deptIds);
+        // 显式指定 userIds（前端选了具体某人或多人）→ 与可见范围取交集，防越权
+        if (userIds != null && !userIds.isEmpty()) {
+            Set<Long> reqSet = new java.util.HashSet<>(userIds);
+            if (filtered != null) reqSet.retainAll(filtered);
+            filtered = reqSet;
+        }
         return Result.ok(attendanceService.getMonthlySummaryBatch(filtered, year, month));
     }
 

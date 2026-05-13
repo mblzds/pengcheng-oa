@@ -74,8 +74,8 @@ export const attendanceApi = {
   monthly(params: { userId: number; year: number; month: number }) {
     return request<AttendanceMonthlyVO>({ url: '/admin/attendance/monthly', method: 'get', params })
   },
-  /** 批量月度汇总：后端按当前登录角色自动决定范围；deptIds 可进一步聚焦（含下钻） */
-  monthlyBatch(params: { year: number; month: number; deptIds?: number[] }) {
+  /** 批量月度汇总：后端按当前登录角色自动决定范围；deptIds / userIds 可进一步聚焦 */
+  monthlyBatch(params: { year: number; month: number; deptIds?: number[]; userIds?: number[] }) {
     return request<AttendanceMonthlyVO[]>({
       url: '/admin/attendance/monthly/batch',
       method: 'get',
