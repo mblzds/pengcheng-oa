@@ -51,13 +51,35 @@
       <n-card title="月度考勤汇总报表">
         <n-form inline :model="summaryFilter">
           <n-form-item label="选择用户">
-            <n-select v-model:value="summaryFilter.userId" :options="userOptions" label-field="nickname" value-field="id" filterable placeholder="不选则显示可见范围内的全员" clearable style="width: 260px" :disabled="isEmployeeOnly" />
+            <n-select v-model:value="summaryFilter.userId" :options="userOptions" label-field="nickname" value-field="id" filterable placeholder="不选则显示可见范围内的全员" clearable style="width: 240px" :disabled="isEmployeeOnly" />
+          </n-form-item>
+          <n-form-item v-if="summaryFilter.userId == null" label="部门">
+            <n-tree-select
+              v-model:value="summaryFilter.deptIds"
+              :options="summaryDeptOptions"
+              key-field="id"
+              label-field="deptName"
+              children-field="children"
+              multiple
+              checkable
+              cascade
+              filterable
+              clearable
+              placeholder="不选则全部"
+              style="width: 240px"
+            />
+          </n-form-item>
+          <n-form-item v-if="summaryFilter.userId == null" label="异常">
+            <n-select v-model:value="summaryFilter.abnormalFilter" :options="abnormalFilterOptions" style="width: 140px" />
           </n-form-item>
           <n-form-item label="月份">
-            <n-date-picker v-model:value="summaryFilter.month" type="month" style="width: 180px" />
+            <n-date-picker v-model:value="summaryFilter.month" type="month" style="width: 160px" />
           </n-form-item>
           <n-form-item>
-            <n-button type="primary" @click="loadMonthlySummary">查询</n-button>
+            <n-space>
+              <n-button type="primary" @click="loadMonthlySummary">查询</n-button>
+              <n-button v-if="summaryFilter.userId == null" @click="exportMonthlyCsv" :disabled="!filteredMonthlyBatchData.length">导出 CSV</n-button>
+            </n-space>
           </n-form-item>
         </n-form>
 
@@ -73,7 +95,7 @@
         <n-data-table
           v-if="summaryFilter.userId == null"
           :columns="monthlyBatchColumns"
-          :data="monthlyBatchData"
+          :data="filteredMonthlyBatchData"
           :pagination="{ pageSize: 20 }"
           :bordered="false"
           size="small"
@@ -293,11 +315,88 @@ const recordPagination = reactive({
 
 const summaryFilter = reactive<{
   userId: number | null
+  deptIds: number[]
+  abnormalFilter: string  // 'all' | 'late' | 'early' | 'absent' | 'any'
   month: number
 }>({
   userId: null,
+  deptIds: [],
+  abnormalFilter: 'all',
   month: Date.now()
 })
+
+const abnormalFilterOptions = [
+  { label: '全部', value: 'all' },
+  { label: '仅有迟到', value: 'late' },
+  { label: '仅有早退', value: 'early' },
+  { label: '仅有缺勤', value: 'absent' },
+  { label: '任一异常', value: 'any' }
+]
+
+const summaryDeptOptions = ref<any[]>([])
+
+async function loadSummaryDeptOptions() {
+  try {
+    const { deptApi } = await import('@/api/system')
+    const tree = await deptApi.tree()
+    summaryDeptOptions.value = Array.isArray(tree) ? tree : []
+  } catch {
+    summaryDeptOptions.value = []
+  }
+}
+
+// 异常筛选在前端做，避免后端无意义往返
+const filteredMonthlyBatchData = computed(() => {
+  const f = summaryFilter.abnormalFilter
+  const data = monthlyBatchData.value
+  if (f === 'all') return data
+  return data.filter((row: any) => {
+    const late = row.lateTimes || 0
+    const early = row.earlyLeaveTimes || 0
+    const absent = row.absentDays || 0
+    if (f === 'late') return late > 0
+    if (f === 'early') return early > 0
+    if (f === 'absent') return absent > 0
+    if (f === 'any') return late > 0 || early > 0 || absent > 0
+    return true
+  })
+})
+
+function exportMonthlyCsv() {
+  if (!filteredMonthlyBatchData.value.length) return
+  const monthDate = new Date(summaryFilter.month)
+  const year = monthDate.getFullYear()
+  const month = String(monthDate.getMonth() + 1).padStart(2, '0')
+  const header = ['姓名', '部门', '应出勤', '出勤天数', '迟到', '早退', '请假', '调休', '缺勤']
+  const rows = filteredMonthlyBatchData.value.map((r: any) => [
+    r.nickname || '',
+    r.deptName || '',
+    r.expectedWorkdays ?? 0,
+    r.attendanceDays ?? 0,
+    r.lateTimes ?? 0,
+    r.earlyLeaveTimes ?? 0,
+    r.leaveDays ?? 0,
+    r.compensateDays ?? 0,
+    r.absentDays ?? 0
+  ])
+  // 加 BOM 让 Excel 正确识别 UTF-8 中文
+  const csv = '﻿' + [header, ...rows]
+    .map(row => row.map(cell => {
+      const s = String(cell ?? '')
+      // 包含逗号 / 引号 / 换行的单元格用引号包起来，内部引号双写
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+    }).join(','))
+    .join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `月度考勤汇总-${year}-${month}.csv`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
 
 const approvalFilter = reactive<{
   userId: number | null
@@ -575,8 +674,12 @@ async function loadMonthlySummary() {
     monthlySummary.value = res?.data ?? res ?? null
     monthlyBatchData.value = []
   } else {
-    // 未选用户 → 批量列表（HR/主管视图）
-    const res: any = await attendanceApi.monthlyBatch({ year, month })
+    // 未选用户 → 批量列表（HR/主管视图）；带上部门筛选
+    const params: { year: number; month: number; deptIds?: number[] } = { year, month }
+    if (summaryFilter.deptIds && summaryFilter.deptIds.length > 0) {
+      params.deptIds = summaryFilter.deptIds
+    }
+    const res: any = await attendanceApi.monthlyBatch(params)
     monthlyBatchData.value = (res?.data ?? res ?? []) as AttendanceMonthlyVO[]
     monthlySummary.value = null
   }
@@ -606,6 +709,7 @@ onMounted(async () => {
   // 先把 visible-users 拿到（员工被锁到自己；HR/主管 保持 null），
   // 月度汇总根据 userId 状态自动决定走单人 / 批量
   await loadUserOptions()
+  loadSummaryDeptOptions()
   loadAttendanceRecords()
   loadApprovalLists()
   loadMonthlySummary()

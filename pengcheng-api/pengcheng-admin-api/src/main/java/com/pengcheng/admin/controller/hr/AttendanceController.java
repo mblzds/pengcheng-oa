@@ -67,13 +67,17 @@ public class AttendanceController {
      * - HR / 管理员 → 全员
      * - 部门主管（任意 sys_dept.leader_id=自己）→ 本部门及下钻
      * - 普通员工 → 仅自己（这种情况退化为单人列表，前端可直接走 /monthly）
+     *
+     * 可选 deptIds：进一步聚焦到指定部门（含下钻）。不传则取 scope 全集。
      */
     @GetMapping("/monthly/batch")
     public Result<List<AttendanceMonthlyVO>> monthlySummaryBatch(
             @RequestParam Integer year,
-            @RequestParam Integer month) {
+            @RequestParam Integer month,
+            @RequestParam(required = false) List<Long> deptIds) {
         Set<Long> allowed = scopeHelper.visibleUserIds();
-        return Result.ok(attendanceService.getMonthlySummaryBatch(allowed, year, month));
+        Set<Long> filtered = scopeHelper.intersectWithDepts(allowed, deptIds);
+        return Result.ok(attendanceService.getMonthlySummaryBatch(filtered, year, month));
     }
 
     @GetMapping("/records")

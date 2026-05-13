@@ -113,4 +113,32 @@ public class AttendanceScopeHelper {
             throw new BusinessException("无权查看该用户的考勤数据");
         }
     }
+
+    /**
+     * 把 visibleUserIds 与"指定部门（含下钻）下的全部员工"做交集，用于月度汇总按部门聚焦。
+     * @param visible visibleUserIds() 返回值；null = 全员
+     * @param deptIds 前端筛选的部门 id 列表；null/空 = 不收紧
+     * @return 与 visible 同语义：null = 不限；空集合 = 没人；非空 = 限定的 userId
+     */
+    public Set<Long> intersectWithDepts(Set<Long> visible, java.util.List<Long> deptIds) {
+        if (deptIds == null || deptIds.isEmpty()) return visible;
+        // 把每个 dept 下钻到所有后代部门
+        Set<Long> allDeptIds = new HashSet<>();
+        for (Long did : deptIds) {
+            if (did == null) continue;
+            allDeptIds.add(did);
+            java.util.List<SysDept> descendants = deptMapper.selectList(
+                    new LambdaQueryWrapper<SysDept>()
+                            .apply("FIND_IN_SET({0}, ancestors)", did.toString()));
+            for (SysDept d : descendants) allDeptIds.add(d.getId());
+        }
+        if (allDeptIds.isEmpty()) return visible == null ? Set.of() : visible;
+        java.util.List<SysUser> deptUsers = userMapper.selectList(
+                new LambdaQueryWrapper<SysUser>().in(SysUser::getDeptId, allDeptIds));
+        Set<Long> deptUserIds = deptUsers.stream().map(SysUser::getId).collect(Collectors.toSet());
+        if (visible == null) return deptUserIds;
+        // visible 非 null 时取交集（防越权：经理筛上级部门时不应跨出本部门范围）
+        deptUserIds.retainAll(visible);
+        return deptUserIds;
+    }
 }
