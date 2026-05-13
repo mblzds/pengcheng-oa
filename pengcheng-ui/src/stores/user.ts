@@ -45,20 +45,29 @@ export const useUserStore = defineStore('user', () => {
     roles.value = []
     permissions.value = []
     menus.value = []
-    
-    // 重置路由
+
+    // 同时清掉 persist 插件落进 localStorage 的副本（防御性，正常 persist
+    // watcher 会跟随 token.value=null 自动写空，但偶发竞态时清不干净）
+    try {
+      localStorage.removeItem('user')
+    } catch { /* ignore */ }
+
+    // 重置动态路由
     resetRouter()
-    
-    // 只有之前有 token 时才发送 logout 请求
+
+    // 只有之前有 token 时才发送 logout 请求；失败不影响登出流程
     if (hadToken) {
       try {
         await authApi.logout()
-      } catch (error) {
-        // 忽略错误
-      }
+      } catch { /* ignore */ }
     }
-    
-    router.push('/login')
+
+    // router.replace 比 push 安全（不留历史栈），失败时 fallback 到硬刷新
+    try {
+      await router.replace({ name: 'Login' })
+    } catch {
+      window.location.href = '/login'
+    }
   }
   
   // 检查权限

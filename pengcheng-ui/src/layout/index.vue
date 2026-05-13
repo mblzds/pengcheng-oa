@@ -867,8 +867,8 @@ function handleUserAction(key: string) {
       content: '确定要退出登录吗？',
       positiveText: '确定',
       negativeText: '取消',
-      onPositiveClick: () => {
-        userStore.logout()
+      onPositiveClick: async () => {
+        await userStore.logout()
         message.success('已退出登录')
       }
     })
