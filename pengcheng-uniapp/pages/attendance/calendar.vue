@@ -136,12 +136,16 @@
 					dailyRecords.forEach(r => {
 						if (!r.attendanceDate) return
 						let status = ''
-						if (r.clockInStatus === 2) {
-							status = 'late'
-						} else if (r.clockOutStatus === 2) {
-							status = 'early'
-						} else if (r.clockInTime || r.clockOutTime) {
-							status = 'normal'
+						// 优先看 exempt_reason：请假/调休审批通过后由后端 AttendanceExemptListener
+						// 写入，应当覆盖原打卡的迟到/早退状态（事后补假不再"双重处罚"）
+						if (r.exemptReason) {
+							if (r.exemptReason.startsWith('leave')) status = 'leave'
+							else if (r.exemptReason === 'compensate') status = 'compensate'
+						}
+						if (!status) {
+							if (r.clockInStatus === 2) status = 'late'
+							else if (r.clockOutStatus === 2) status = 'early'
+							else if (r.clockInTime || r.clockOutTime) status = 'normal'
 						}
 						map[r.attendanceDate] = { status }
 					})
