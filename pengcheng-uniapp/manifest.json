@@ -63,7 +63,7 @@
                 "desc" : "你的位置信息将用于展示"
             }
         },
-        "requiredPrivateInfos" : [ "chooseAddress", "getLocation" ]
+        "requiredPrivateInfos" : [ "chooseAddress" ]
     },
     "mp-alipay" : {
         "usingComponents" : true
@@ -77,5 +77,10 @@
     "uniStatistics" : {
         "enable" : false
     },
-    "vueVersion" : "3"
+    "vueVersion" : "3",
+    "h5" : {
+        "sdkConfigs" : {
+            "maps" : {}
+        }
+    }
 }

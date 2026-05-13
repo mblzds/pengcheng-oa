@@ -3,8 +3,8 @@
  * Keep API base URL configurable to avoid hardcoded localhost in real devices.
  */
 
-const API_BASE_URL_KEY = 'app:api-base-url'
-const DEFAULT_API_BASE_URL = 'https://www.jiashunpingtai.com'
+const API_BASE_URL_KEY = 'http://192.168.31.135:8080/api'
+const DEFAULT_API_BASE_URL = 'http://192.168.31.135:8080'
 
 const normalizeBaseUrl = (value) => {
   if (!value || typeof value !== 'string') return ''
