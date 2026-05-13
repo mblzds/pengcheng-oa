@@ -119,7 +119,8 @@ public class CustomerService {
                 .phone(dto.getPhone())
                 .phoneMasked(PhoneMaskUtil.mask(dto.getPhone()))
                 .visitCount(dto.getVisitCount())
-                .visitTime(dto.getVisitTime())
+                // visitTime 不填则用报备时间兜底（createTime 在 build() 后显式设为同一个 now）
+                .visitTime(dto.getVisitTime() != null ? dto.getVisitTime() : now)
                 .allianceId(dto.getAllianceId())
                 .agentName(dto.getAgentName())
                 .agentPhone(dto.getAgentPhone())
@@ -129,6 +130,10 @@ public class CustomerService {
                 .lastFollowTime(now)
                 .creatorId(resolveCurrentUserId())
                 .build();
+        // 让 createTime 和 visitTime/lastFollowTime/protectionExpireTime 共享同一个 now，
+        // 避免 MyBatis-Plus FieldFill 在 insert 瞬间重取时钟产生几毫秒~几秒漂移
+        customer.setCreateTime(now);
+        customer.setUpdateTime(now);
         customerMapper.insert(customer);
 
         // 插入客户-项目关联
@@ -289,8 +294,11 @@ public class CustomerService {
         if (dto.getVisitCount() == null) {
             throw new IllegalArgumentException("带看人数不能为空");
         }
-        if (dto.getVisitTime() == null) {
-            throw new IllegalArgumentException("带看时间不能为空");
+        // 带看时间可选：空值由 createCustomer 用报备时间兜底
+        // 若用户主动填了，校验不得早于现在（允许 5 分钟时钟漂移）
+        if (dto.getVisitTime() != null
+                && dto.getVisitTime().isBefore(LocalDateTime.now().minusMinutes(5))) {
+            throw new IllegalArgumentException("带看时间不能早于报备时间");
         }
         if (dto.getAllianceId() == null) {
             throw new IllegalArgumentException("带看公司不能为空");

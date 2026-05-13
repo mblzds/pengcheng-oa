@@ -97,6 +97,7 @@
               <n-descriptions-item label="联盟商">{{ detailRow?.allianceName || '-' }}</n-descriptions-item>
               <n-descriptions-item label="经纪人">{{ detailRow?.agentName || '-' }}</n-descriptions-item>
               <n-descriptions-item label="状态">{{ statusText(detailRow?.status) }}</n-descriptions-item>
+              <n-descriptions-item label="保护期截止">{{ formatDateTime(detailRow?.protectionExpireTime) }}</n-descriptions-item>
               <n-descriptions-item label="AI成交概率">{{ aiDealProbability }}</n-descriptions-item>
               <n-descriptions-item label="评分更新时间">{{ formatDateTime(aiScoreUpdateTime) }}</n-descriptions-item>
             </n-descriptions>
@@ -160,7 +161,20 @@
           <n-input-number v-model:value="createForm.visitCount" :min="1" style="width: 100%" />
         </n-form-item>
         <n-form-item label="带看时间" path="visitTime">
-          <n-date-picker v-model:value="createForm.visitTime" type="datetime" clearable style="width: 100%" />
+          <n-space vertical :size="8" style="width: 100%">
+            <n-radio-group v-model:value="createForm.visitTimeMode">
+              <n-radio value="sameAsReport">与报备时间相同</n-radio>
+              <n-radio value="custom">指定具体时间</n-radio>
+            </n-radio-group>
+            <n-date-picker
+              v-if="createForm.visitTimeMode === 'custom'"
+              v-model:value="createForm.visitTime"
+              type="datetime"
+              clearable
+              placeholder="请选择带看日期时间"
+              style="width: 100%"
+            />
+          </n-space>
         </n-form-item>
         <n-form-item label="带看公司" path="allianceId">
           <n-select
@@ -273,6 +287,9 @@ const createForm = reactive<{
   customerName: string
   phone: string
   visitCount: number | null
+  /** 带看时间模式：sameAsReport=与报备时间一致（提交时 visitTime 不传，后端用 createTime 兜底）；custom=用户指定 */
+  visitTimeMode: 'sameAsReport' | 'custom'
+  /** 仅 visitTimeMode='custom' 时使用 */
   visitTime: number | null
   allianceId: number | null
   agentName: string
@@ -282,7 +299,8 @@ const createForm = reactive<{
   customerName: '',
   phone: '',
   visitCount: 1,
-  visitTime: Date.now(),
+  visitTimeMode: 'sameAsReport',
+  visitTime: null,
   allianceId: null,
   agentName: '',
   agentPhone: ''
@@ -293,7 +311,6 @@ const createRules: FormRules = {
   customerName: [{ required: true, message: '请输入客户姓氏', trigger: 'blur' }],
   phone: [{ required: true, message: '请输入联系方式', trigger: 'blur' }],
   visitCount: [{ required: true, type: 'number', message: '请输入带看人数', trigger: 'change' }],
-  visitTime: [{ required: true, type: 'number', message: '请选择带看时间', trigger: 'change' }],
   allianceId: [{ required: true, type: 'number', message: '请选择带看公司', trigger: 'change' }],
   agentName: [{ required: true, message: '请输入经纪人姓名', trigger: 'blur' }],
   agentPhone: [{ required: true, message: '请输入经纪人联系方式', trigger: 'blur' }]
@@ -398,20 +415,15 @@ const followTimeline = computed(() => {
       content: `计划带看人数 ${row.visitCount || 0} 人`
     })
   }
-  if (row.lastFollowTime) {
+  // 仅当 lastFollowTime 晚于 createTime 才显示——刚报备时两者相等没有信息量
+  if (row.lastFollowTime && row.createTime && new Date(row.lastFollowTime).getTime() > new Date(row.createTime).getTime()) {
     timeline.push({
       title: '最近跟进',
       time: formatDateTime(row.lastFollowTime),
       content: '客户跟进时间更新'
     })
   }
-  if (row.protectionExpireTime) {
-    timeline.push({
-      title: '保护期截止',
-      time: formatDateTime(row.protectionExpireTime),
-      content: `当前池类型：${row.poolType === 1 ? '公海' : '私海'}`
-    })
-  }
+  // 保护期截止不是"跟进动作"，移到报备信息卡片展示
 
   return timeline
 })
@@ -556,7 +568,8 @@ function resetCreateForm() {
   createForm.customerName = ''
   createForm.phone = ''
   createForm.visitCount = 1
-  createForm.visitTime = Date.now()
+  createForm.visitTimeMode = 'sameAsReport'
+  createForm.visitTime = null
   createForm.allianceId = null
   createForm.agentName = ''
   createForm.agentPhone = ''
@@ -570,7 +583,12 @@ function openCreateModal() {
 async function handleCreateSubmit() {
   await createFormRef.value?.validate()
 
-  if (!createForm.visitTime || !createForm.visitCount || !createForm.allianceId) {
+  if (!createForm.visitCount || !createForm.allianceId) {
+    return
+  }
+  // 选了"指定具体时间"但未挑日期 → 提示后退出
+  if (createForm.visitTimeMode === 'custom' && !createForm.visitTime) {
+    message.warning('请选择带看日期时间，或切换为"与报备时间相同"')
     return
   }
 
@@ -579,7 +597,10 @@ async function handleCreateSubmit() {
     customerName: createForm.customerName,
     phone: createForm.phone,
     visitCount: createForm.visitCount,
-    visitTime: formatForApi(createForm.visitTime),
+    // sameAsReport → 不传 visitTime，后端用 createTime 兜底，确保两者严格相等
+    visitTime: createForm.visitTimeMode === 'custom' && createForm.visitTime
+      ? formatForApi(createForm.visitTime)
+      : undefined,
     allianceId: createForm.allianceId,
     agentName: createForm.agentName,
     agentPhone: createForm.agentPhone

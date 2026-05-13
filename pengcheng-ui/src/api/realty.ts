@@ -53,7 +53,8 @@ export interface CustomerCreateParams {
   customerName: string
   phone: string
   visitCount: number
-  visitTime: string
+  /** 计划带看时间。可选；为空时后端用报备时间（now）兜底 */
+  visitTime?: string
   allianceId: number
   agentName: string
   agentPhone: string
