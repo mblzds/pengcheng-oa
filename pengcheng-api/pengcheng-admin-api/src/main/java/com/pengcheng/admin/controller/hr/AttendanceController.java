@@ -84,7 +84,9 @@ public class AttendanceController {
             @RequestParam(required = false) LocalDate endDate) {
         Long effectiveUserId = resolveQueryUserId(userId);
         Set<Long> allowed = effectiveUserId == null ? scopeHelper.visibleUserIds() : null;
-        return Result.ok(attendanceService.listAttendanceRecords(effectiveUserId, allowed, startDate, endDate));
+        // 用 WithAbsent 版本：单人 + 明确日期范围时，会把整天没打卡的工作日补成"缺勤"行
+        return Result.ok(attendanceService.listAttendanceRecordsWithAbsent(
+                effectiveUserId, allowed, startDate, endDate));
     }
 
     @GetMapping("/leave/list")

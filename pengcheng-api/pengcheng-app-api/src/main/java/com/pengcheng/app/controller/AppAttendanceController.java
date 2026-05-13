@@ -2,7 +2,6 @@ package com.pengcheng.app.controller;
 
 import cn.dev33.satoken.annotation.SaCheckLogin;
 import cn.dev33.satoken.stp.StpUtil;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.pengcheng.app.dto.AppClockDTO;
 import com.pengcheng.app.dto.AppSignDTO;
 import com.pengcheng.app.dto.SignResultVO;
@@ -144,13 +143,19 @@ public class AppAttendanceController {
         LocalDate start = ym.atDay(1);
         LocalDate end = ym.atEndOfMonth();
 
-        LambdaQueryWrapper<AttendanceRecord> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(AttendanceRecord::getUserId, userId)
-                .ge(AttendanceRecord::getAttendanceDate, start)
-                .le(AttendanceRecord::getAttendanceDate, end)
-                .orderByAsc(AttendanceRecord::getAttendanceDate);
-        List<AttendanceRecord> records = attendanceRecordMapper.selectList(wrapper);
-
+        // 走 service 的 WithAbsent 版本：整天没打卡的工作日会补一条"缺勤"占位，
+        // 小程序日历视图就能把那些格子渲染成红色"缺勤"，跟月度统计的 absentDays 对得上
+        List<AttendanceRecord> records = attendanceService.listAttendanceRecordsWithAbsent(
+                userId, null, start, end);
+        // 单人查询，按日期升序方便日历从月初渲染到月末
+        records.sort((a, b) -> {
+            LocalDate da = a.getAttendanceDate();
+            LocalDate db = b.getAttendanceDate();
+            if (da == null && db == null) return 0;
+            if (da == null) return 1;
+            if (db == null) return -1;
+            return da.compareTo(db);
+        });
         return Result.ok(records);
     }
 

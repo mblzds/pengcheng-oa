@@ -378,6 +378,79 @@ public class AttendanceServiceImpl implements AttendanceService {
     }
 
     @Override
+    public List<AttendanceRecord> listAttendanceRecordsWithAbsent(Long userId, Set<Long> allowedUserIds,
+                                                                  LocalDate startDate, LocalDate endDate) {
+        List<AttendanceRecord> existing = listAttendanceRecords(userId, allowedUserIds, startDate, endDate);
+        // 仅在单人查询 + 日期范围明确时补全缺勤；否则原样返回（全员视图数据量过大、意义有限）
+        if (userId == null || startDate == null || endDate == null) {
+            return existing;
+        }
+        if (startDate.isAfter(endDate)) {
+            return existing;
+        }
+
+        // 计算 cutoff（入职前 / 系统启用前不算缺勤）
+        EmployeeProfile profile = employeeProfileMapper.selectOne(new LambdaQueryWrapper<EmployeeProfile>()
+                .eq(EmployeeProfile::getUserId, userId)
+                .last("LIMIT 1"));
+        LocalDate cutoff = (profile != null && profile.getJoinDate() != null)
+                ? profile.getJoinDate()
+                : systemConfigHelper.getAttendanceStartDate();
+        LocalDate today = LocalDate.now();
+        LocalDate effectiveStart = (cutoff != null && cutoff.isAfter(startDate)) ? cutoff : startDate;
+        // 未来日期不算缺勤
+        LocalDate effectiveEnd = today.isBefore(endDate) ? today : endDate;
+        if (effectiveStart.isAfter(effectiveEnd)) {
+            return existing;
+        }
+
+        // 已有记录的日期集合，跳过
+        Set<LocalDate> existingDates = existing.stream()
+                .map(AttendanceRecord::getAttendanceDate)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        // 准备显示字段（一次性查 user / dept / profile，避免每条 enrich）
+        SysUser u = sysUserMapper.selectById(userId);
+        String userName = u != null ? u.getNickname() : null;
+        String deptName = (u != null && u.getDeptId() != null)
+                ? java.util.Optional.ofNullable(sysDeptMapper.selectById(u.getDeptId()))
+                        .map(SysDept::getDeptName).orElse(null)
+                : null;
+        String employeeNo = profile != null ? profile.getEmployeeNo() : null;
+
+        List<AttendanceRecord> absentRows = new java.util.ArrayList<>();
+        for (LocalDate d = effectiveStart; !d.isAfter(effectiveEnd); d = d.plusDays(1)) {
+            if (existingDates.contains(d)) continue;
+            if (!holidayCalendarService.isWorkday(d)) continue;
+            AttendanceRecord absent = AttendanceRecord.builder()
+                    .userId(userId)
+                    .attendanceDate(d)
+                    .build();
+            absent.setUserName(userName);
+            absent.setEmployeeNo(employeeNo);
+            absent.setDeptName(deptName);
+            absentRows.add(absent);
+        }
+        if (absentRows.isEmpty()) {
+            return existing;
+        }
+        // 合并并按日期倒序（与原列表口径一致）
+        List<AttendanceRecord> merged = new java.util.ArrayList<>(existing.size() + absentRows.size());
+        merged.addAll(existing);
+        merged.addAll(absentRows);
+        merged.sort((a, b) -> {
+            LocalDate da = a.getAttendanceDate();
+            LocalDate db = b.getAttendanceDate();
+            if (da == null && db == null) return 0;
+            if (da == null) return 1;
+            if (db == null) return -1;
+            return db.compareTo(da);
+        });
+        return merged;
+    }
+
+    @Override
     public List<LeaveRequest> listLeaveRequests(Long userId, Integer status) {
         return listLeaveRequests(userId, null, status);
     }

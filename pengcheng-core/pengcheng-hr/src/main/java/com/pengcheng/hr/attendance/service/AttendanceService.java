@@ -41,6 +41,20 @@ public interface AttendanceService {
      */
     List<AttendanceRecord> listAttendanceRecords(Long userId, Set<Long> allowedUserIds, LocalDate startDate, LocalDate endDate);
 
+    /**
+     * 带"缺勤补全"的考勤记录查询（用于前端列表视图，让整天没打卡的工作日也能呈现一条"缺勤"行）。
+     * <p>
+     * 规则：
+     *  - 仅当 userId 明确（单人查询）才补全。allowedUserIds 集合模式不补，避免数据爆炸
+     *  - 跳过周末/法定节假日（HolidayCalendarService.isWorkday=false）
+     *  - 跳过 cutoff 之前的日期（员工 joinDate / 系统级考勤启用日期）
+     *  - 跳过已有 attendance_record 的日期（请假/调休等 exempt 已由 listener 落表）
+     *  - 跳过未来日期
+     *  - 补出的行只填 userId + attendanceDate + 显示信息（nickname/deptName/employeeNo），
+     *    clockInTime / clockOutTime / exemptReason 都为 null，前端 deriveDayStatus 即识别为"缺勤"
+     */
+    List<AttendanceRecord> listAttendanceRecordsWithAbsent(Long userId, Set<Long> allowedUserIds, LocalDate startDate, LocalDate endDate);
+
     List<LeaveRequest> listLeaveRequests(Long userId, Integer status);
 
     List<LeaveRequest> listLeaveRequests(Long userId, Set<Long> allowedUserIds, Integer status);
