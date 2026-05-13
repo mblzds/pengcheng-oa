@@ -41,6 +41,7 @@
           :data="filteredRecordData"
           :loading="recordLoading"
           :pagination="recordPagination"
+          :row-props="recordRowProps"
         />
         <div v-if="filteredRecordData.length > 200" class="table-tip">
           数据较多，建议缩小日期范围或加状态筛选
@@ -180,6 +181,18 @@ const detailRow = ref<AttendanceRecordItem | null>(null)
 function openDetail(row: AttendanceRecordItem) {
   detailRow.value = row
   detailVisible.value = true
+}
+
+// 整行可点击打开详情；按钮 / 链接等内部交互元素拦截掉，不触发行级 onClick
+function recordRowProps(row: AttendanceRecordItem) {
+  return {
+    style: 'cursor: pointer;',
+    onClick: (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (target && target.closest('button, a, .n-button, input, .n-tag')) return
+      openDetail(row)
+    }
+  }
 }
 const leaveData = ref<LeaveRequestItem[]>([])
 const compensateData = ref<CompensateRequestItem[]>([])
