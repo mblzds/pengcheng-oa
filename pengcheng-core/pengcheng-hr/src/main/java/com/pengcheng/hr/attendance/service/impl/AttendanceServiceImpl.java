@@ -214,14 +214,18 @@ public class AttendanceServiceImpl implements AttendanceService {
                 .le(AttendanceRecord::getAttendanceDate, end));
         int attendanceDays = 0, lateTimes = 0, earlyLeaveTimes = 0;
         for (AttendanceRecord r : records) {
-            boolean isOnWorkday = r.getAttendanceDate() != null && holidayCalendarService.isWorkday(r.getAttendanceDate());
             // 当天有 exempt_reason（请假/调休审批通过后由 AttendanceExemptListener 写入）
-            // → 不计入迟到/早退次数（避免事后补假被同时算"请假+迟到"双重处罚）
-            // attendanceDays 仍按是否打过卡算，否则当天既不算出勤也不算异常会让 absentDays 错增
-            boolean exempt = r.getExemptReason() != null && !r.getExemptReason().isBlank();
+            // → 整条记录跳过所有打卡相关 counter：那天本质属于请假/调休，归 leave/compensate
+            // bucket 处理；absentDays = expectedWorkdays - attendance - leave - compensate 自然
+            // 在 expected 里把这天扣给 leave，不应再让它给 attendanceDays +1（否则
+            // "请假 + 迟到打卡" 那天既算出勤又算请假，挤掉真正缺勤天的份额）
+            if (r.getExemptReason() != null && !r.getExemptReason().isBlank()) {
+                continue;
+            }
+            boolean isOnWorkday = r.getAttendanceDate() != null && holidayCalendarService.isWorkday(r.getAttendanceDate());
             if (isOnWorkday && (r.getClockInTime() != null || r.getClockOutTime() != null)) attendanceDays++;
-            if (!exempt && r.getClockInStatus() != null && r.getClockInStatus() == CLOCK_IN_LATE) lateTimes++;
-            if (!exempt && r.getClockOutStatus() != null && r.getClockOutStatus() == CLOCK_OUT_EARLY) earlyLeaveTimes++;
+            if (r.getClockInStatus() != null && r.getClockInStatus() == CLOCK_IN_LATE) lateTimes++;
+            if (r.getClockOutStatus() != null && r.getClockOutStatus() == CLOCK_OUT_EARLY) earlyLeaveTimes++;
         }
 
         // 已通过请假覆盖到本月的真实天数（按上下班时段算，区别于历史"条数"）
