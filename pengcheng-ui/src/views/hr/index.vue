@@ -434,7 +434,8 @@ async function submitBatchScore() {
 }
 
 function loadUserOptions() {
-  userApi.page({ page: 1, pageSize: 500 }).then((res: any) => {
+  // 用通讯录接口（权限码 sys:chat:list），HR 选档案对象不需要 sys:user:list 权限
+  userApi.contactsPage({ page: 1, pageSize: 500 }).then((res: any) => {
     const list = res?.list ?? res?.data?.records ?? res?.records ?? []
     userOptions.value = Array.isArray(list) ? list : []
   }).catch(() => { userOptions.value = [] })

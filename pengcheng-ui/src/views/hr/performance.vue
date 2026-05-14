@@ -579,7 +579,8 @@ async function loadBatchScoreUsers() {
     return
   }
   try {
-    const res: any = await userApi.page({ page: 1, pageSize: 100, deptId: batchDeptId.value })
+    // 用通讯录接口（权限码 sys:chat:list），按部门拉批量录入名单不再要求 sys:user:list
+    const res: any = await userApi.contactsPage({ page: 1, pageSize: 100, deptId: batchDeptId.value })
     batchScoreUsers.value = (res?.list || res?.data?.list || []).map((u: any) => ({
       userId: u.id,
       userName: u.nickname,

@@ -407,7 +407,8 @@ async function loadPeriods() {
 }
 
 async function loadUserOptions() {
-  const res: any = await userApi.page({ page: 1, pageSize: 200, status: 1 })
+  // 用通讯录接口（权限码 sys:chat:list），360 评估对象选择对所有员工开放
+  const res: any = await userApi.contactsPage({ page: 1, pageSize: 200 })
   const list = res?.list || []
   userOptions.value = list.map((item: any) => ({
     label: item.nickname || item.username || `用户 ${item.id}`,

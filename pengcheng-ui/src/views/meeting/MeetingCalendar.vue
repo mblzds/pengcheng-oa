@@ -619,7 +619,8 @@ function getFileIcon(type?: string) {
 }
 
 async function loadUserOptions() {
-  const result = await userApi.page({ page: 1, pageSize: 100, status: 1 })
+  // 用通讯录接口（权限码 sys:chat:list），非 admin 也能选会议参与人；通讯录已默认只返回在职启用员工
+  const result = await userApi.contactsPage({ page: 1, pageSize: 100 })
   userOptions.value = result?.list || []
 }
 

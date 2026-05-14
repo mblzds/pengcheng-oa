@@ -356,7 +356,8 @@ function removeMember(userId: number) {
 }
 
 function loadUserOptions() {
-  userApi.page({ page: 1, pageSize: 200 }).then((res: any) => {
+  // 用通讯录接口（权限码 sys:chat:list），非 admin 角色也能拉到选人列表
+  userApi.contactsPage({ page: 1, pageSize: 200 }).then((res: any) => {
     const list = res?.list ?? res?.data?.records ?? []
     userOptions.value = Array.isArray(list) ? list : []
   })
