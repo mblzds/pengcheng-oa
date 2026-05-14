@@ -25,11 +25,21 @@
 					<text class="form-label">带看人数</text>
 					<input class="form-input" v-model="form.visitCount" type="number" placeholder="请输入带看人数" />
 				</view>
-				<view class="form-item" @tap="openVisitPicker">
+				<view class="form-item">
 					<text class="form-label">带看时间 <text class="required">*</text></text>
-					<view class="picker-value">
-						<text :class="{ placeholder: !form.visitTime }">{{ form.visitTime || '请选择日期时间' }}</text>
-						<pc-icon name="arrow-right" color="#CCC" size="14"></pc-icon>
+					<view class="picker-row">
+						<picker mode="date" :value="visitDate" @change="onVisitDateChange" class="picker-half">
+							<view class="picker-value picker-value-sm">
+								<text :class="{ placeholder: !visitDate }">{{ visitDate || '日期' }}</text>
+								<pc-icon name="arrow-right" color="#CCC" size="14"></pc-icon>
+							</view>
+						</picker>
+						<picker mode="time" :value="visitClock" @change="onVisitClockChange" class="picker-half">
+							<view class="picker-value picker-value-sm">
+								<text :class="{ placeholder: !visitClock }">{{ visitClock || '时间' }}</text>
+								<pc-icon name="arrow-right" color="#CCC" size="14"></pc-icon>
+							</view>
+						</picker>
 					</view>
 				</view>
 				<view class="form-item">
@@ -60,25 +70,11 @@
 			</button>
 		</view>
 
-		<u-datetime-picker
-			:show="showVisitPicker"
-			v-model="visitPickerValue"
-			mode="datetime"
-			@confirm="onVisitConfirm"
-			@cancel="showVisitPicker = false"
-			@close="showVisitPicker = false"
-		></u-datetime-picker>
 	</view>
 </template>
 
 <script>
 	import { reportCustomer, searchCustomerProjects, searchCustomerAlliances } from '../../utils/api.js'
-
-	const formatDateTime = (ts) => {
-		const d = new Date(ts)
-		const pad = n => String(n).padStart(2, '0')
-		return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:00`
-	}
 
 	export default {
 		data() {
@@ -99,8 +95,9 @@
 				allianceKeyword: '',
 				selectedProjectName: '',
 				selectedAllianceName: '',
-				showVisitPicker: false,
-				visitPickerValue: Date.now(),
+				// 拆成日期/时刻两个原生 picker：u-datetime-picker 在 mp-weixin 体验版无法弹出
+				visitDate: '',
+				visitClock: '',
 				submitting: false
 			}
 		},
@@ -137,13 +134,13 @@
 					this.selectedAllianceName = item.companyName
 				}
 			},
-			openVisitPicker() {
-				this.visitPickerValue = this.form.visitTime ? new Date(this.form.visitTime).getTime() : Date.now()
-				this.showVisitPicker = true
+			onVisitDateChange(e) {
+				this.visitDate = e.detail.value
+				this.form.visitTime = this.visitDate && this.visitClock ? `${this.visitDate} ${this.visitClock}:00` : ''
 			},
-			onVisitConfirm(e) {
-				this.form.visitTime = formatDateTime(e.value)
-				this.showVisitPicker = false
+			onVisitClockChange(e) {
+				this.visitClock = e.detail.value
+				this.form.visitTime = this.visitDate && this.visitClock ? `${this.visitDate} ${this.visitClock}:00` : ''
 			},
 			onProjectKeywordSearch() {
 				this.loadProjects(this.projectKeyword.trim())
@@ -208,6 +205,9 @@
 		border: 1rpx solid #E8E8E8; border-radius: 8rpx; padding: 0 16rpx;
 	}
 	.form-search { margin-bottom: 12rpx; }
+	.picker-row { display: flex; gap: 16rpx; }
+	.picker-half { flex: 1; }
+	.picker-value-sm { padding: 0 12rpx; font-size: 26rpx; }
 	.picker-value {
 		height: 72rpx; display: flex; align-items: center; justify-content: space-between;
 		border: 1rpx solid #E8E8E8; border-radius: 8rpx; padding: 0 16rpx;

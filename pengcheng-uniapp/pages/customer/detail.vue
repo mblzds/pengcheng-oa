@@ -120,10 +120,19 @@
 		<u-popup :show="showVisitForm" mode="bottom" round="16" @close="showVisitForm = false">
 			<view class="popup-content">
 				<view class="popup-title">录入到访</view>
-				<view class="form-item" @tap="openVisitTimePicker">
+				<view class="form-item">
 					<text class="form-label">到访时间</text>
-					<view class="picker-value">
-						<text :class="{ placeholder: !visitForm.actualVisitTime }">{{ visitForm.actualVisitTime || '请选择' }}</text>
+					<view class="picker-row">
+						<picker mode="date" :value="visitDate" @change="onVisitDateChange" class="picker-half">
+							<view class="picker-value picker-value-sm">
+								<text :class="{ placeholder: !visitDate }">{{ visitDate || '日期' }}</text>
+							</view>
+						</picker>
+						<picker mode="time" :value="visitClock" @change="onVisitClockChange" class="picker-half">
+							<view class="picker-value picker-value-sm">
+								<text :class="{ placeholder: !visitClock }">{{ visitClock || '时间' }}</text>
+							</view>
+						</picker>
 					</view>
 				</view>
 				<view class="form-item">
@@ -150,10 +159,19 @@
 					<text class="form-label">成交金额</text>
 					<input class="form-input" v-model="dealForm.dealAmount" type="digit" placeholder="请输入" />
 				</view>
-				<view class="form-item" @tap="openDealTimePicker">
+				<view class="form-item">
 					<text class="form-label">成交时间</text>
-					<view class="picker-value">
-						<text :class="{ placeholder: !dealForm.dealTime }">{{ dealForm.dealTime || '请选择' }}</text>
+					<view class="picker-row">
+						<picker mode="date" :value="dealDate" @change="onDealDateChange" class="picker-half">
+							<view class="picker-value picker-value-sm">
+								<text :class="{ placeholder: !dealDate }">{{ dealDate || '日期' }}</text>
+							</view>
+						</picker>
+						<picker mode="time" :value="dealClock" @change="onDealClockChange" class="picker-half">
+							<view class="picker-value picker-value-sm">
+								<text :class="{ placeholder: !dealClock }">{{ dealClock || '时间' }}</text>
+							</view>
+						</picker>
 					</view>
 				</view>
 				<view class="form-item">
@@ -184,34 +202,11 @@
 			</view>
 		</u-popup>
 
-		<u-datetime-picker
-			:show="showVisitTimePicker"
-			v-model="visitTimePickerValue"
-			mode="datetime"
-			@confirm="onVisitTimeConfirm"
-			@cancel="showVisitTimePicker = false"
-			@close="showVisitTimePicker = false"
-		></u-datetime-picker>
-
-		<u-datetime-picker
-			:show="showDealTimePicker"
-			v-model="dealTimePickerValue"
-			mode="datetime"
-			@confirm="onDealTimeConfirm"
-			@cancel="showDealTimePicker = false"
-			@close="showDealTimePicker = false"
-		></u-datetime-picker>
 	</view>
 </template>
 
 <script>
 	import { getCustomerDetail, addCustomerVisit, addCustomerDeal } from '../../utils/api.js'
-
-	const formatDateTime = (ts) => {
-		const d = new Date(ts)
-		const pad = n => String(n).padStart(2, '0')
-		return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:00`
-	}
 
 	export default {
 		data() {
@@ -225,10 +220,11 @@
 				dealForm: { roomNo: '', dealAmount: '', dealTime: '', signStatus: '', subscribeType: '', signStatusLabel: '', subscribeTypeLabel: '' },
 				signStatusList: [{ label: '已签约', value: 1 }, { label: '未签约', value: 2 }],
 				subscribeTypes: [{ label: '小订', value: 1 }, { label: '大定', value: 2 }],
-				showVisitTimePicker: false,
-				visitTimePickerValue: Date.now(),
-				showDealTimePicker: false,
-				dealTimePickerValue: Date.now()
+				// 拆成日期/时刻两个原生 picker：u-datetime-picker 在 mp-weixin 体验版无法弹出
+				visitDate: '',
+				visitClock: '',
+				dealDate: '',
+				dealClock: ''
 			}
 		},
 		onLoad(opts) {
@@ -277,25 +273,21 @@
 					this.report = this.detail.reportInfo || {}
 				} catch (err) { console.error(err) }
 			},
-			openVisitTimePicker() {
-				this.visitTimePickerValue = this.visitForm.actualVisitTime
-					? new Date(this.visitForm.actualVisitTime).getTime()
-					: Date.now()
-				this.showVisitTimePicker = true
+			onVisitDateChange(e) {
+				this.visitDate = e.detail.value
+				this.visitForm.actualVisitTime = this.visitDate && this.visitClock ? `${this.visitDate} ${this.visitClock}:00` : ''
 			},
-			onVisitTimeConfirm(e) {
-				this.visitForm.actualVisitTime = formatDateTime(e.value)
-				this.showVisitTimePicker = false
+			onVisitClockChange(e) {
+				this.visitClock = e.detail.value
+				this.visitForm.actualVisitTime = this.visitDate && this.visitClock ? `${this.visitDate} ${this.visitClock}:00` : ''
 			},
-			openDealTimePicker() {
-				this.dealTimePickerValue = this.dealForm.dealTime
-					? new Date(this.dealForm.dealTime).getTime()
-					: Date.now()
-				this.showDealTimePicker = true
+			onDealDateChange(e) {
+				this.dealDate = e.detail.value
+				this.dealForm.dealTime = this.dealDate && this.dealClock ? `${this.dealDate} ${this.dealClock}:00` : ''
 			},
-			onDealTimeConfirm(e) {
-				this.dealForm.dealTime = formatDateTime(e.value)
-				this.showDealTimePicker = false
+			onDealClockChange(e) {
+				this.dealClock = e.detail.value
+				this.dealForm.dealTime = this.dealDate && this.dealClock ? `${this.dealDate} ${this.dealClock}:00` : ''
 			},
 			selectSignStatus(opt) {
 				this.dealForm.signStatus = opt.value
@@ -414,6 +406,9 @@
 		height: 72rpx; font-size: 28rpx; color: #1A1A1A;
 		border: 1rpx solid #E8E8E8; border-radius: 8rpx; padding: 0 16rpx;
 	}
+	.picker-row { display: flex; gap: 16rpx; }
+	.picker-half { flex: 1; }
+	.picker-value-sm { padding: 0 12rpx; font-size: 26rpx; }
 	.picker-value {
 		height: 72rpx; display: flex; align-items: center;
 		border: 1rpx solid #E8E8E8; border-radius: 8rpx; padding: 0 16rpx;
