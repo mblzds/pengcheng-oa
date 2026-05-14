@@ -8,6 +8,7 @@ import com.pengcheng.realty.payment.dto.PaymentQueryDTO;
 import com.pengcheng.realty.payment.dto.PaymentRequestDTO;
 import com.pengcheng.realty.payment.dto.PaymentVO;
 import com.pengcheng.realty.payment.entity.PaymentApproval;
+import com.pengcheng.admin.controller.hr.AttendanceScopeHelper;
 import com.pengcheng.realty.payment.service.PaymentService;
 import com.pengcheng.system.annotation.Log;
 import com.pengcheng.system.annotation.Log.BusinessType;
@@ -25,6 +26,7 @@ import java.util.List;
 public class PaymentController {
 
     private final PaymentService paymentService;
+    private final AttendanceScopeHelper scopeHelper;
 
     /**
      * 创建付款申请
@@ -53,6 +55,9 @@ public class PaymentController {
     @GetMapping("/page")
     @SaCheckPermission("realty:payment:list")
     public Result<PageResult<PaymentVO>> page(PaymentQueryDTO query) {
+        // 双层可见性收口：基础职级 data_scope + 付款模块加成（默认 finance）
+        // null = 全员可见，service 不加 WHERE；非空集合 = 限定为这些 applicantId
+        query.setAllowedApplicantIds(scopeHelper.visibleUserIdsForPayment());
         return Result.ok(paymentService.pagePaymentRequests(query));
     }
 

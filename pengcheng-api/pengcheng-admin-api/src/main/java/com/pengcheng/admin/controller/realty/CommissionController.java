@@ -8,6 +8,7 @@ import com.pengcheng.realty.commission.dto.CommissionCreateDTO;
 import com.pengcheng.realty.commission.dto.CommissionQueryDTO;
 import com.pengcheng.realty.commission.dto.CommissionVO;
 import com.pengcheng.realty.commission.entity.CommissionChangeLog;
+import com.pengcheng.admin.controller.hr.AttendanceScopeHelper;
 import com.pengcheng.realty.commission.service.CommissionService;
 import com.pengcheng.system.annotation.Log;
 import com.pengcheng.system.annotation.Log.BusinessType;
@@ -25,6 +26,7 @@ import java.util.List;
 public class CommissionController {
 
     private final CommissionService commissionService;
+    private final AttendanceScopeHelper scopeHelper;
 
     /**
      * 佣金分页查询
@@ -32,6 +34,8 @@ public class CommissionController {
     @GetMapping("/page")
     @SaCheckPermission("realty:commission:list")
     public Result<PageResult<CommissionVO>> page(CommissionQueryDTO query) {
+        // 双层可见性收口：基础职级 + 佣金加成（默认 finance）
+        query.setAllowedCreatorIds(scopeHelper.visibleUserIdsForCommission());
         return Result.ok(commissionService.pageCommissions(query));
     }
 

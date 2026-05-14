@@ -181,6 +181,11 @@ public class CommissionService {
      * 分页查询佣金列表
      */
     public PageResult<CommissionVO> pageCommissions(CommissionQueryDTO query) {
+        // allowedCreatorIds 空集合 = 当前用户一个都看不到，直接返回空页
+        if (query.getAllowedCreatorIds() != null && query.getAllowedCreatorIds().isEmpty()) {
+            return PageResult.of(java.util.Collections.emptyList(), 0L,
+                    query.getPage().longValue(), query.getPageSize().longValue());
+        }
         LambdaQueryWrapper<Commission> wrapper = new LambdaQueryWrapper<>();
         if (query.getProjectId() != null) {
             wrapper.eq(Commission::getProjectId, query.getProjectId());
@@ -190,6 +195,10 @@ public class CommissionService {
         }
         if (query.getAuditStatus() != null) {
             wrapper.eq(Commission::getAuditStatus, query.getAuditStatus());
+        }
+        // 可见范围收口（按 create_by）：非 null 时限定，null 表示全员
+        if (query.getAllowedCreatorIds() != null) {
+            wrapper.in(Commission::getCreateBy, query.getAllowedCreatorIds());
         }
         wrapper.orderByDesc(Commission::getCreateTime);
 

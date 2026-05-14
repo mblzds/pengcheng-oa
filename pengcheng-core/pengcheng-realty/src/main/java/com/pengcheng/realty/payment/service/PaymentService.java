@@ -214,6 +214,11 @@ public class PaymentService {
      * 分页查询付款申请
      */
     public PageResult<PaymentVO> pagePaymentRequests(PaymentQueryDTO query) {
+        // allowedApplicantIds 空集合 = 当前用户一个都看不到，直接返回空页（兜底）
+        if (query.getAllowedApplicantIds() != null && query.getAllowedApplicantIds().isEmpty()) {
+            return PageResult.of(java.util.Collections.emptyList(), 0L,
+                    query.getPage().longValue(), query.getPageSize().longValue());
+        }
         LambdaQueryWrapper<PaymentRequest> wrapper = new LambdaQueryWrapper<>();
         if (query.getRequestType() != null) {
             wrapper.eq(PaymentRequest::getRequestType, query.getRequestType());
@@ -223,6 +228,10 @@ public class PaymentService {
         }
         if (query.getApplicantId() != null) {
             wrapper.eq(PaymentRequest::getApplicantId, query.getApplicantId());
+        }
+        // 可见范围收口：非 null 时按集合限定（null 表示全员，不加 WHERE）
+        if (query.getAllowedApplicantIds() != null) {
+            wrapper.in(PaymentRequest::getApplicantId, query.getAllowedApplicantIds());
         }
         wrapper.orderByDesc(PaymentRequest::getCreateTime);
 

@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.Set;
+
 /**
  * 付款申请查询 DTO
  */
@@ -28,6 +30,15 @@ public class PaymentQueryDTO {
 
     /** 申请人ID */
     private Long applicantId;
+
+    /**
+     * 可见的申请人 userId 集合（由 controller 层根据当前登录用户的"基础职级 +
+     * 付款模块加成"算出后透传给 service）。语义：
+     *   null  = 不限（全员可见，admin/chairman/general_manager/finance 等）
+     *   空集合 = 一个都看不到（兜底，service 直接返回空页）
+     *   非空集合 = 限定为这些 userId 提交的申请
+     */
+    private Set<Long> allowedApplicantIds;
 
     public Integer getPage() {
         return page == null || page < 1 ? 1 : page;

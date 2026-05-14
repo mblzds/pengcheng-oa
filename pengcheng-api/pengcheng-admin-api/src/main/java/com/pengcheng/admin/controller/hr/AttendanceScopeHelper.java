@@ -6,6 +6,7 @@ import com.pengcheng.common.exception.BusinessException;
 import com.pengcheng.system.entity.SysDept;
 import com.pengcheng.system.entity.SysRole;
 import com.pengcheng.system.entity.SysUser;
+import com.pengcheng.system.helper.SystemConfigHelper;
 import com.pengcheng.system.mapper.SysDeptMapper;
 import com.pengcheng.system.mapper.SysRoleMapper;
 import com.pengcheng.system.mapper.SysUserMapper;
@@ -16,15 +17,18 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * 考勤数据可见性范围决策
- * 三档：
- *   - 任一角色 sys_role.data_scope=1（全部）→ 不限
- *   - 部门主管（担任至少一个 dept.leader_id 的用户）→ 本部门 + 所有下级部门成员
- *   - 普通员工 → 仅自己
+ * 考勤数据可见性范围决策（双层模型，详见 doc/PERMISSION-AND-ROLES.md）：
  *
- * "全公司可见"原本写死了一组角色编码（admin / hr / flow_hr 等），改成读
- * sys_role.data_scope=1，与项目其它模块（DataPermissionInterceptor）保持一致；
- * 后续 HR 在角色管理后台调整 data_scope 即可改变考勤可见范围，不再需要改代码。
+ *   1. 基础职级范围（按 sys_role.data_scope）
+ *        1=全员 / 4=本部门+下级 / 3=本部门 / 5=仅本人；多角色取并集
+ *        admin / chairman / general_manager 通过 data_scope=1 在此覆盖全员
+ *
+ *   2. 业务模块加成（按 sys_config_group(attendance).fullScopeRoleCodes）
+ *        命中的角色 code（默认 "hr"）在考勤模块升级为全员，跟基础并联取最宽
+ *        finance.data_scope=5 不在加成里 → 财务在考勤只看自己；但 finance
+ *        在 payment.fullScopeRoleCodes 里 → 在付款看全员
+ *
+ *   3. 历史兜底：sys_dept.leader_id 命中 → 看本部门+下级（V68 引入的兼容机制）
  */
 @Component
 @RequiredArgsConstructor
@@ -33,24 +37,50 @@ public class AttendanceScopeHelper {
     private final SysUserMapper userMapper;
     private final SysDeptMapper deptMapper;
     private final SysRoleMapper roleMapper;
+    private final SystemConfigHelper systemConfigHelper;
 
     /** sys_role.data_scope=1（全部） */
     private static final int DATA_SCOPE_ALL = 1;
 
-    /**
-     * 当前登录用户在考勤数据上的可见 userId 集合
-     * @return null 表示不限；非空集合表示限定为这些 userId
-     */
+    /** 当前用户在考勤模块的可见 userId 集合（基础 + 考勤加成 "hr"） */
     public Set<Long> visibleUserIds() {
+        return visibleUserIdsForModule(systemConfigHelper.getAttendanceFullScopeRoleCodes());
+    }
+
+    /** 当前用户在付款模块的可见 userId 集合（基础 + 付款加成 "finance"） */
+    public Set<Long> visibleUserIdsForPayment() {
+        return visibleUserIdsForModule(systemConfigHelper.getPaymentFullScopeRoleCodes());
+    }
+
+    /** 当前用户在佣金模块的可见 userId 集合（基础 + 佣金加成 "finance"） */
+    public Set<Long> visibleUserIdsForCommission() {
+        return visibleUserIdsForModule(systemConfigHelper.getCommissionFullScopeRoleCodes());
+    }
+
+    /**
+     * 通用：按"基础职级 data_scope + 模块加成清单"决定可见 userId 集合。
+     * @param moduleFullScopeRoleCodes 当前业务模块的加成角色 code 清单；命中即升为全员
+     * @return null=不限；非空集合=限定为这些 userId
+     */
+    public Set<Long> visibleUserIdsForModule(Set<String> moduleFullScopeRoleCodes) {
         Long currentUid = StpUtil.getLoginIdAsLong();
         List<SysRole> userRoles = roleMapper.selectRolesByUserId(currentUid).stream()
                 .filter(r -> r != null && Integer.valueOf(1).equals(r.getStatus()))
                 .collect(Collectors.toList());
 
-        // 任一启用角色 data_scope=1（全部）→ 不限
+        // 基础层：任一启用角色 data_scope=1（admin/chairman/general_manager）→ 不限
         for (SysRole r : userRoles) {
             if (Integer.valueOf(DATA_SCOPE_ALL).equals(r.getDataScope())) {
                 return null;
+            }
+        }
+
+        // 加成层：用户任一角色 code 命中本模块加成清单 → 升级为全员
+        if (moduleFullScopeRoleCodes != null && !moduleFullScopeRoleCodes.isEmpty()) {
+            for (SysRole r : userRoles) {
+                if (r.getCode() != null && moduleFullScopeRoleCodes.contains(r.getCode())) {
+                    return null;
+                }
             }
         }
 

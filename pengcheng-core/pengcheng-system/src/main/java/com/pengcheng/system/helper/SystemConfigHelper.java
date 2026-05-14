@@ -33,6 +33,8 @@ public class SystemConfigHelper implements com.pengcheng.crypto.CryptoConfigProv
     public static final String GROUP_WECHAT_MINIPROGRAM = "wechatMiniProgram";
     public static final String GROUP_WECHAT_MP = "wechatMp";
     public static final String GROUP_ATTENDANCE = "attendance";
+    public static final String GROUP_PAYMENT = "payment";
+    public static final String GROUP_COMMISSION = "commission";
 
     /**
      * 获取配置JSON
@@ -986,6 +988,45 @@ public class SystemConfigHelper implements com.pengcheng.crypto.CryptoConfigProv
     /** 百度地图 JS API AK（后台地图选点用） */
     public String getAttendanceBaiduMapAk() {
         return getString(GROUP_ATTENDANCE, "baiduMapAk", "");
+    }
+
+    /**
+     * 业务模块加成可见角色——某角色 code 命中本模块的加成清单后，
+     * 在该业务模块的可见范围升级为"全员"（即 visibleUserIds 返回 null）。
+     *
+     * 设计：data_scope 只表达"基础职级范围"（员工自己 / 本部门 / 全员），跟职能
+     * 无关；finance / hr 这种"职能角色"在 V73 之后基础 data_scope=5（仅本人），
+     * 但通过本配置在各自主业模块（财务的付款 / 人事的考勤）获得全员加成。
+     *
+     * admin / chairman / general_manager 这类天然全员的角色，已通过 data_scope=1
+     * 在基础维度覆盖全员，**无需**列进加成清单。
+     *
+     * 配置在 sys_config_group(&lt;module&gt;).fullScopeRoleCodes，CSV 角色 code 列表；
+     * 运行时改，立即生效；空字符串 = 该模块无任何角色加成。
+     */
+    public java.util.Set<String> getAttendanceFullScopeRoleCodes() {
+        return parseFullScopeRoleCodes(GROUP_ATTENDANCE, "hr");
+    }
+
+    /** 付款模块的加成清单，默认 "finance" */
+    public java.util.Set<String> getPaymentFullScopeRoleCodes() {
+        return parseFullScopeRoleCodes(GROUP_PAYMENT, "finance");
+    }
+
+    /** 佣金模块的加成清单，默认 "finance" */
+    public java.util.Set<String> getCommissionFullScopeRoleCodes() {
+        return parseFullScopeRoleCodes(GROUP_COMMISSION, "finance");
+    }
+
+    private java.util.Set<String> parseFullScopeRoleCodes(String groupCode, String defaultCsv) {
+        String csv = getString(groupCode, "fullScopeRoleCodes", defaultCsv);
+        if (csv == null || csv.isBlank()) return java.util.Collections.emptySet();
+        java.util.Set<String> result = new java.util.HashSet<>();
+        for (String s : csv.split(",")) {
+            String t = s.trim();
+            if (!t.isEmpty()) result.add(t);
+        }
+        return result;
     }
 
     /**
