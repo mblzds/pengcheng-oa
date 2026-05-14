@@ -19,13 +19,17 @@ import java.util.stream.Collectors;
 /**
  * 考勤数据可见性范围决策
  * 三档：
- *   - 任一角色 sys_role.data_scope=1（全部）→ 不限
- *   - 部门主管（担任至少一个 dept.leader_id 的用户）→ 本部门 + 所有下级部门成员
+ *   - 角色 code 命中考勤模块的"全员可见"白名单（默认 admin/chairman/general_manager/hr）→ 不限
+ *   - 部门主管（角色 data_scope=4/3 或 dept.leader_id）→ 本部门 + 下级部门成员
  *   - 普通员工 → 仅自己
  *
- * "全公司可见"原本写死了一组角色编码（admin / hr / flow_hr 等），改成读
- * sys_role.data_scope=1，与项目其它模块（DataPermissionInterceptor）保持一致；
- * 后续 HR 在角色管理后台调整 data_scope 即可改变考勤可见范围，不再需要改代码。
+ * 设计：每个业务模块自己定义"看全员"的角色清单，与通用 sys_role.data_scope 解耦——
+ * data_scope=1 在 sys_role 表上表达"该角色在自己业务里看全员"（如 finance 在付款/佣金
+ * 看全员），但跨到考勤模块未必合理。所以考勤模块走独立白名单：
+ *   sys_config_group(attendance).fullScopeRoleCodes
+ * 默认 "admin,chairman,general_manager,hr"，HR 在「系统配置 → 考勤设置」可改。
+ * 部门级可见性（data_scope=3/4 / dept.leader_id）继续沿用，因为那是"角色 + 部门"
+ * 的天然结构，未引发同款跨模块问题。
  */
 @Component
 @RequiredArgsConstructor
@@ -35,9 +39,6 @@ public class AttendanceScopeHelper {
     private final SysDeptMapper deptMapper;
     private final SysRoleMapper roleMapper;
     private final SystemConfigHelper systemConfigHelper;
-
-    /** sys_role.data_scope=1（全部） */
-    private static final int DATA_SCOPE_ALL = 1;
 
     /**
      * 当前登录用户在考勤数据上的可见 userId 集合
@@ -49,13 +50,11 @@ public class AttendanceScopeHelper {
                 .filter(r -> r != null && Integer.valueOf(1).equals(r.getStatus()))
                 .collect(Collectors.toList());
 
-        // 任一启用角色 data_scope=1（全部）→ 不限；排除集中的角色（默认 finance）
-        // 即便 data_scope=1 也不算"全员可见"——考勤是 HR 领域，财务不应跨界。
-        // 排除集来自 sys_config_group(attendance).fullScopeExcludedRoleCodes，运行时可改。
-        Set<String> excludedRoleCodes = systemConfigHelper.getAttendanceFullScopeExcludedRoleCodes();
+        // 任一启用角色的 code 命中"考勤看全员"白名单 → 不限
+        // 白名单来自 sys_config_group(attendance).fullScopeRoleCodes，运行时可改
+        Set<String> fullScopeRoleCodes = systemConfigHelper.getAttendanceFullScopeRoleCodes();
         for (SysRole r : userRoles) {
-            if (Integer.valueOf(DATA_SCOPE_ALL).equals(r.getDataScope())
-                    && !excludedRoleCodes.contains(r.getCode())) {
+            if (r.getCode() != null && fullScopeRoleCodes.contains(r.getCode())) {
                 return null;
             }
         }

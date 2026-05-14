@@ -989,16 +989,22 @@ public class SystemConfigHelper implements com.pengcheng.crypto.CryptoConfigProv
     }
 
     /**
-     * 考勤模块「全公司可见」排除的角色 code 列表（逗号分隔；默认 "finance"）。
-     * 这些角色 sys_role.data_scope=1 是为了在自己业务（付款/佣金）里看全员相关单据，
-     * 跨界到考勤模块并不合理——考勤是 HR 领域，财务等不应越权看销售部、市场部的
-     * 打卡/请假/调休记录。
+     * 考勤模块「全公司可见」角色 code 白名单（逗号分隔；默认
+     * "admin,chairman,general_manager,hr"）。
      *
-     * 配置在 sys_config_group(attendance) 的 fullScopeExcludedRoleCodes，HR/admin 可在
-     * 「系统配置 → 考勤设置」改，无需重启。空字符串视为"不排除任何角色"。
+     * 设计：考勤是 HR 领域，模块自己定义"哪些角色看全员"，与通用 sys_role.data_scope
+     * 解耦——data_scope=1 在 sys_role 表上的含义是"该角色在自己业务里看全员"（例如
+     * finance 在付款/佣金里看全员），但在考勤模块未必合理，所以这里走独立白名单。
+     *
+     * 不在白名单的角色（如 dept_manager / finance / employee）按部门兜底，部门级可见性
+     * 仍由 sys_role.data_scope=3/4 控制。
+     *
+     * 配置在 sys_config_group(attendance) 的 fullScopeRoleCodes，HR/admin 在「系统配置 →
+     * 考勤设置」改，无需重启。空字符串视为"无角色看全员"。
      */
-    public java.util.Set<String> getAttendanceFullScopeExcludedRoleCodes() {
-        String csv = getString(GROUP_ATTENDANCE, "fullScopeExcludedRoleCodes", "finance");
+    public java.util.Set<String> getAttendanceFullScopeRoleCodes() {
+        String csv = getString(GROUP_ATTENDANCE, "fullScopeRoleCodes",
+                "admin,chairman,general_manager,hr");
         if (csv == null || csv.isBlank()) return java.util.Collections.emptySet();
         java.util.Set<String> result = new java.util.HashSet<>();
         for (String s : csv.split(",")) {
