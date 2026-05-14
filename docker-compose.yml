@@ -7,14 +7,16 @@ version: '3.8'
 
 services:
   # ======================== 应用服务 ========================
-  # 生产环境从阿里云 ACR 拉镜像（在 .env 里配 APP_IMAGE）；本地开发不设 APP_IMAGE 时 fallback 到本地 build。
+  # 镜像只含 JRE，不含 jar；jar 通过 ./release/app.jar volume 挂载进来
+  # jar 由 dev 本地 ./deploy.sh 编译 + scp 推上来，服务器零编译
   app:
-    image: ${APP_IMAGE:-masterlife/app:local}
     build:
       context: .
       dockerfile: Dockerfile
     container_name: masterlife-app
     restart: unless-stopped
+    volumes:
+      - ./release/app.jar:/app/app.jar:ro
     ports:
       - "8080:8080"
     environment:

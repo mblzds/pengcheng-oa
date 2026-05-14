@@ -1,25 +1,19 @@
 #!/usr/bin/env bash
-# deploy.sh —— 本地构建 docker 镜像并 push 到阿里云 ACR。
+# deploy.sh —— 本地 mvn 增量编译 + scp jar + ssh 重启服务器 app 容器
 #
 # 用法：
-#   ./deploy.sh             # 默认 tag = 当前 git short-sha
-#   ./deploy.sh v1.2.3      # 用指定 tag
-#   ./deploy.sh --skip-build  # 只 push（已经 build 过）
+#   ./deploy.sh                # 增量编译（推荐，30 秒内）
+#   ./deploy.sh --full         # 全量 mvn clean package（依赖升级或解析报错时用）
+#   ./deploy.sh --skip-build   # 跳过编译，直接 scp 已有 jar
+#   ./deploy.sh --no-restart   # 只传 jar，不 ssh 重启（自己上去看）
 #
-# 前置：
-#   1. 阿里云 ACR 已开通，且创建好命名空间 + 镜像仓库
-#   2. 已 docker login 到 registry（详见 README 或本脚本底部提示）
-#   3. .env 里配置：
-#        ACR_REGISTRY=registry.cn-shenzhen.aliyuncs.com   # 你的 ACR region
-#        ACR_NAMESPACE=masterlife                         # 你创建的命名空间
-#        ACR_REPO=app                                     # 你创建的镜像仓库名
-#
-# 服务器端发布步骤（脚本 push 完成后，ssh 到阿里云 ECS 执行）：
-#   cd ~/pengcheng-oa
-#   git pull origin main         # 同步 docker-compose.yml 等配置
-#   docker compose pull app      # 拉新镜像
-#   docker compose up -d app     # 重启 app 容器
-#   docker compose logs -f app | head -50  # 看启动日志
+# 前置（一次性）：
+#   1. ssh 免密：在本机执行 ssh-copy-id <你的服务器>
+#   2. 服务器上 git clone 仓库，目录默认是 ~/pengcheng-oa
+#   3. .env 配置：
+#        DEPLOY_SSH_HOST=root@1.2.3.4              # 或 user@host
+#        DEPLOY_REMOTE_DIR=~/pengcheng-oa          # 服务器仓库路径
+#   4. 服务器首次启动前需要 git pull（拿到新的 Dockerfile / docker-compose.yml）
 
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -29,60 +23,68 @@ if [[ -f ".env" ]]; then
     set -a; . ./.env; set +a
 fi
 
-: "${ACR_REGISTRY:?需要在 .env 设置 ACR_REGISTRY，例如 registry.cn-shenzhen.aliyuncs.com}"
-: "${ACR_NAMESPACE:?需要在 .env 设置 ACR_NAMESPACE，例如 masterlife}"
-: "${ACR_REPO:?需要在 .env 设置 ACR_REPO，例如 app}"
+: "${DEPLOY_SSH_HOST:?需要在 .env 设置 DEPLOY_SSH_HOST，例如 root@1.2.3.4}"
+: "${DEPLOY_REMOTE_DIR:=~/pengcheng-oa}"
 
-SKIP_BUILD=false
-TAG=""
+BUILD_MODE="incremental"
+DO_SCP=true
+DO_RESTART=true
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --skip-build) SKIP_BUILD=true; shift ;;
-        -h|--help) sed -n '2,28p' "$0" | sed 's/^# \?//'; exit 0 ;;
-        *) TAG="$1"; shift ;;
+        --full)        BUILD_MODE="full" ;;
+        --skip-build)  BUILD_MODE="skip" ;;
+        --no-restart)  DO_RESTART=false ;;
+        --no-scp)      DO_SCP=false ;;
+        -h|--help)     sed -n '2,17p' "$0" | sed 's/^# \?//'; exit 0 ;;
+        *)             echo "未知参数: $1（-h 看帮助）"; exit 1 ;;
     esac
+    shift
 done
 
-# 默认 tag = git short-sha；若工作区有未提交改动，附 -dirty 后缀
-if [[ -z "$TAG" ]]; then
-    TAG=$(git rev-parse --short HEAD)
-    if ! git diff-index --quiet HEAD --; then
-        TAG="${TAG}-dirty"
-        echo "[warn] 工作区有未提交改动，tag 自动加 -dirty 后缀"
-    fi
+# 1. 编译
+case "$BUILD_MODE" in
+    full)
+        echo "[build] mvn clean package -DskipTests（全量）"
+        mvn clean package -DskipTests -q
+        ;;
+    incremental)
+        echo "[build] mvn package -DskipTests（增量，未改的模块跳过）"
+        mvn package -DskipTests -q
+        ;;
+    skip)
+        echo "[build] 跳过编译"
+        ;;
+esac
+
+# 2. 定位 jar
+JAR_FILE=$(ls -t pengcheng-starter/target/pengcheng-starter-*.jar 2>/dev/null | head -1)
+if [[ -z "$JAR_FILE" || ! -f "$JAR_FILE" ]]; then
+    echo "[err] 找不到 jar，需要先跑一次完整编译：./deploy.sh --full"
+    exit 1
 fi
 
-IMAGE="${ACR_REGISTRY}/${ACR_NAMESPACE}/${ACR_REPO}:${TAG}"
-LATEST="${ACR_REGISTRY}/${ACR_NAMESPACE}/${ACR_REPO}:latest"
+JAR_SIZE=$(du -h "$JAR_FILE" | cut -f1)
+echo "[jar] $JAR_FILE ($JAR_SIZE)"
 
-echo "[deploy] image = $IMAGE"
-
-# 1. 本地构建
-if ! $SKIP_BUILD; then
-    echo "[deploy] docker build (本地跑 mvn，服务器不用编译)"
-    docker build -t "$IMAGE" -t "$LATEST" -f Dockerfile .
+# 3. scp 推到服务器
+if $DO_SCP; then
+    REMOTE_JAR="${DEPLOY_REMOTE_DIR}/release/app.jar"
+    echo "[scp] → $DEPLOY_SSH_HOST:$REMOTE_JAR"
+    ssh "$DEPLOY_SSH_HOST" "mkdir -p ${DEPLOY_REMOTE_DIR}/release"
+    # -C 启用压缩，jar 是 zip 压缩比有限，但加几个百分比也好
+    scp -C "$JAR_FILE" "$DEPLOY_SSH_HOST:$REMOTE_JAR"
 fi
 
-# 2. push 到 ACR
-echo "[deploy] docker push $IMAGE"
-docker push "$IMAGE"
+# 4. ssh 重启 app 容器
+if $DO_RESTART; then
+    echo "[restart] docker compose restart app"
+    ssh "$DEPLOY_SSH_HOST" "cd ${DEPLOY_REMOTE_DIR} && docker compose restart app"
 
-echo "[deploy] docker push $LATEST"
-docker push "$LATEST"
+    echo ""
+    echo "[log] 查看启动日志："
+    echo "  ssh $DEPLOY_SSH_HOST 'cd ${DEPLOY_REMOTE_DIR} && docker compose logs -f app | head -50'"
+fi
 
 echo ""
-echo "============================================================"
-echo "✅ 镜像已推送到 ACR：$IMAGE"
-echo ""
-echo "下一步：ssh 到生产服务器执行"
-echo "  cd ~/pengcheng-oa"
-echo "  git pull origin main"
-echo "  echo 'APP_IMAGE=$LATEST' >> .env  # 仅首次需要"
-echo "  docker compose pull app"
-echo "  docker compose up -d app"
-echo "============================================================"
-echo ""
-echo "[提示] 首次使用前需 docker login："
-echo "  docker login --username=<你的阿里云账号> $ACR_REGISTRY"
-echo "  （ACR 控制台 → 访问凭证 → 设置固定密码）"
+echo "✅ 部署完成"

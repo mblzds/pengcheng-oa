@@ -1,39 +1,17 @@
 # ============================================================
-# MasterLife V3.0 Dockerfile（仅后端编译；前端在开发者本地 build 后 commit 入仓）
+# MasterLife V3.0 Dockerfile（仅运行时；jar 由本地 mvn 打包后 scp 上来挂载）
 # ============================================================
 #
-# 设计：阿里云 ECS 配置较低，把前端 build 留在 dev 上，仓库直接带前端产物
-# （pengcheng-starter/src/main/resources/static/）。容器构建只跑 maven，
-# 拿到已经被 commit 的 static 文件一起打进 JAR + nginx 卷挂使用。
+# 设计：阿里云 ECS 跑 mvn 太慢，把 mvn build 完全转移到 dev 本地。
+# 镜像只含 JRE + 时区 + 健康检查，jar 通过 docker-compose volume 挂载进来。
 #
-# 发布流程：
-#   dev:    cd pengcheng-ui && npm run build
-#           git add pengcheng-starter/src/main/resources/static/ && git commit && git push
-#   aliyun: git pull && docker compose build app && docker compose up -d
+# 发布流程（详见 deploy.sh）：
+#   dev:    cd pengcheng-ui && npm run build && cd ..
+#           mvn clean package -DskipTests
+#           ./deploy.sh                # 自动 scp + ssh restart
+#   aliyun: 自动重启，无需手工操作
 # ============================================================
 
-# Stage 1: 构建阶段（仅后端）
-FROM maven:3.9-eclipse-temurin-17 AS builder
-WORKDIR /build
-
-# Maven 镜像走阿里云仓库，国内构建避免 Central 慢
-COPY .mvn/settings.xml /root/.m2/settings.xml
-
-COPY pom.xml .
-COPY pengcheng-common/pom.xml pengcheng-common/
-COPY pengcheng-infra/ pengcheng-infra/
-COPY pengcheng-core/ pengcheng-core/
-COPY pengcheng-api/ pengcheng-api/
-COPY pengcheng-job/pom.xml pengcheng-job/
-COPY pengcheng-starter/pom.xml pengcheng-starter/
-
-RUN mvn dependency:go-offline -B 2>/dev/null || true
-
-# 这一步把 pengcheng-starter/src/main/resources/static 一起拿进来（已 commit 的前端产物）
-COPY . .
-RUN mvn clean package -DskipTests -B
-
-# Stage 2: 运行阶段
 FROM eclipse-temurin:17-jre-jammy
 WORKDIR /app
 
@@ -49,8 +27,6 @@ ENV TZ=Asia/Shanghai
 
 RUN groupadd -r appgroup && useradd -r -g appgroup appuser
 
-COPY --from=builder /build/pengcheng-starter/target/*.jar app.jar
-
 RUN mkdir -p /app/logs /app/uploads && \
     chown -R appuser:appgroup /app
 
@@ -64,4 +40,6 @@ ENV SPRING_PROFILES_ACTIVE="prod"
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
     CMD curl -fsS http://localhost:8080/api/v3/api-docs >/dev/null || exit 1
 
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar --spring.profiles.active=$SPRING_PROFILES_ACTIVE"]
+# jar 文件通过 volume 挂载到 /app/app.jar（详见 docker-compose.yml）
+# 容器启动时 jar 必须已存在；首次部署需要先跑 ./deploy.sh 把 jar scp 上来
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app/app.jar --spring.profiles.active=$SPRING_PROFILES_ACTIVE"]

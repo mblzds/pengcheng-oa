@@ -10,6 +10,9 @@ dist/
 # Maven
 target/
 **/target/
+
+# 部署用 jar 落地目录（仅服务器需要，本地/仓库不应该 commit）
+release/
 **/.jqwik-database/
 **/.jqwik-database
 *.bak
