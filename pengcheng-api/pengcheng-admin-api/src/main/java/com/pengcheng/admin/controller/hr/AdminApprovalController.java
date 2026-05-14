@@ -33,6 +33,7 @@ import com.pengcheng.system.service.SysUserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -111,6 +112,38 @@ public class AdminApprovalController {
             if (b.getApplyTime() == null) return -1;
             return b.getApplyTime().compareTo(a.getApplyTime());
         });
+        return Result.ok(rows);
+    }
+
+    /**
+     * 我审过的（已完成审批的节点回看）。默认近 30 天，按审批时间倒序。
+     * 佣金审核不走 approval_record_node，本端点不返回佣金；如需扩展再单独并入。
+     */
+    @GetMapping("/approved")
+    public Result<List<AdminApprovalItemVO>> approved(@RequestParam(defaultValue = "30") int days) {
+        Long currentUserId = StpUtil.getLoginIdAsLong();
+        LocalDateTime since = days > 0 ? LocalDateTime.now().minusDays(days) : null;
+        List<ApprovalRecordNode> nodes = approvalFlowService.findApprovedBy(currentUserId, since);
+        List<AdminApprovalItemVO> rows = new ArrayList<>();
+        for (ApprovalRecordNode node : nodes) {
+            String bt = node.getBusinessType();
+            AdminApprovalItemVO row = null;
+            if (ApprovalConstants.BUSINESS_TYPE_LEAVE.equals(bt) || ApprovalConstants.BUSINESS_TYPE_COMPENSATE.equals(bt)) {
+                row = buildLeaveOrCompensateRow(node);
+            } else if (ApprovalConstants.BUSINESS_TYPE_EXPENSE.equals(bt)
+                    || ApprovalConstants.BUSINESS_TYPE_ADVANCE.equals(bt)
+                    || ApprovalConstants.BUSINESS_TYPE_PREPAY.equals(bt)) {
+                row = buildPaymentRow(node);
+            }
+            if (row != null) {
+                row.setMyApprovalTime(node.getApprovalTime());
+                row.setMyResult(node.getResult());
+                row.setMyRemark(node.getRemark());
+                // currentNodeName 在「我审过的」语境下指我审过的那个节点，与 pending tab 含义不同
+                row.setCurrentNodeName(node.getNodeName());
+                rows.add(row);
+            }
+        }
         return Result.ok(rows);
     }
 

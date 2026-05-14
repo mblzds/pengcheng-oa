@@ -41,4 +41,12 @@ public class AdminApprovalItemVO {
     private String reason;
     /** 报销类型显示名（交通/餐饮/住宿/办公/其他）；非报销类型为 null */
     private String expenseTypeLabel;
+
+    // ========== 「我审过的」tab 专属（pending tab 这三个字段都为 null） ==========
+    /** 我执行审批的时间 */
+    private LocalDateTime myApprovalTime;
+    /** 我的审批动作：1=通过 / 2=驳回 */
+    private Integer myResult;
+    /** 我的审批备注 */
+    private String myRemark;
 }

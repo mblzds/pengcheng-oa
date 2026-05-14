@@ -3,12 +3,19 @@
     <n-card>
       <template #header>
         <n-space justify="space-between" align="center">
-          <span>我的待审批</span>
+          <span>我的审批</span>
           <n-text depth="3" style="font-size: 12px">
-            列出当前账号作为审批人 / 候选审批人 的待办（请假、调休、付款、佣金）。
+            {{ activeTab === 'pending'
+              ? '列出当前账号作为审批人 / 候选审批人 的待办（请假、调休、付款、佣金）。'
+              : '近 30 天我已完成的审批记录（请假、调休、付款；佣金审核暂未纳入）。' }}
           </n-text>
         </n-space>
       </template>
+
+      <n-tabs v-model:value="activeTab" type="line" animated @update:value="loadList">
+        <n-tab-pane name="pending" tab="待我审批" />
+        <n-tab-pane name="approved" tab="我审过的（近 30 天）" />
+      </n-tabs>
 
       <n-space vertical :size="12">
         <n-space :wrap="false" style="flex-wrap: wrap">
@@ -27,7 +34,7 @@
           />
           <n-button type="primary" @click="loadList" :loading="loading">刷新</n-button>
           <n-tag v-if="rows.length" type="info" :bordered="false">
-            共 {{ filteredRows.length }} 条待办
+            共 {{ filteredRows.length }} 条{{ activeTab === 'pending' ? '待办' : '记录' }}
           </n-tag>
         </n-space>
 
@@ -161,6 +168,7 @@ const loading = ref(false)
 const rows = ref<ApprovalItem[]>([])
 const typeFilter = ref<ApprovalType | null>(null)
 const keyword = ref('')
+const activeTab = ref<'pending' | 'approved'>('pending')
 
 // 类型筛选/展示从 approval_business_type 表实时拉，支持运营新建的自定义类型
 // commission（佣金审核）有独立的审计入口，不放在此筛选里——表格里如果出现佣金行用户也能直接看到
@@ -321,84 +329,130 @@ function historyContent(h: { approverName: string; remark?: string | null; resul
   return parts.join('\n')
 }
 
-// 统一列定义：不再按 typeFilter 切换列集
+// 统一列定义：根据 activeTab 切换部分列（已等/我的动作+审批时间+备注）
 // 设计参照 doc/PERMISSION-AND-ROLES.md 配套的方案 C：审批人多半要快速扫读 + 跨类决策，统一表格更高效
-const unifiedColumns = computed<DataTableColumns<ApprovalItem>>(() => [
-  {
-    title: '申请人',
-    key: 'applicantName',
-    width: 130,
-    render: row => h('div', { style: 'line-height:1.4' }, [
-      h('div', { style: 'font-weight:500' }, row.applicantName || '—'),
-      row.applicantDept
-        ? h('div', { style: 'color:#999;font-size:12px;margin-top:2px' }, row.applicantDept)
-        : null
-    ])
-  },
-  {
-    title: '类型',
-    key: 'type',
-    width: 110,
-    render: row => h(NTag, { type: typeTagType(row.type), size: 'small', bordered: false }, { default: () => buildTypeDisplay(row) })
-  },
-  {
-    title: '关键内容',
-    key: 'keyContent',
-    minWidth: 240,
-    ellipsis: { tooltip: true },
-    render: row => buildKeyContent(row)
-  },
-  {
-    title: '金额',
-    key: 'amount',
-    width: 130,
-    align: 'right' as const,
-    sorter: (a: ApprovalItem, b: ApprovalItem) => (a.amount || 0) - (b.amount || 0),
-    render: row => row.amount != null ? formatAmount(row.amount) : h('span', { style: 'color:#bbb' }, '—')
-  },
-  {
-    title: '已等',
-    key: 'waiting',
-    width: 100,
-    sorter: (a: ApprovalItem, b: ApprovalItem) => {
-      const ta = a.applyTime ? new Date(a.applyTime).getTime() : 0
-      const tb = b.applyTime ? new Date(b.applyTime).getTime() : 0
-      return ta - tb  // 申请时间早的 → 已等时间长 → 排前
+const unifiedColumns = computed<DataTableColumns<ApprovalItem>>(() => {
+  const isPending = activeTab.value === 'pending'
+  const cols: DataTableColumns<ApprovalItem> = [
+    {
+      title: '申请人',
+      key: 'applicantName',
+      width: 130,
+      render: row => h('div', { style: 'line-height:1.4' }, [
+        h('div', { style: 'font-weight:500' }, row.applicantName || '—'),
+        row.applicantDept
+          ? h('div', { style: 'color:#999;font-size:12px;margin-top:2px' }, row.applicantDept)
+          : null
+      ])
     },
-    defaultSortOrder: 'ascend' as const,
-    render: row => {
-      const w = formatWaiting(row.applyTime)
-      const color = w.level === 'urgent' ? '#d03050' : w.level === 'warn' ? '#f0a020' : '#666'
-      const weight = w.level === 'urgent' ? '600' : '400'
-      return h('span', { style: `color:${color};font-weight:${weight}` }, w.text)
+    {
+      title: '类型',
+      key: 'type',
+      width: 110,
+      render: row => h(NTag, { type: typeTagType(row.type), size: 'small', bordered: false }, { default: () => buildTypeDisplay(row) })
+    },
+    {
+      title: '关键内容',
+      key: 'keyContent',
+      minWidth: 240,
+      ellipsis: { tooltip: true },
+      render: row => buildKeyContent(row)
+    },
+    {
+      title: '金额',
+      key: 'amount',
+      width: 130,
+      align: 'right' as const,
+      sorter: (a: ApprovalItem, b: ApprovalItem) => (a.amount || 0) - (b.amount || 0),
+      render: row => row.amount != null ? formatAmount(row.amount) : h('span', { style: 'color:#bbb' }, '—')
     }
-  },
-  {
-    title: '当前节点',
+  ]
+
+  if (isPending) {
+    cols.push({
+      title: '已等',
+      key: 'waiting',
+      width: 100,
+      sorter: (a: ApprovalItem, b: ApprovalItem) => {
+        const ta = a.applyTime ? new Date(a.applyTime).getTime() : 0
+        const tb = b.applyTime ? new Date(b.applyTime).getTime() : 0
+        return ta - tb
+      },
+      defaultSortOrder: 'ascend' as const,
+      render: row => {
+        const w = formatWaiting(row.applyTime)
+        const color = w.level === 'urgent' ? '#d03050' : w.level === 'warn' ? '#f0a020' : '#666'
+        const weight = w.level === 'urgent' ? '600' : '400'
+        return h('span', { style: `color:${color};font-weight:${weight}` }, w.text)
+      }
+    })
+  } else {
+    cols.push(
+      {
+        title: '我的动作',
+        key: 'myResult',
+        width: 90,
+        render: row => h(NTag, {
+          type: row.myResult === 1 ? 'success' : row.myResult === 2 ? 'error' : 'default',
+          size: 'small'
+        }, { default: () => row.myResult === 1 ? '通过' : row.myResult === 2 ? '驳回' : '—' })
+      },
+      {
+        title: '审批时间',
+        key: 'myApprovalTime',
+        width: 150,
+        sorter: (a: ApprovalItem, b: ApprovalItem) => {
+          const ta = a.myApprovalTime ? new Date(a.myApprovalTime).getTime() : 0
+          const tb = b.myApprovalTime ? new Date(b.myApprovalTime).getTime() : 0
+          return tb - ta
+        },
+        defaultSortOrder: 'descend' as const,
+        render: row => formatTime(row.myApprovalTime) || '—'
+      },
+      {
+        title: '我的备注',
+        key: 'myRemark',
+        minWidth: 150,
+        ellipsis: { tooltip: true },
+        render: row => row.myRemark || '—'
+      }
+    )
+  }
+
+  cols.push({
+    title: isPending ? '当前节点' : '审批节点',
     key: 'currentNodeName',
-    width: 110,
+    width: 140,
+    ellipsis: { tooltip: true },
     render: row => row.currentNodeName || '—'
-  },
-  {
+  })
+
+  cols.push({
     title: '操作',
     key: 'actions',
-    width: 220,
+    width: isPending ? 220 : 80,
     fixed: 'right' as const,
-    render: row =>
-      h(NSpace, { size: 'small' }, {
-        default: () => [
-          h(NButton, { size: 'small', type: 'primary', secondary: true, onClick: () => openDetail(row) }, { default: () => '详情' }),
-          h(NButton, { size: 'small', type: 'primary', onClick: () => openAction(row, true) }, { default: () => '通过' }),
-          h(NButton, { size: 'small', type: 'error', ghost: true, onClick: () => openAction(row, false) }, { default: () => '驳回' })
-        ]
-      })
-  }
-])
+    render: row => {
+      const buttons: any[] = [
+        h(NButton, { size: 'small', type: 'primary', secondary: true, onClick: () => openDetail(row) }, { default: () => '详情' })
+      ]
+      if (isPending) {
+        buttons.push(h(NButton, { size: 'small', type: 'primary', onClick: () => openAction(row, true) }, { default: () => '通过' }))
+        buttons.push(h(NButton, { size: 'small', type: 'error', ghost: true, onClick: () => openAction(row, false) }, { default: () => '驳回' }))
+      }
+      return h(NSpace, { size: 'small' }, { default: () => buttons })
+    }
+  })
+
+  return cols
+})
 
 async function loadList() {
   loading.value = true
   try {
-    const data = await approvalApi.pending()
+    const data = activeTab.value === 'pending'
+      ? await approvalApi.pending()
+      : await approvalApi.approved(30)
     rows.value = Array.isArray(data) ? data : []
   } finally {
     loading.value = false

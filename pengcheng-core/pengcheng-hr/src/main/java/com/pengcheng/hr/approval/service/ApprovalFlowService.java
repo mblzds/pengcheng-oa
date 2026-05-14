@@ -4,6 +4,7 @@ import com.pengcheng.hr.approval.dto.ApprovalFlowNodeVO;
 import com.pengcheng.hr.approval.dto.ApprovalProgressVO;
 import com.pengcheng.hr.approval.entity.ApprovalRecordNode;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -81,6 +82,14 @@ public interface ApprovalFlowService {
      * @param businessType 可空，为空则不过滤业务类型
      */
     List<ApprovalRecordNode> findPending(Long approverId, String businessType);
+
+    /**
+     * 查询某人作为审批人在 since 之后已完成审批（result IS NOT NULL）的节点，按 approvalTime 倒序。
+     * 用于"我审过的"列表回看。佣金审核不走 approval_record_node 表，此处不会返回。
+     *
+     * @param since 可空，为空则不过滤时间下限
+     */
+    List<ApprovalRecordNode> findApprovedBy(Long approverId, LocalDateTime since);
 
     /**
      * 查询某业务申请的全部审批节点（按 seq 升序），含已审批 + 待审批节点。

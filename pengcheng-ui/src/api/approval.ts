@@ -84,6 +84,10 @@ export interface ApprovalItem {
   reason?: string | null
   /** 报销类型显示名（交通/餐饮/住宿/办公/其他）；仅 expense 才有 */
   expenseTypeLabel?: string | null
+  /** 「我审过的」tab 专属：我的审批时间 / 动作 / 备注。pending tab 这三字段为 null */
+  myApprovalTime?: string | null
+  myResult?: number | null
+  myRemark?: string | null
 }
 
 export interface ApprovalHistory {
@@ -123,6 +127,11 @@ export interface ApproveDTO {
 export const approvalApi = {
   pending(): Promise<ApprovalItem[]> {
     return request({ url: '/admin/approval/pending', method: 'get' })
+  },
+
+  /** 我审过的，默认近 30 天，按审批时间倒序 */
+  approved(days = 30): Promise<ApprovalItem[]> {
+    return request({ url: '/admin/approval/approved', method: 'get', params: { days } })
   },
 
   detail(id: number, type: ApprovalType): Promise<ApprovalDetail> {

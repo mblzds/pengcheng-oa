@@ -298,6 +298,19 @@ public class ApprovalFlowServiceImpl implements ApprovalFlowService {
     }
 
     @Override
+    public List<ApprovalRecordNode> findApprovedBy(Long approverId, LocalDateTime since) {
+        if (approverId == null) return Collections.emptyList();
+        LambdaQueryWrapper<ApprovalRecordNode> w = new LambdaQueryWrapper<ApprovalRecordNode>()
+                .eq(ApprovalRecordNode::getApproverId, approverId)
+                .isNotNull(ApprovalRecordNode::getResult);
+        if (since != null) {
+            w.ge(ApprovalRecordNode::getApprovalTime, since);
+        }
+        w.orderByDesc(ApprovalRecordNode::getApprovalTime);
+        return recordNodeMapper.selectList(w);
+    }
+
+    @Override
     public List<ApprovalRecordNode> listRecordNodes(String businessType, Long businessId) {
         if (businessType == null || businessId == null) {
             return Collections.emptyList();
