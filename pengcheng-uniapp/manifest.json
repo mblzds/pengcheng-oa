@@ -60,10 +60,10 @@
         "usingComponents" : true,
         "permission" : {
             "scope.userLocation" : {
-                "desc" : "你的位置信息将用于展示"
+                "desc" : "用于打卡签到时定位你所在位置"
             }
         },
-        "requiredPrivateInfos" : [ "chooseAddress" ]
+        "requiredPrivateInfos" : [ "chooseAddress", "getLocation", "chooseLocation" ]
     },
     "mp-alipay" : {
         "usingComponents" : true
