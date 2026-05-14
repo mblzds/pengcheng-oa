@@ -425,43 +425,27 @@ function updateTime() {
 const todos = ref<any[]>([])
 const myTasks = ref<any[]>([])
 
-// 角色对应的待办标题、空态文案、"更多"跳转
-const isApprover = computed(() => ['admin', 'manager', 'hr', 'finance'].includes(userRole.value))
-const todoTitle = computed(() => isApprover.value ? '待我审批' : '我的待办')
-const todoMoreRoute = computed(() => isApprover.value ? '/hr/approval-pending' : '/smart-table')
-const todoEmptyText = computed(() => isApprover.value ? '暂无待审批事项' : '暂无待办任务')
+// 待办固定显示「待我审批」——后端 /admin/approval/pending 已按 userId 过滤候选审批人，
+// 普通员工拿到空数组自然显示空态，无需前端按角色 if/else 决定调哪个接口
+const todoTitle = computed(() => '待我审批')
+const todoMoreRoute = computed(() => '/hr/approval-pending')
+const todoEmptyText = computed(() => '暂无待审批事项')
 
 async function loadTodos() {
-  if (isApprover.value) {
-    // 审批角色：拉取待我审批列表
-    try {
-      const { approvalApi } = await import('@/api/approval')
-      const list = await approvalApi.pending()
-      const items = Array.isArray(list) ? list : []
-      todos.value = items.slice(0, 5).map((it: any) => ({
-        id: `${it.type}-${it.id}`,
-        approvalId: it.id,
-        approvalType: it.type,
-        title: it.summary || `${getApprovalTypeLabel(it.type)}申请`,
-        subtitle: `${it.applicantName || '-'} · ${formatDateTime(it.applyTime)}${it.amount ? ' · ¥' + it.amount : ''}`,
-        status: 'todo',
-      }))
-      todoCount.value = items.length
-    } catch { todos.value = []; todoCount.value = 0 }
-    return
-  }
-  // 普通角色：保留原有 /todo/list 行为
   try {
-    const { request } = await import('@/utils/request')
-    const res = await request({ url: '/todo/list', method: 'get', params: { status: 0 } })
-    const list = res?.data ?? res ?? []
-    todos.value = list.slice(0, 5).map((t: any) => ({
-      id: t.id, title: t.title, status: t.status === 2 ? 'done' : 'todo',
-      priority: t.priority === 2 ? 'high' : t.priority === 1 ? 'medium' : 'low',
-      dueDate: t.dueDate ? new Date(t.dueDate).getTime() : Date.now() + 86400000 * 7,
+    const { approvalApi } = await import('@/api/approval')
+    const list = await approvalApi.pending()
+    const items = Array.isArray(list) ? list : []
+    todos.value = items.slice(0, 5).map((it: any) => ({
+      id: `${it.type}-${it.id}`,
+      approvalId: it.id,
+      approvalType: it.type,
+      title: it.summary || `${getApprovalTypeLabel(it.type)}申请`,
+      subtitle: `${it.applicantName || '-'} · ${formatDateTime(it.applyTime)}${it.amount ? ' · ¥' + it.amount : ''}`,
+      status: 'todo',
     }))
-    todoCount.value = list.length
-  } catch { /* 接口暂未可用 */ }
+    todoCount.value = items.length
+  } catch { todos.value = []; todoCount.value = 0 }
 }
 
 function handleTodoClick(task: any) {
