@@ -81,6 +81,13 @@ pengcheng:
   # true: 开启演示模式，禁止新增、编辑、删除操作，用户操作时提示"演示模式，不允许操作"
   # false: 关闭演示模式，允许所有操作
   demo-mode: true
+  # 功能开关：appId/appSecret 仍走 sys_config_group → wechatMiniProgram 分组动态读取，
+  # 这里只是控制 MiniProgramLoginStrategy Bean 是否注册到 LoginStrategyFactory。
+  # 不开则前端微信登录会报"不支持的登录方式: 小程序登录"。
+  feature:
+    wechat:
+      mini:
+        enabled: true
   ai:
     enabled: true
     customer-analysis-fallback: true
