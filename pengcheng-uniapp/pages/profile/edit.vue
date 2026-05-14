@@ -59,14 +59,18 @@
 			</view>
 		</view>
 
-		<!-- 性别选择弹窗 -->
-		<u-action-sheet
-			:show="genderSheetVisible"
-			:actions="genderActions"
-			cancelText="取消"
-			@close="genderSheetVisible = false"
-			@select="onGenderSelect"
-		></u-action-sheet>
+		<!-- 性别选择弹窗（u-action-sheet 在 mp-weixin 体验版 :show 失灵，改自写 fixed 弹层） -->
+		<view v-if="genderSheetVisible" class="custom-popup-mask" @tap="genderSheetVisible = false"></view>
+		<view v-if="genderSheetVisible" class="custom-popup-sheet">
+			<view class="action-sheet" @tap.stop>
+				<view class="action-item" v-for="item in genderActions" :key="item.value" @tap="onGenderSelect(item)">
+					<text>{{ item.name }}</text>
+				</view>
+				<view class="action-cancel" @tap="genderSheetVisible = false">
+					<text>取消</text>
+				</view>
+			</view>
+		</view>
 	</view>
 </template>
 
@@ -74,6 +78,7 @@
 	import { getAppProfile, updateAppProfile, uploadFile } from '../../utils/api.js'
 	import { getUserInfo, setUserInfo } from '../../utils/auth.js'
 	import { resolveAvatar } from '../../utils/config.js'
+	import { ensurePrivacyAuth } from '../../utils/privacy.js'
 
 	export default {
 		data() {
@@ -128,7 +133,9 @@
 				}
 			},
 
-			handleChangeAvatar() {
+			async handleChangeAvatar() {
+				const agreed = await ensurePrivacyAuth()
+				if (!agreed) return
 				uni.chooseImage({
 					count: 1,
 					sizeType: ['compressed'],
@@ -243,6 +250,30 @@
 		min-height: 100vh; min-height: 100dvh;
 		background: #F0F0F0;
 		padding-top: 20rpx;
+	}
+
+	/* 自写底部弹层（替代 u-action-sheet / u-popup，绕开 mp-weixin :show 失灵） */
+	.custom-popup-mask {
+		position: fixed; left: 0; right: 0; top: 0; bottom: 0;
+		background: rgba(0, 0, 0, 0.5); z-index: 998;
+	}
+	.custom-popup-sheet {
+		position: fixed; left: 0; right: 0; bottom: 0;
+		background: #F5F5F5; border-top-left-radius: 24rpx; border-top-right-radius: 24rpx;
+		z-index: 999; padding-bottom: env(safe-area-inset-bottom);
+	}
+	.action-sheet { padding: 0; }
+	.action-item {
+		height: 100rpx; line-height: 100rpx; text-align: center;
+		font-size: 32rpx; color: #1A1A1A; background: #FFF;
+		border-bottom: 1rpx solid #F2F2F2;
+		&:active { background: #F7F7F7; }
+	}
+	.action-cancel {
+		height: 100rpx; line-height: 100rpx; text-align: center;
+		font-size: 32rpx; color: #666; background: #FFF;
+		margin-top: 12rpx;
+		&:active { background: #F7F7F7; }
 	}
 
 	.section {

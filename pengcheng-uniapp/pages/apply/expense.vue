@@ -62,6 +62,7 @@
 <script>
 	import { applyExpense, uploadFile } from '../../utils/api.js'
 	import { joinBaseUrl } from '../../utils/config.js'
+	import { ensurePrivacyAuth } from '../../utils/privacy.js'
 
 	export default {
 		data() {
@@ -96,7 +97,9 @@
 				this.form.expenseType = item.value
 				this.form.expenseTypeLabel = item.label
 			},
-			chooseImage() {
+			async chooseImage() {
+				const agreed = await ensurePrivacyAuth()
+				if (!agreed) return
 				uni.chooseImage({
 					count: 9 - this.attachments.length,
 					sizeType: ['compressed'],

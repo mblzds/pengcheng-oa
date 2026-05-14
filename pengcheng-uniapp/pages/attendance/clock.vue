@@ -77,6 +77,7 @@
 <script>
 	import { clockAttendance, getAttendanceRecords, uploadAttendancePhoto } from '../../utils/api.js'
 	import { gcj02ToWgs84 } from '../../utils/coordTransform.js'
+	import { ensurePrivacyAuth } from '../../utils/privacy.js'
 
 	export default {
 		data() {
@@ -129,35 +130,9 @@
 				this.currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`
 			},
 
-			// 在调用 wx.getLocation 前确保用户已同意隐私协议。
-			// 自 2023-09-15 起，未同意隐私指引时 getLocation 会直接被拦截。
-			ensurePrivacyAuth() {
-				// #ifdef MP-WEIXIN
-				return new Promise((resolve) => {
-					if (typeof wx === 'undefined' || !wx.getPrivacySetting) {
-						resolve(true); return
-					}
-					wx.getPrivacySetting({
-						success: (res) => {
-							if (!res.needAuthorization) { resolve(true); return }
-							if (!wx.requirePrivacyAuthorize) { resolve(true); return }
-							wx.requirePrivacyAuthorize({
-								success: () => resolve(true),
-								fail: () => resolve(false)
-							})
-						},
-						fail: () => resolve(true)
-					})
-				})
-				// #endif
-				// #ifndef MP-WEIXIN
-				return Promise.resolve(true)
-				// #endif
-			},
-
 			async getLocation() {
 				this.locationError = ''
-				const agreed = await this.ensurePrivacyAuth()
+				const agreed = await ensurePrivacyAuth()
 				if (!agreed) {
 					this.canClock = false
 					this.markers = []
@@ -229,6 +204,8 @@
 
 			// 拍照（独立操作，不触发打卡）
 			async takePhoto() {
+				const agreed = await ensurePrivacyAuth()
+				if (!agreed) return
 				try {
 					const res = await new Promise((resolve, reject) => {
 						uni.chooseImage({

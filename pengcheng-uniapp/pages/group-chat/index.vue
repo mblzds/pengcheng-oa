@@ -142,6 +142,7 @@
 	import wsClient from '../../utils/websocket.js'
 
 	import { resolveAvatar, resolveFileUrl } from '../../utils/config.js'
+	import { ensurePrivacyAuth } from '../../utils/privacy.js'
 	export default {
 		data() {
 			return {
@@ -223,7 +224,9 @@
 				uni.showToast({ title: '语音功能开发中', icon: 'none' })
 			},
 			onVoiceEnd() { this.isRecording = false },
-			handleTakePhoto() {
+			async handleTakePhoto() {
+				const agreed = await ensurePrivacyAuth()
+				if (!agreed) return
 				uni.chooseImage({
 					count: 1, sourceType: ['camera'], sizeType: ['compressed'],
 					success: async (res) => { await this.sendImageFile(res.tempFilePaths[0]) }
@@ -312,8 +315,10 @@
 					if (i > -1 && res.data) this.messages[i] = { ...res.data }
 				} catch (err) { uni.showToast({ title: '发送失败', icon: 'none' }) }
 			},
-			handleChooseImage() {
+			async handleChooseImage() {
 				this.showExtraPanel = false
+				const agreed = await ensurePrivacyAuth()
+				if (!agreed) return
 				uni.chooseImage({
 					count: 9, sizeType: ['compressed'],
 					success: async (res) => {

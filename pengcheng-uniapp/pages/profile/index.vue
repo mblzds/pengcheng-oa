@@ -119,6 +119,7 @@
 	import { getUserInfo, setUserInfo, clearAuth } from '../../utils/auth.js'
 	import { resolveAvatar } from '../../utils/config.js'
 	import wsClient from '../../utils/websocket.js'
+	import { ensurePrivacyAuth } from '../../utils/privacy.js'
 
 	export default {
 		data() {
@@ -155,7 +156,9 @@
 					this.cacheSize = s > 1024 ? (s / 1024).toFixed(1) + ' MB' : s + ' KB'
 				} catch (e) { this.cacheSize = '0 KB' }
 			},
-			handleChangeAvatar() {
+			async handleChangeAvatar() {
+				const agreed = await ensurePrivacyAuth()
+				if (!agreed) return
 				uni.chooseImage({
 					count: 1,
 					sizeType: ['compressed'],

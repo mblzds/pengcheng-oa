@@ -42,6 +42,7 @@
 
 <script>
 	import { signAttendance } from '../../utils/api.js'
+	import { ensurePrivacyAuth } from '../../utils/privacy.js'
 
 	export default {
 		data() {
@@ -65,36 +66,10 @@
 					}
 				})
 			},
-			// 在调用 wx.getLocation 前确保用户已同意隐私协议。
-			// 自 2023-09-15 起，未同意隐私指引时 getLocation 会直接被拦截。
-			ensurePrivacyAuth() {
-				// #ifdef MP-WEIXIN
-				return new Promise((resolve) => {
-					if (typeof wx === 'undefined' || !wx.getPrivacySetting) {
-						resolve(true); return
-					}
-					wx.getPrivacySetting({
-						success: (res) => {
-							if (!res.needAuthorization) { resolve(true); return }
-							if (!wx.requirePrivacyAuthorize) { resolve(true); return }
-							wx.requirePrivacyAuthorize({
-								success: () => resolve(true),
-								fail: () => resolve(false)
-							})
-						},
-						fail: () => resolve(true)
-					})
-				})
-				// #endif
-				// #ifndef MP-WEIXIN
-				return Promise.resolve(true)
-				// #endif
-			},
-
 			async doSign(projectCode) {
 				uni.showLoading({ title: '签到中...' })
 				try {
-					const agreed = await this.ensurePrivacyAuth()
+					const agreed = await ensurePrivacyAuth()
 					if (!agreed) {
 						throw new Error('未同意隐私协议，无法签到')
 					}
