@@ -32,6 +32,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
@@ -393,8 +394,12 @@ public class AttendanceServiceImpl implements AttendanceService {
             return existing;
         }
         LocalDate today = LocalDate.now();
-        // 未来日期不算缺勤
-        LocalDate effectiveEnd = today.isBefore(endDate) ? today : endDate;
+        // 今天的下班时刻未过 → 今天不补缺勤行（员工可能还没到岗或仍在岗中）；
+        // 未来日期同样不算缺勤。最远可补到 latestAbsentDate。
+        LocalDate latestAbsentDate = LocalDateTime.now().isBefore(LocalDateTime.of(today, workEndTime()))
+                ? today.minusDays(1)
+                : today;
+        LocalDate effectiveEnd = latestAbsentDate.isBefore(endDate) ? latestAbsentDate : endDate;
         if (effectiveEnd.isBefore(startDate)) {
             return existing;
         }

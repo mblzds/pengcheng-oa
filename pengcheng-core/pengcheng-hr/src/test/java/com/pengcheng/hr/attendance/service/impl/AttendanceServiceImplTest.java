@@ -179,13 +179,16 @@ class AttendanceServiceImplTest {
     @Test
     @DisplayName("getMonthlySummary 统计出勤、迟到、早退与请假天数")
     void getMonthlySummaryAggregatesRecords() {
+        // attendanceDays 仅累计 attendanceDate 落在工作日的记录（2026/4/1 周三、2026/4/2 周四）
         AttendanceRecord late = AttendanceRecord.builder()
+                .attendanceDate(LocalDate.of(2026, 4, 1))
                 .clockInTime(LocalDateTime.of(2026, 4, 1, 9, 30))
                 .clockInStatus(AttendanceServiceImpl.CLOCK_IN_LATE)
                 .clockOutTime(LocalDateTime.of(2026, 4, 1, 18, 30))
                 .clockOutStatus(AttendanceServiceImpl.CLOCK_OUT_NORMAL)
                 .build();
         AttendanceRecord early = AttendanceRecord.builder()
+                .attendanceDate(LocalDate.of(2026, 4, 2))
                 .clockInTime(LocalDateTime.of(2026, 4, 2, 8, 50))
                 .clockInStatus(AttendanceServiceImpl.CLOCK_IN_NORMAL)
                 .clockOutTime(LocalDateTime.of(2026, 4, 2, 17, 20))
