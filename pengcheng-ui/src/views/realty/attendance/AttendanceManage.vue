@@ -581,8 +581,8 @@ const leaveColumns: DataTableColumns<LeaveRequestItem> = [
   {
     title: '当前节点',
     key: 'currentNodeName',
-    width: 120,
-    render: row => row.currentNodeName || '—'
+    width: 140,
+    render: row => renderNodeCell(row.currentNodeName)
   }
 ]
 
@@ -600,8 +600,8 @@ const compensateColumns: DataTableColumns<CompensateRequestItem> = [
   {
     title: '当前节点',
     key: 'currentNodeName',
-    width: 120,
-    render: row => row.currentNodeName || '—'
+    width: 140,
+    render: row => renderNodeCell(row.currentNodeName)
   }
 ]
 
@@ -611,6 +611,18 @@ function renderEmployee(row: { userId?: number; userName?: string; employeeNo?: 
   return h('div', null, [
     h('div', { style: 'font-weight: 500' }, name),
     meta ? h('div', { style: 'color: #999; font-size: 12px; margin-top: 2px' }, meta) : null
+  ])
+}
+
+// 后端把"节点名（候选人1、候选人2）"拼成一个字符串返回；这里 split 成两行渲染，列宽更友好。
+// 约定：审批流模板里的 nodeName 不含全角括号（"直接上级"/"HR 复核"等），所以这种 split 是稳定的。
+function renderNodeCell(value?: string | null) {
+  if (!value) return '—'
+  const m = value.match(/^(.+?)（(.+)）$/)
+  if (!m) return h('span', value)
+  return h('div', { style: 'line-height: 1.4' }, [
+    h('div', m[1]),
+    h('div', { style: 'color: #999; font-size: 12px; margin-top: 2px' }, m[2])
   ])
 }
 

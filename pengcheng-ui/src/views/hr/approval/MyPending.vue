@@ -329,6 +329,18 @@ function historyContent(h: { approverName: string; remark?: string | null; resul
   return parts.join('\n')
 }
 
+// 后端把"节点名（候选人1、候选人2）"拼成一个字符串返回；这里 split 成两行渲染，列宽更友好。
+// 约定：审批流模板里的 nodeName 不含全角括号（"直接上级"/"HR 复核"等），所以这种 split 是稳定的。
+function renderNodeCell(value?: string | null) {
+  if (!value) return '—'
+  const m = value.match(/^(.+?)（(.+)）$/)
+  if (!m) return h('span', value)
+  return h('div', { style: 'line-height: 1.4' }, [
+    h('div', m[1]),
+    h('div', { style: 'color: #999; font-size: 12px; margin-top: 2px' }, m[2])
+  ])
+}
+
 // 统一列定义：根据 activeTab 切换部分列（已等/我的动作+审批时间+备注）
 // 设计参照 doc/PERMISSION-AND-ROLES.md 配套的方案 C：审批人多半要快速扫读 + 跨类决策，统一表格更高效
 const unifiedColumns = computed<DataTableColumns<ApprovalItem>>(() => {
@@ -423,8 +435,7 @@ const unifiedColumns = computed<DataTableColumns<ApprovalItem>>(() => {
     title: isPending ? '当前节点' : '审批节点',
     key: 'currentNodeName',
     width: 140,
-    ellipsis: { tooltip: true },
-    render: row => row.currentNodeName || '—'
+    render: row => renderNodeCell(row.currentNodeName)
   })
 
   cols.push({
