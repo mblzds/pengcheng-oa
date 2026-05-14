@@ -989,6 +989,26 @@ public class SystemConfigHelper implements com.pengcheng.crypto.CryptoConfigProv
     }
 
     /**
+     * 考勤模块「全公司可见」排除的角色 code 列表（逗号分隔；默认 "finance"）。
+     * 这些角色 sys_role.data_scope=1 是为了在自己业务（付款/佣金）里看全员相关单据，
+     * 跨界到考勤模块并不合理——考勤是 HR 领域，财务等不应越权看销售部、市场部的
+     * 打卡/请假/调休记录。
+     *
+     * 配置在 sys_config_group(attendance) 的 fullScopeExcludedRoleCodes，HR/admin 可在
+     * 「系统配置 → 考勤设置」改，无需重启。空字符串视为"不排除任何角色"。
+     */
+    public java.util.Set<String> getAttendanceFullScopeExcludedRoleCodes() {
+        String csv = getString(GROUP_ATTENDANCE, "fullScopeExcludedRoleCodes", "finance");
+        if (csv == null || csv.isBlank()) return java.util.Collections.emptySet();
+        java.util.Set<String> result = new java.util.HashSet<>();
+        for (String s : csv.split(",")) {
+            String t = s.trim();
+            if (!t.isEmpty()) result.add(t);
+        }
+        return result;
+    }
+
+    /**
      * 考勤启用日期（YYYY-MM-DD），系统级兜底截止线。
      * 早于该日期的工作日不计入应当出勤、不算缺勤；优先级低于员工 joinDate。
      * 未设置返回 null，调用方按"无截止线"处理。

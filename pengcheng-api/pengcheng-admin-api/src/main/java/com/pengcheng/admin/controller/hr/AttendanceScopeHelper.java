@@ -6,6 +6,7 @@ import com.pengcheng.common.exception.BusinessException;
 import com.pengcheng.system.entity.SysDept;
 import com.pengcheng.system.entity.SysRole;
 import com.pengcheng.system.entity.SysUser;
+import com.pengcheng.system.helper.SystemConfigHelper;
 import com.pengcheng.system.mapper.SysDeptMapper;
 import com.pengcheng.system.mapper.SysRoleMapper;
 import com.pengcheng.system.mapper.SysUserMapper;
@@ -33,17 +34,10 @@ public class AttendanceScopeHelper {
     private final SysUserMapper userMapper;
     private final SysDeptMapper deptMapper;
     private final SysRoleMapper roleMapper;
+    private final SystemConfigHelper systemConfigHelper;
 
     /** sys_role.data_scope=1（全部） */
     private static final int DATA_SCOPE_ALL = 1;
-
-    /**
-     * 考勤模块的"全公司可见"排除集：这些角色 sys_role.data_scope=1 是为了在
-     * 自己业务（付款 / 佣金）里看到全员相关单据，跨界到考勤模块并不合理——
-     * 考勤是 HR 领域，财务/销售不应越权看销售部、市场部的打卡记录。
-     * 这里把它们从"全员可见"里拿掉，按部门兜底（自己 + 担任 leader 的部门）。
-     */
-    private static final Set<String> NON_ATTENDANCE_FULL_SCOPE_ROLE_CODES = Set.of("finance");
 
     /**
      * 当前登录用户在考勤数据上的可见 userId 集合
@@ -55,11 +49,13 @@ public class AttendanceScopeHelper {
                 .filter(r -> r != null && Integer.valueOf(1).equals(r.getStatus()))
                 .collect(Collectors.toList());
 
-        // 任一启用角色 data_scope=1（全部）→ 不限；排除集中的角色（如 finance）
-        // 即便 data_scope=1 也不算"全员可见"——考勤是 HR 领域，财务不应跨界
+        // 任一启用角色 data_scope=1（全部）→ 不限；排除集中的角色（默认 finance）
+        // 即便 data_scope=1 也不算"全员可见"——考勤是 HR 领域，财务不应跨界。
+        // 排除集来自 sys_config_group(attendance).fullScopeExcludedRoleCodes，运行时可改。
+        Set<String> excludedRoleCodes = systemConfigHelper.getAttendanceFullScopeExcludedRoleCodes();
         for (SysRole r : userRoles) {
             if (Integer.valueOf(DATA_SCOPE_ALL).equals(r.getDataScope())
-                    && !NON_ATTENDANCE_FULL_SCOPE_ROLE_CODES.contains(r.getCode())) {
+                    && !excludedRoleCodes.contains(r.getCode())) {
                 return null;
             }
         }
