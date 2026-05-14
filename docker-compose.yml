@@ -17,6 +17,8 @@ services:
     restart: unless-stopped
     volumes:
       - ./release/app.jar:/app/app.jar:ro
+      - app-uploads:/app/uploads
+      - app-logs:/app/logs
     ports:
       - "8080:8080"
     environment:
@@ -43,9 +45,6 @@ services:
       - MINIO_ENDPOINT=http://minio:9000
       - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-minioadmin}
       - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:-minioadmin}
-    volumes:
-      - app-uploads:/app/uploads
-      - app-logs:/app/logs
     depends_on:
       mysql:
         condition: service_healthy
