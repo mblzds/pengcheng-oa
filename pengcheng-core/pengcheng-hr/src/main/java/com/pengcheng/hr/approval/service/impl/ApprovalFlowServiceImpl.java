@@ -33,6 +33,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -220,13 +222,35 @@ public class ApprovalFlowServiceImpl implements ApprovalFlowService {
                         .in(ApprovalRecordNode::getBusinessId, businessIds)
                         .isNull(ApprovalRecordNode::getResult)
                         .orderByAsc(ApprovalRecordNode::getSeq));
-        // orderByAsc(seq) + toMap merger 取首个 → 每个 businessId 拿到 seq 最小（即当前）节点的 nodeName
-        return nodes.stream()
-                .filter(n -> n.getBusinessId() != null && n.getNodeName() != null)
-                .collect(Collectors.toMap(
-                        ApprovalRecordNode::getBusinessId,
-                        ApprovalRecordNode::getNodeName,
-                        (a, b) -> a));
+        if (nodes.isEmpty()) return Collections.emptyMap();
+
+        // orderByAsc(seq) + putIfAbsent → 每个 businessId 取首个（seq 最小）即当前活跃节点
+        Map<Long, ApprovalRecordNode> currentByBiz = new HashMap<>();
+        for (ApprovalRecordNode n : nodes) {
+            if (n.getBusinessId() != null) currentByBiz.putIfAbsent(n.getBusinessId(), n);
+        }
+
+        // 汇总所有候选审批人 ID 一次性查姓名，避免按节点逐个查询
+        Set<Long> allApproverIds = new HashSet<>();
+        for (ApprovalRecordNode n : currentByBiz.values()) {
+            allApproverIds.addAll(parseIds(n.getCandidateApproverIds()));
+        }
+        Map<Long, String> nameById = allApproverIds.isEmpty() ? Collections.emptyMap()
+                : userService.listByIds(allApproverIds).stream()
+                        .collect(Collectors.toMap(SysUser::getId, this::nameOf, (a, b) -> a));
+
+        // 拼接「节点名（候选人1、候选人2）」；节点名是审批流模板里的角色标签
+        // （如"直接上级"/"HR 复核"），候选人姓名让审批人能直观看到球到了谁手里
+        Map<Long, String> result = new HashMap<>();
+        for (Map.Entry<Long, ApprovalRecordNode> e : currentByBiz.entrySet()) {
+            ApprovalRecordNode n = e.getValue();
+            String base = n.getNodeName() != null ? n.getNodeName() : "";
+            List<String> names = parseIds(n.getCandidateApproverIds()).stream()
+                    .map(nameById::get).filter(Objects::nonNull).toList();
+            String label = names.isEmpty() ? base : base + "（" + String.join("、", names) + "）";
+            if (!label.isEmpty()) result.put(e.getKey(), label);
+        }
+        return result;
     }
 
     @Override
