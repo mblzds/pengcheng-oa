@@ -243,7 +243,6 @@ import {
   FolderOpenOutline,
   BookOutline,
   TimeOutline,
-  WalletOutline,
   AddOutline,
   EllipsisHorizontalOutline,
   LocationOutline,
@@ -313,12 +312,13 @@ interface AppItem {
   badge?: number
 }
 
-// 固定置顶的 4 个常用入口（顺序固定）
+// 固定置顶的 3 个常用入口（顺序固定）
+// 「报销申请」入口已移除：跳到的 PaymentManage 是管理员审阅他人申请的列表页，
+// 与按钮字面"发起报销"的语义错位；后台目前也不做"提交申请"入口（员工提单走小程序）
 const pinnedApps = computed<AppItem[]>(() => [
   { name: '消息中心', route: '/message/chat', icon: ChatbubbleOutline, style: 'background:#e8f5e9;color:#18a058', badge: messageStore.totalUnread },
   { name: '会议日程', route: '/meeting', icon: CalendarOutline, style: 'background:#fff3e0;color:#ff9800' },
   { name: '考勤打卡', route: '/realty/attendance', icon: TimeOutline, style: 'background:#fbe9e7;color:#ff5722' },
-  { name: '报销申请', route: '/realty/payment', icon: WalletOutline, style: 'background:#e8eaf6;color:#3f51b5' },
 ])
 
 const otherBaseApps: AppItem[] = [
