@@ -989,32 +989,6 @@ public class SystemConfigHelper implements com.pengcheng.crypto.CryptoConfigProv
     }
 
     /**
-     * 考勤模块「全公司可见」角色 code 白名单（逗号分隔；默认
-     * "admin,chairman,general_manager,hr"）。
-     *
-     * 设计：考勤是 HR 领域，模块自己定义"哪些角色看全员"，与通用 sys_role.data_scope
-     * 解耦——data_scope=1 在 sys_role 表上的含义是"该角色在自己业务里看全员"（例如
-     * finance 在付款/佣金里看全员），但在考勤模块未必合理，所以这里走独立白名单。
-     *
-     * 不在白名单的角色（如 dept_manager / finance / employee）按部门兜底，部门级可见性
-     * 仍由 sys_role.data_scope=3/4 控制。
-     *
-     * 配置在 sys_config_group(attendance) 的 fullScopeRoleCodes，HR/admin 在「系统配置 →
-     * 考勤设置」改，无需重启。空字符串视为"无角色看全员"。
-     */
-    public java.util.Set<String> getAttendanceFullScopeRoleCodes() {
-        String csv = getString(GROUP_ATTENDANCE, "fullScopeRoleCodes",
-                "admin,chairman,general_manager,hr");
-        if (csv == null || csv.isBlank()) return java.util.Collections.emptySet();
-        java.util.Set<String> result = new java.util.HashSet<>();
-        for (String s : csv.split(",")) {
-            String t = s.trim();
-            if (!t.isEmpty()) result.add(t);
-        }
-        return result;
-    }
-
-    /**
      * 考勤启用日期（YYYY-MM-DD），系统级兜底截止线。
      * 早于该日期的工作日不计入应当出勤、不算缺勤；优先级低于员工 joinDate。
      * 未设置返回 null，调用方按"无截止线"处理。
