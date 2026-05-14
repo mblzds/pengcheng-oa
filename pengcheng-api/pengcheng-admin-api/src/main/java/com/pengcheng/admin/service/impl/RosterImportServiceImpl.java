@@ -61,14 +61,25 @@ public class RosterImportServiceImpl implements RosterImportService {
             "本部门负责人", "直接上级姓名", "角色", "性别", "入职日期", "状态"
     };
 
-    /** 中文角色名 → role.code（多个通过 ; 分隔）。审批流标签 flow_* 由系统自动补 */
-    private static final Map<String, String> ROLE_NAME_TO_CODE = Map.of(
-            "超级管理员", "admin",
-            "部门经理", "manager",
-            "HR", "hr",
-            "人事", "hr",
-            "财务", "user",     // 财务没有独立业务角色，用 user 打底，flow_finance 由规则补
-            "普通员工", "user"
+    /**
+     * 中文角色名 → role.code 列表（多 code 用 ; 分隔；导入时拆开逐个挂载）
+     *
+     * V73 双层模型对齐（参见 doc/PERMISSION-AND-ROLES.md）：
+     *   - 基础职级：employee / dept_manager / chairman / general_manager / admin
+     *   - 职能加成（双挂）：hr+employee / finance+employee / sales+employee 等
+     *   - V72 软删的 flow_* / manager / user 等旧 code 一律不再使用
+     */
+    private static final Map<String, String> ROLE_NAME_TO_CODE = Map.ofEntries(
+            Map.entry("超级管理员", "admin"),
+            Map.entry("董事长", "chairman"),
+            Map.entry("总经理", "general_manager"),
+            Map.entry("部门经理", "dept_manager;employee"),
+            Map.entry("HR", "hr;employee"),
+            Map.entry("人事", "hr;employee"),
+            Map.entry("财务", "finance;employee"),
+            Map.entry("销售员", "sales;employee"),
+            Map.entry("销售经理", "sales_manager;employee"),
+            Map.entry("普通员工", "employee")
     );
 
     private final SysDeptMapper deptMapper;
@@ -125,8 +136,9 @@ public class RosterImportServiceImpl implements RosterImportService {
 
             SysUser user = new SysUser();
             user.setNickname(r.getName());
-            user.setUsername(blankToNull(r.getUsername(), r.getEmployeeNo()));
-            user.setEmployeeNo(r.getEmployeeNo());
+            // 登录名兜底优先级：表头给的登录名 → 工号 → 手机号（避免 username 为 null）
+            user.setUsername(blankToNull(r.getUsername(), blankToNull(r.getEmployeeNo(), r.getPhone())));
+            user.setEmployeeNo(blankToNull(r.getEmployeeNo()));  // 留空时入库 null，下面 insert 后回填
             user.setPhone(r.getPhone());
             user.setEmail(blankToNull(r.getEmail()));
             user.setDeptId(deptId);
@@ -136,8 +148,18 @@ public class RosterImportServiceImpl implements RosterImportService {
             if (existingId == null) {
                 user.setPassword(BCrypt.hashpw(DEFAULT_PASSWORD));
                 userMapper.insert(user);
+                // 工号留空时自动生成 EMP+id4位 回填（与 V66 兜底逻辑对齐）
+                if (user.getEmployeeNo() == null || user.getEmployeeNo().isBlank()) {
+                    String generated = String.format("EMP%04d", user.getId());
+                    SysUser patch = new SysUser();
+                    patch.setId(user.getId());
+                    patch.setEmployeeNo(generated);
+                    userMapper.updateById(patch);
+                    user.setEmployeeNo(generated);
+                    r.setEmployeeNo(generated);  // 回写 DTO，供后续 leader 关联 / employeeNoToUserId 索引使用
+                }
                 upsertEmployeeProfile(user.getId(), r);
-                employeeNoToUserId.put(r.getEmployeeNo(), user.getId());
+                employeeNoToUserId.put(user.getEmployeeNo(), user.getId());
                 created++;
             } else {
                 user.setId(existingId);
@@ -215,10 +237,15 @@ public class RosterImportServiceImpl implements RosterImportService {
     public String template() {
         StringBuilder sb = new StringBuilder();
         sb.append(String.join(",", HEADERS)).append("\n");
-        sb.append("A001,周强,gm_zhou,13800001001,zhou@pc.com,朋诚科技,Y,,部门经理,M,2020-01-01,在职\n");
+        // 角色合法值（V73 之后）：超级管理员 / 董事长 / 总经理 / 部门经理 / HR / 人事 /
+        //   财务 / 销售员 / 销售经理 / 普通员工；多个角色用分号分隔（如 "财务;销售员"）
+        // 工号留空时系统自动生成 EMP+id4位（如 EMP0023）；登录名留空时按 工号→手机号 兜底
+        sb.append(",周强,,13800001001,zhou@pc.com,朋诚科技,Y,,总经理,M,2020-01-01,在职\n");
         sb.append("A002,王军,mgr_wang,13800001002,wang@pc.com,朋诚科技/技术部,Y,周强,部门经理,M,2021-03-15,在职\n");
-        sb.append("A003,李一,dev_li,13800001003,li@pc.com,朋诚科技/技术部/后端组,N,王军,普通员工,F,2024-06-01,在职\n");
+        sb.append("A003,李一,,13800001003,li@pc.com,朋诚科技/技术部/后端组,N,王军,普通员工,F,2024-06-01,在职\n");
         sb.append("A004,孙HR,hr_sun,13800001004,hr@pc.com,朋诚科技/HR部,Y,周强,HR,F,2022-08-10,在职\n");
+        sb.append("A005,赵财务,fin_zhao,13800001005,zhao@pc.com,朋诚科技/财务部,Y,周强,财务,M,2023-04-01,在职\n");
+        sb.append("A006,孙销售,sales_sun,13800001006,sun@pc.com,朋诚科技/销售部,N,周强,销售员,M,2024-02-01,在职\n");
         return sb.toString();
     }
 
@@ -317,8 +344,9 @@ public class RosterImportServiceImpl implements RosterImportService {
             String err = validateRow(r);
             if (err != null) { errors.add(new RosterPreviewVO.RowError(r.getLineNo(), r.getEmployeeNo(), r.getName(), err)); continue; }
 
-            // 文件内重复
-            if (!seenEmployeeNos.add(r.getEmployeeNo())) {
+            // 文件内重复——工号为空跳过去重（后端会 EMP+id 自动生成，天然唯一）
+            if (r.getEmployeeNo() != null && !r.getEmployeeNo().isBlank()
+                    && !seenEmployeeNos.add(r.getEmployeeNo())) {
                 errors.add(new RosterPreviewVO.RowError(r.getLineNo(), r.getEmployeeNo(), r.getName(), "工号在文件内重复"));
                 continue;
             }
@@ -330,8 +358,9 @@ public class RosterImportServiceImpl implements RosterImportService {
                 errors.add(new RosterPreviewVO.RowError(r.getLineNo(), r.getEmployeeNo(), r.getName(), "邮箱在文件内重复: " + r.getEmail()));
                 continue;
             }
-            String username = blankToNull(r.getUsername(), r.getEmployeeNo());
-            if (!seenUsernames.add(username)) {
+            // 登录名兜底优先级：表头给的登录名 → 工号 → 手机号（避免兜底为 null 时所有空行都撞）
+            String username = blankToNull(r.getUsername(), blankToNull(r.getEmployeeNo(), r.getPhone()));
+            if (username != null && !seenUsernames.add(username)) {
                 errors.add(new RosterPreviewVO.RowError(r.getLineNo(), r.getEmployeeNo(), r.getName(), "登录名在文件内重复: " + username));
                 continue;
             }
@@ -394,7 +423,11 @@ public class RosterImportServiceImpl implements RosterImportService {
 
     /** 校验单行，返回 null 表示通过 */
     private String validateRow(RosterRowDTO r) {
-        if (r.getEmployeeNo() == null || r.getEmployeeNo().isBlank()) return "工号必填";
+        // 工号留空允许：新增用户时 insert 后按 "EMP" + id4位 自动回填
+        // 已离职行（status=离职）必须给工号，因为要按工号定位现有用户做软删
+        if ("离职".equals(r.getStatus()) && (r.getEmployeeNo() == null || r.getEmployeeNo().isBlank())) {
+            return "离职行必须给工号（用于定位现有用户）";
+        }
         if (r.getName() == null || r.getName().isBlank()) return "姓名必填";
         if (r.getDeptPath() == null || r.getDeptPath().isBlank()) return "部门路径必填";
         if (r.getStatus() != null && !r.getStatus().equals("在职") && !r.getStatus().equals("离职")) {
@@ -598,33 +631,30 @@ public class RosterImportServiceImpl implements RosterImportService {
     }
 
     /**
-     * 解析行的角色 → role_id 集合，并按规则补审批流标记：
-     *   - 部门经理 + 本部门负责人 → +flow_dept_mgr
-     *   - 部门经理 + 在根部门当负责人 → +flow_gm
-     *   - HR/人事 → +flow_hr
-     *   - 财务 → +flow_finance
+     * 解析行的角色 → role_id 集合。
+     *
+     * V73 之后：
+     *   - flow_* 审批流角色（flow_gm/flow_hr/flow_dept_mgr/flow_finance）已废弃软删，
+     *     不再补码；审批流路由由 approval_flow_node 模板直接引用业务角色 id（如
+     *     role=hr / role=finance）解析候选人，无需 flow_* 二次标记
+     *   - 一个中文角色名可映射多个 code（分号分隔），逐个挂载
      */
     private Set<Long> resolveRoleIds(RosterRowDTO r, Map<String, Long> roleCodeToId, Map<String, Long> deptPathToId) {
         Set<String> codes = new HashSet<>();
         String roleNames = r.getRoleNames();
         if (roleNames == null || roleNames.isBlank()) {
-            codes.add("user");
+            // 默认按普通员工（仅本人 data_scope=5）
+            codes.add("employee");
         } else {
             for (String name : roleNames.split(";")) {
                 String n = name.trim();
                 if (n.isEmpty()) continue;
-                String code = ROLE_NAME_TO_CODE.get(n);
-                if (code != null) codes.add(code);
-                if ("HR".equals(n) || "人事".equals(n)) codes.add("flow_hr");
-                if ("财务".equals(n)) codes.add("flow_finance");
-            }
-        }
-        // 部门负责人补 flow_dept_mgr
-        if (r.isDeptLeader() && codes.contains("manager")) {
-            codes.add("flow_dept_mgr");
-            // 根部门负责人 = 总经理
-            if (!r.getDeptPath().contains("/")) {
-                codes.add("flow_gm");
+                String codeList = ROLE_NAME_TO_CODE.get(n);
+                if (codeList == null) continue;
+                for (String c : codeList.split(";")) {
+                    String trimmed = c.trim();
+                    if (!trimmed.isEmpty()) codes.add(trimmed);
+                }
             }
         }
         Set<Long> ids = new HashSet<>();
