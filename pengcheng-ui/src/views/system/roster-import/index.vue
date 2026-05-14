@@ -42,7 +42,7 @@
             <ul class="intro-list">
               <li><strong>工号</strong>：必填，唯一。重复导入时按工号 upsert（已存在则更新）</li>
               <li><strong>姓名</strong>：必填。直接上级姓名引用此字段，需确保不重名</li>
-              <li><strong>登录名</strong>：可空，空则用工号作为登录名</li>
+              <li><strong>登录名</strong>：可空，空则使用员工姓名作为登录名（同名同姓需在此列显式填写区分）</li>
               <li><strong>手机</strong>：在职员工必填，11 位数字。与系统内已有冲突会拒绝</li>
               <li><strong>部门路径</strong>：以 / 分隔，如 <code>朋诚科技/技术部/后端组</code>。不存在的部门会自动创建</li>
               <li><strong>本部门负责人</strong>：Y / N。Y 时该用户会被设为对应部门的 leader</li>
@@ -50,7 +50,7 @@
               <li><strong>角色</strong>：合法值 <code>超级管理员 / 部门经理 / HR / 人事 / 财务 / 普通员工</code>，多个用 <code>;</code> 分隔。审批流标签由系统按规则自动补</li>
               <li><strong>入职日期</strong>：格式 <code>YYYY-MM-DD</code>，如 <code>2024-06-01</code>。考勤月报会用此日期作为「考勤起算日」，早于该日期的工作日不算缺勤。可空，但建议填上，缺失会回退到系统级「考勤启用日期」</li>
               <li><strong>状态</strong>：在职 / 离职。离职会软删该用户</li>
-              <li><strong>初始密码</strong>：固定 <code>Pc@123456</code>，新员工首次登录后建议改密</li>
+              <li><strong>初始密码</strong>：固定 <code>123456</code>，新员工首次登录后建议改密</li>
             </ul>
           </n-collapse-item>
         </n-collapse>

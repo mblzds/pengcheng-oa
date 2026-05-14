@@ -42,7 +42,7 @@ import java.util.Set;
  *
  * 导入流程（commit）：
  *   Pass 1: 部门按 deptPath 深度排序，建/补 sys_dept（带 ancestors）
- *   Pass 2: 按工号 upsert sys_user + hr_employee_profile（密码默认 BCrypt(Pc@123456)）
+ *   Pass 2: 按工号 upsert sys_user + hr_employee_profile（密码默认 BCrypt(123456)）
  *   Pass 3: 回填 sys_dept.leader_id + sys_user.leader_id
  *   Pass 4: 重建 sys_user_role（按角色映射规则补 flow_*）
  *
@@ -53,7 +53,7 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class RosterImportServiceImpl implements RosterImportService {
 
-    private static final String DEFAULT_PASSWORD = "Pc@123456";
+    private static final String DEFAULT_PASSWORD = "123456";
 
     /** CSV 表头（必须按此顺序） */
     private static final String[] HEADERS = {
@@ -136,9 +136,11 @@ public class RosterImportServiceImpl implements RosterImportService {
 
             SysUser user = new SysUser();
             user.setNickname(r.getName());
-            // 登录名兜底优先级：表头给的登录名 → 工号 → 手机号（避免 username 为 null）
-            user.setUsername(blankToNull(r.getUsername(), blankToNull(r.getEmployeeNo(), r.getPhone())));
-            user.setEmployeeNo(blankToNull(r.getEmployeeNo()));  // 留空时入库 null，下面 insert 后回填
+            String csvUsername = blankToNull(r.getUsername());
+            String csvEmployeeNo = blankToNull(r.getEmployeeNo());
+            // 登录名优先级：CSV 登录名 → 员工姓名；姓名重复时在预览阶段拦截，让用户在 CSV 登录名列显式区分
+            user.setUsername(csvUsername != null ? csvUsername : r.getName());
+            user.setEmployeeNo(csvEmployeeNo);
             user.setPhone(r.getPhone());
             user.setEmail(blankToNull(r.getEmail()));
             user.setDeptId(deptId);
@@ -148,8 +150,8 @@ public class RosterImportServiceImpl implements RosterImportService {
             if (existingId == null) {
                 user.setPassword(BCrypt.hashpw(DEFAULT_PASSWORD));
                 userMapper.insert(user);
-                // 工号留空时自动生成 EMP+id4位 回填（与 V66 兜底逻辑对齐）
-                if (user.getEmployeeNo() == null || user.getEmployeeNo().isBlank()) {
+                // 工号留空时自动生成 EMP+id4位 回填
+                if (csvEmployeeNo == null) {
                     String generated = String.format("EMP%04d", user.getId());
                     SysUser patch = new SysUser();
                     patch.setId(user.getId());
@@ -239,7 +241,7 @@ public class RosterImportServiceImpl implements RosterImportService {
         sb.append(String.join(",", HEADERS)).append("\n");
         // 角色合法值（V73 之后）：超级管理员 / 董事长 / 总经理 / 部门经理 / HR / 人事 /
         //   财务 / 销售员 / 销售经理 / 普通员工；多个角色用分号分隔（如 "财务;销售员"）
-        // 工号留空时系统自动生成 EMP+id4位（如 EMP0023）；登录名留空时按 工号→手机号 兜底
+        // 工号留空时系统自动生成 EMP+id4位（如 EMP0023）；登录名留空时使用员工姓名（重名时需在 CSV 登录名列显式区分）
         sb.append(",周强,,13800001001,zhou@pc.com,朋诚科技,Y,,总经理,M,2020-01-01,在职\n");
         sb.append("A002,王军,mgr_wang,13800001002,wang@pc.com,朋诚科技/技术部,Y,周强,部门经理,M,2021-03-15,在职\n");
         sb.append("A003,李一,,13800001003,li@pc.com,朋诚科技/技术部/后端组,N,王军,普通员工,F,2024-06-01,在职\n");
@@ -358,10 +360,10 @@ public class RosterImportServiceImpl implements RosterImportService {
                 errors.add(new RosterPreviewVO.RowError(r.getLineNo(), r.getEmployeeNo(), r.getName(), "邮箱在文件内重复: " + r.getEmail()));
                 continue;
             }
-            // 登录名兜底优先级：表头给的登录名 → 工号 → 手机号（避免兜底为 null 时所有空行都撞）
-            String username = blankToNull(r.getUsername(), blankToNull(r.getEmployeeNo(), r.getPhone()));
+            // 登录名预览优先级：CSV 登录名 → 员工姓名（导入时若 CSV 没填登录名就用姓名当 username）
+            String username = blankToNull(r.getUsername(), r.getName());
             if (username != null && !seenUsernames.add(username)) {
-                errors.add(new RosterPreviewVO.RowError(r.getLineNo(), r.getEmployeeNo(), r.getName(), "登录名在文件内重复: " + username));
+                errors.add(new RosterPreviewVO.RowError(r.getLineNo(), r.getEmployeeNo(), r.getName(), "登录名在文件内重复: " + username + "（请在 CSV 登录名列填写具体值区分）"));
                 continue;
             }
 
@@ -379,7 +381,7 @@ public class RosterImportServiceImpl implements RosterImportService {
                 errors.add(new RosterPreviewVO.RowError(r.getLineNo(), r.getEmployeeNo(), r.getName(), "邮箱与系统已有用户冲突: " + r.getEmail()));
                 continue;
             }
-            if (existingUsernames.contains(username) && !sameUsernameAsExisting(existingByEmpNo, username)) {
+            if (username != null && existingUsernames.contains(username) && !sameUsernameAsExisting(existingByEmpNo, username)) {
                 errors.add(new RosterPreviewVO.RowError(r.getLineNo(), r.getEmployeeNo(), r.getName(), "登录名与系统已有用户冲突: " + username));
                 continue;
             }
