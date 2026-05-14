@@ -129,8 +129,41 @@
 				this.currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`
 			},
 
-			getLocation() {
+			// 在调用 wx.getLocation 前确保用户已同意隐私协议。
+			// 自 2023-09-15 起，未同意隐私指引时 getLocation 会直接被拦截。
+			ensurePrivacyAuth() {
+				// #ifdef MP-WEIXIN
+				return new Promise((resolve) => {
+					if (typeof wx === 'undefined' || !wx.getPrivacySetting) {
+						resolve(true); return
+					}
+					wx.getPrivacySetting({
+						success: (res) => {
+							if (!res.needAuthorization) { resolve(true); return }
+							if (!wx.requirePrivacyAuthorize) { resolve(true); return }
+							wx.requirePrivacyAuthorize({
+								success: () => resolve(true),
+								fail: () => resolve(false)
+							})
+						},
+						fail: () => resolve(true)
+					})
+				})
+				// #endif
+				// #ifndef MP-WEIXIN
+				return Promise.resolve(true)
+				// #endif
+			},
+
+			async getLocation() {
 				this.locationError = ''
+				const agreed = await this.ensurePrivacyAuth()
+				if (!agreed) {
+					this.canClock = false
+					this.markers = []
+					this.locationError = '未同意隐私协议，无法获取定位'
+					return
+				}
 				uni.getLocation({
 					type: 'gcj02',
 					success: (res) => {
