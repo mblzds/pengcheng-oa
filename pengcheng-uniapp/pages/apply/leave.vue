@@ -11,18 +11,38 @@
 						</view>
 					</picker>
 				</view>
-				<view class="form-item" @tap="openStartPicker">
+				<view class="form-item">
 					<text class="form-label">开始时间 <text class="required">*</text></text>
-					<view class="picker-value">
-						<text :class="{ placeholder: !form.startTime }">{{ form.startTime || '请选择开始时间' }}</text>
-						<pc-icon name="arrow-right" color="#CCC" size="14"></pc-icon>
+					<view class="picker-row">
+						<picker mode="date" :value="startDate" @change="onStartDateChange" class="picker-half">
+							<view class="picker-value picker-value-sm">
+								<text :class="{ placeholder: !startDate }">{{ startDate || '日期' }}</text>
+								<pc-icon name="arrow-right" color="#CCC" size="14"></pc-icon>
+							</view>
+						</picker>
+						<picker mode="time" :value="startClock" @change="onStartClockChange" class="picker-half">
+							<view class="picker-value picker-value-sm">
+								<text :class="{ placeholder: !startClock }">{{ startClock || '时间' }}</text>
+								<pc-icon name="arrow-right" color="#CCC" size="14"></pc-icon>
+							</view>
+						</picker>
 					</view>
 				</view>
-				<view class="form-item" @tap="openEndPicker">
+				<view class="form-item">
 					<text class="form-label">结束时间 <text class="required">*</text></text>
-					<view class="picker-value">
-						<text :class="{ placeholder: !form.endTime }">{{ form.endTime || '请选择结束时间' }}</text>
-						<pc-icon name="arrow-right" color="#CCC" size="14"></pc-icon>
+					<view class="picker-row">
+						<picker mode="date" :value="endDate" @change="onEndDateChange" class="picker-half">
+							<view class="picker-value picker-value-sm">
+								<text :class="{ placeholder: !endDate }">{{ endDate || '日期' }}</text>
+								<pc-icon name="arrow-right" color="#CCC" size="14"></pc-icon>
+							</view>
+						</picker>
+						<picker mode="time" :value="endClock" @change="onEndClockChange" class="picker-half">
+							<view class="picker-value picker-value-sm">
+								<text :class="{ placeholder: !endClock }">{{ endClock || '时间' }}</text>
+								<pc-icon name="arrow-right" color="#CCC" size="14"></pc-icon>
+							</view>
+						</picker>
 					</view>
 				</view>
 				<view v-if="workStart && workEnd" class="hint-line">
@@ -40,34 +60,11 @@
 			</button>
 		</view>
 
-		<u-datetime-picker
-			:show="showStartPicker"
-			v-model="startPickerValue"
-			mode="datetime"
-			@confirm="onStartConfirm"
-			@cancel="showStartPicker = false"
-			@close="showStartPicker = false"
-		></u-datetime-picker>
-
-		<u-datetime-picker
-			:show="showEndPicker"
-			v-model="endPickerValue"
-			mode="datetime"
-			@confirm="onEndConfirm"
-			@cancel="showEndPicker = false"
-			@close="showEndPicker = false"
-		></u-datetime-picker>
 	</view>
 </template>
 
 <script>
 	import { applyLeave, getWorkHours } from '../../utils/api.js'
-
-	const formatDateTime = (ts) => {
-		const d = new Date(ts)
-		const pad = n => String(n).padStart(2, '0')
-		return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:00`
-	}
 
 	export default {
 		data() {
@@ -80,10 +77,11 @@
 					{ label: '婚假', value: 4 },
 					{ label: '产假', value: 5 }
 				],
-				showStartPicker: false,
-				showEndPicker: false,
-				startPickerValue: Date.now(),
-				endPickerValue: Date.now(),
+				// 拆成日期/时刻两个原生 picker：u-datetime-picker 在 mp-weixin 体验版无法弹出
+				startDate: '',
+				startClock: '',
+				endDate: '',
+				endClock: '',
 				submitting: false,
 				workStart: '',  // HH:mm，从后端拉
 				workEnd: ''
@@ -120,23 +118,25 @@
 				this.form.leaveType = item.value
 				this.form.leaveTypeLabel = item.label
 			},
-			openStartPicker() {
-				this.startPickerValue = this.form.startTime ? new Date(this.form.startTime).getTime() : Date.now()
-				this.showStartPicker = true
+			composeDateTime(date, clock) {
+				if (!date || !clock) return ''
+				return `${date} ${clock}:00`
 			},
-			openEndPicker() {
-				this.endPickerValue = this.form.endTime
-					? new Date(this.form.endTime).getTime()
-					: (this.form.startTime ? new Date(this.form.startTime).getTime() : Date.now())
-				this.showEndPicker = true
+			onStartDateChange(e) {
+				this.startDate = e.detail.value
+				this.form.startTime = this.composeDateTime(this.startDate, this.startClock)
 			},
-			onStartConfirm(e) {
-				this.form.startTime = formatDateTime(e.value)
-				this.showStartPicker = false
+			onStartClockChange(e) {
+				this.startClock = e.detail.value
+				this.form.startTime = this.composeDateTime(this.startDate, this.startClock)
 			},
-			onEndConfirm(e) {
-				this.form.endTime = formatDateTime(e.value)
-				this.showEndPicker = false
+			onEndDateChange(e) {
+				this.endDate = e.detail.value
+				this.form.endTime = this.composeDateTime(this.endDate, this.endClock)
+			},
+			onEndClockChange(e) {
+				this.endClock = e.detail.value
+				this.form.endTime = this.composeDateTime(this.endDate, this.endClock)
 			},
 			async handleSubmit() {
 				if (!this.form.leaveType) return uni.showToast({ title: '请选择请假类型', icon: 'none' })
@@ -181,6 +181,9 @@
 		border: 1rpx solid #E8E8E8; border-radius: 8rpx; padding: 0 16rpx;
 		font-size: 28rpx; color: #1A1A1A;
 	}
+	.picker-row { display: flex; gap: 16rpx; }
+	.picker-half { flex: 1; }
+	.picker-value-sm { padding: 0 12rpx; font-size: 26rpx; }
 	.placeholder { color: #C0C0C0; }
 	.hint-line { padding: 12rpx 0 4rpx; font-size: 24rpx; color: #FA8C16; }
 	.form-textarea {

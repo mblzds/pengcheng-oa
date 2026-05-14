@@ -15,11 +15,21 @@
 					<text class="form-label">报销金额 <text class="required">*</text></text>
 					<input class="form-input" v-model="form.amount" type="digit" placeholder="请输入金额" />
 				</view>
-				<view class="form-item" @tap="openOccurPicker">
+				<view class="form-item">
 					<text class="form-label">发生时间 <text class="required">*</text></text>
-					<view class="picker-value">
-						<text :class="{ placeholder: !form.occurTime }">{{ form.occurTime || '请选择发生时间' }}</text>
-						<pc-icon name="arrow-right" color="#CCC" size="14"></pc-icon>
+					<view class="picker-row">
+						<picker mode="date" :value="occurDate" @change="onOccurDateChange" class="picker-half">
+							<view class="picker-value picker-value-sm">
+								<text :class="{ placeholder: !occurDate }">{{ occurDate || '日期' }}</text>
+								<pc-icon name="arrow-right" color="#CCC" size="14"></pc-icon>
+							</view>
+						</picker>
+						<picker mode="time" :value="occurClock" @change="onOccurClockChange" class="picker-half">
+							<view class="picker-value picker-value-sm">
+								<text :class="{ placeholder: !occurClock }">{{ occurClock || '时间' }}</text>
+								<pc-icon name="arrow-right" color="#CCC" size="14"></pc-icon>
+							</view>
+						</picker>
 					</view>
 				</view>
 				<view class="form-item">
@@ -46,26 +56,12 @@
 			</button>
 		</view>
 
-		<u-datetime-picker
-			:show="showOccurPicker"
-			v-model="occurPickerValue"
-			mode="datetime"
-			@confirm="onOccurConfirm"
-			@cancel="showOccurPicker = false"
-			@close="showOccurPicker = false"
-		></u-datetime-picker>
 	</view>
 </template>
 
 <script>
 	import { applyExpense, uploadFile } from '../../utils/api.js'
 	import { joinBaseUrl } from '../../utils/config.js'
-
-	const formatDateTime = (ts) => {
-		const d = new Date(ts)
-		const pad = n => String(n).padStart(2, '0')
-		return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:00`
-	}
 
 	export default {
 		data() {
@@ -79,19 +75,20 @@
 					{ label: '其他', value: 5 }
 				],
 				attachments: [],
-				showOccurPicker: false,
-				occurPickerValue: Date.now(),
+				// 拆成日期/时刻两个原生 picker：u-datetime-picker 在 mp-weixin 体验版无法弹出
+				occurDate: '',
+				occurClock: '',
 				submitting: false
 			}
 		},
 		methods: {
-			openOccurPicker() {
-				this.occurPickerValue = this.form.occurTime ? new Date(this.form.occurTime).getTime() : Date.now()
-				this.showOccurPicker = true
+			onOccurDateChange(e) {
+				this.occurDate = e.detail.value
+				this.form.occurTime = this.occurDate && this.occurClock ? `${this.occurDate} ${this.occurClock}:00` : ''
 			},
-			onOccurConfirm(e) {
-				this.form.occurTime = formatDateTime(e.value)
-				this.showOccurPicker = false
+			onOccurClockChange(e) {
+				this.occurClock = e.detail.value
+				this.form.occurTime = this.occurDate && this.occurClock ? `${this.occurDate} ${this.occurClock}:00` : ''
 			},
 			onExpenseTypeChange(e) {
 				const item = this.expenseTypes[e.detail.value]
@@ -164,6 +161,9 @@
 		border: 1rpx solid #E8E8E8; border-radius: 8rpx; padding: 0 16rpx;
 		font-size: 28rpx; color: #1A1A1A;
 	}
+	.picker-row { display: flex; gap: 16rpx; }
+	.picker-half { flex: 1; }
+	.picker-value-sm { padding: 0 12rpx; font-size: 26rpx; }
 	.placeholder { color: #C0C0C0; }
 	.form-textarea {
 		width: 100%; min-height: 120rpx; font-size: 28rpx; color: #1A1A1A;
