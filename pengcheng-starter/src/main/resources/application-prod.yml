@@ -27,6 +27,11 @@ spring:
           max-wait: -1
           max-idle: 8
           min-idle: 0
+  # Jackson 序列化时区——dev 已配，prod 之前漏了；缺这段时 Jackson 走 JVM 默认时区，
+  # 容器 TZ=UTC 时输出比北京时间晚 8h（线上"报备时间晚 8 小时"的根因）
+  jackson:
+    time-zone: Asia/Shanghai
+    date-format: yyyy-MM-dd HH:mm:ss
 
 mybatis-plus:
   mapper-locations: classpath*:mapper/**/*.xml

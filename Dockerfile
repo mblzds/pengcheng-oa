@@ -40,7 +40,12 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
-  && rm -rf /var/lib/apt/lists/*
+    tzdata \
+  && rm -rf /var/lib/apt/lists/* \
+  && ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
+  && echo "Asia/Shanghai" > /etc/timezone
+
+ENV TZ=Asia/Shanghai
 
 RUN groupadd -r appgroup && useradd -r -g appgroup appuser
 
