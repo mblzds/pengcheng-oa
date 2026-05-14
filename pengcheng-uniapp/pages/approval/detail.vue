@@ -47,14 +47,15 @@
 			<button class="approve-btn" @tap="handleApprove(true)">通过</button>
 		</view>
 
-		<!-- 驳回原因弹窗 -->
-		<u-popup :show="showRejectModal" mode="bottom" round="16" @close="showRejectModal = false">
-			<view class="popup-content">
+		<!-- 驳回原因弹窗（u-popup 在 mp-weixin 体验版 :show 失灵，改自写 fixed 弹层） -->
+		<view v-if="showRejectModal" class="custom-popup-mask" @tap="showRejectModal = false"></view>
+		<view v-if="showRejectModal" class="custom-popup-sheet">
+			<view class="popup-content" @tap.stop>
 				<view class="popup-title">驳回原因</view>
 				<textarea class="reject-textarea" v-model="rejectReason" placeholder="请输入驳回原因" maxlength="200"></textarea>
 				<button class="popup-btn" @tap="handleApprove(false)">确认驳回</button>
 			</view>
-		</u-popup>
+		</view>
 	</view>
 </template>
 
@@ -227,6 +228,18 @@
 	.approve-btn::after { border: none; }
 
 	/* 弹窗 */
+	/* 自写底部弹层（替代 u-popup，绕开 mp-weixin :show 失灵） */
+	.custom-popup-mask {
+		position: fixed; left: 0; right: 0; top: 0; bottom: 0;
+		background: rgba(0, 0, 0, 0.5); z-index: 998;
+	}
+	.custom-popup-sheet {
+		position: fixed; left: 0; right: 0; bottom: 0;
+		background: #FFF; border-top-left-radius: 24rpx; border-top-right-radius: 24rpx;
+		z-index: 999; max-height: 85vh; overflow-y: auto;
+		padding-bottom: env(safe-area-inset-bottom);
+	}
+
 	.popup-content { padding: 32rpx 24rpx 48rpx; }
 	.popup-title { font-size: 32rpx; font-weight: 600; color: #1A1A1A; text-align: center; margin-bottom: 32rpx; }
 	.reject-textarea {

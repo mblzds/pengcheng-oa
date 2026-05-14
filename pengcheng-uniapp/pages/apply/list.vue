@@ -60,9 +60,10 @@
 			</view>
 		</scroll-view>
 
-		<!-- 审批流程时间线弹窗 -->
-		<u-popup :show="showTimeline" mode="bottom" round="16" closeable @close="showTimeline = false">
-			<view class="timeline-popup">
+		<!-- 审批流程时间线弹窗（u-popup 在 mp-weixin 体验版 :show 失灵，改自写 fixed 弹层） -->
+		<view v-if="showTimeline" class="custom-popup-mask" @tap="showTimeline = false"></view>
+		<view v-if="showTimeline" class="custom-popup-sheet">
+			<view class="timeline-popup" @tap.stop>
 				<view class="timeline-popup-title">{{ timelineTitle }}</view>
 				<view v-if="timelineLoading" class="timeline-loading"><text>加载中...</text></view>
 				<view v-else-if="timelineHistories.length === 0" class="timeline-empty">
@@ -84,7 +85,7 @@
 					</view>
 				</view>
 			</view>
-		</u-popup>
+		</view>
 
 		<!-- 新建申请按钮 -->
 		<view class="fab-wrap">
@@ -525,6 +526,18 @@
 	.fab-menu-item {
 		padding: 20rpx 32rpx; font-size: 26rpx; color: #333;
 		&:active { background: #F5F5F5; }
+	}
+
+	/* 自写底部弹层（替代 u-popup，绕开 mp-weixin :show 失灵） */
+	.custom-popup-mask {
+		position: fixed; left: 0; right: 0; top: 0; bottom: 0;
+		background: rgba(0, 0, 0, 0.5); z-index: 998;
+	}
+	.custom-popup-sheet {
+		position: fixed; left: 0; right: 0; bottom: 0;
+		background: #FFF; border-top-left-radius: 24rpx; border-top-right-radius: 24rpx;
+		z-index: 999; max-height: 85vh; overflow-y: auto;
+		padding-bottom: env(safe-area-inset-bottom);
 	}
 
 	/* 审批流程时间线弹窗（与审批人侧 approval/detail.vue 同视觉规范） */

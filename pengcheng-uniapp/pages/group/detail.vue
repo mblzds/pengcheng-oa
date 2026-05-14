@@ -75,8 +75,10 @@
 			</view>
 		</scroll-view>
 
-		<u-popup :show="showTransferPopup" mode="bottom" round="16" closeable @close="showTransferPopup = false">
-			<view class="popup-wrap">
+		<!-- 转让群主弹窗（u-popup 在 mp-weixin 体验版 :show 失灵，改自写 fixed 弹层） -->
+		<view v-if="showTransferPopup" class="custom-popup-mask" @tap="showTransferPopup = false"></view>
+		<view v-if="showTransferPopup" class="custom-popup-sheet">
+			<view class="popup-wrap" @tap.stop>
 				<view class="popup-title">选择新群主</view>
 				<scroll-view scroll-y class="popup-list">
 					<view class="popup-item" v-for="m in transferableMembers" :key="m.userId" @tap="confirmTransfer(m)">
@@ -95,7 +97,7 @@
 					</view>
 				</scroll-view>
 			</view>
-		</u-popup>
+		</view>
 	</view>
 </template>
 
@@ -354,6 +356,18 @@
 		margin: 0 16rpx 0 24rpx;
 		overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 		&.placeholder { color: #B0B0B0; }
+	}
+
+	/* 自写底部弹层（替代 u-popup，绕开 mp-weixin :show 失灵） */
+	.custom-popup-mask {
+		position: fixed; left: 0; right: 0; top: 0; bottom: 0;
+		background: rgba(0, 0, 0, 0.5); z-index: 998;
+	}
+	.custom-popup-sheet {
+		position: fixed; left: 0; right: 0; bottom: 0;
+		background: #FFF; border-top-left-radius: 24rpx; border-top-right-radius: 24rpx;
+		z-index: 999; max-height: 85vh; overflow-y: auto;
+		padding-bottom: env(safe-area-inset-bottom);
 	}
 
 	.popup-wrap { padding: 32rpx 0 calc(32rpx + env(safe-area-inset-bottom)); }
