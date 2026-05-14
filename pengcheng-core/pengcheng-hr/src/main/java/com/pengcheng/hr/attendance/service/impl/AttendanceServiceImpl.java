@@ -138,6 +138,24 @@ public class AttendanceServiceImpl implements AttendanceService {
         if (dto.getLeaveType() == null) throw new IllegalArgumentException("请假类型不能为空");
         if (dto.getStartTime() == null || dto.getEndTime() == null) throw new IllegalArgumentException("起止时间不能为空");
         if (!dto.getStartTime().isBefore(dto.getEndTime())) throw new IllegalArgumentException("开始时间必须早于结束时间");
+        // 拒绝时段重叠：当前用户已有 PENDING/APPROVED 的请假在 [start,end) 内 → 必须先撤销原单
+        // REJECTED/CANCELLED 单子允许重新提交（不阻塞）
+        List<LeaveRequest> overlapping = leaveRequestMapper.selectList(
+                new LambdaQueryWrapper<LeaveRequest>()
+                        .eq(LeaveRequest::getUserId, dto.getUserId())
+                        .in(LeaveRequest::getStatus,
+                                ApprovalConstants.STATUS_PENDING,
+                                ApprovalConstants.STATUS_APPROVED)
+                        // (a.start < b.end) AND (a.end > b.start) 表示两个区间重叠
+                        .lt(LeaveRequest::getStartTime, dto.getEndTime())
+                        .gt(LeaveRequest::getEndTime, dto.getStartTime()));
+        if (!overlapping.isEmpty()) {
+            LeaveRequest first = overlapping.get(0);
+            String statusLabel = Integer.valueOf(ApprovalConstants.STATUS_PENDING).equals(first.getStatus())
+                    ? "待审批" : "已通过";
+            throw new IllegalArgumentException(
+                    "该时段已存在请假申请（单号 " + first.getId() + "，状态：" + statusLabel + "），请先撤销原申请");
+        }
         LeaveRequest request = LeaveRequest.builder()
                 .userId(dto.getUserId())
                 .leaveType(dto.getLeaveType())
@@ -157,6 +175,21 @@ public class AttendanceServiceImpl implements AttendanceService {
     public Long submitCompensateRequest(Long userId, LocalDate compensateDate, String reason) {
         if (userId == null) throw new IllegalArgumentException("申请人ID不能为空");
         if (compensateDate == null) throw new IllegalArgumentException("调休日期不能为空");
+        // 拒绝同日重复：同一用户该日已有 PENDING/APPROVED 的调休 → 必须先撤销
+        List<CompensateRequest> overlapping = compensateRequestMapper.selectList(
+                new LambdaQueryWrapper<CompensateRequest>()
+                        .eq(CompensateRequest::getUserId, userId)
+                        .eq(CompensateRequest::getCompensateDate, compensateDate)
+                        .in(CompensateRequest::getStatus,
+                                ApprovalConstants.STATUS_PENDING,
+                                ApprovalConstants.STATUS_APPROVED));
+        if (!overlapping.isEmpty()) {
+            CompensateRequest first = overlapping.get(0);
+            String statusLabel = Integer.valueOf(ApprovalConstants.STATUS_PENDING).equals(first.getStatus())
+                    ? "待审批" : "已通过";
+            throw new IllegalArgumentException(
+                    "该日期已存在调休申请（单号 " + first.getId() + "，状态：" + statusLabel + "），请先撤销原申请");
+        }
         CompensateRequest request = CompensateRequest.builder()
                 .userId(userId)
                 .compensateDate(compensateDate)
@@ -237,18 +270,34 @@ public class AttendanceServiceImpl implements AttendanceService {
                 .eq(LeaveRequest::getStatus, ApprovalConstants.STATUS_APPROVED)
                 .le(LeaveRequest::getStartTime, end.atTime(LocalTime.MAX))
                 .ge(LeaveRequest::getEndTime, start.atStartOfDay()));
+        // 先把所有请假时段截到本月窗口里，再做并集合并（sweep line）—— 防止
+        // 同一天重复提单（即便提交端已有重叠拦截，历史脏数据也可能存在）导致天数加倍。
+        // 合并后用不相交时段集累加 calcDays。
+        List<java.time.LocalDateTime[]> intervals = new java.util.ArrayList<>();
+        for (LeaveRequest l : approvedLeaves) {
+            java.time.LocalDateTime s = l.getStartTime().isBefore(start.atStartOfDay()) ? start.atStartOfDay() : l.getStartTime();
+            java.time.LocalDateTime e = l.getEndTime().isAfter(end.atTime(LocalTime.MAX)) ? end.atTime(LocalTime.MAX) : l.getEndTime();
+            if (s.isBefore(e)) intervals.add(new java.time.LocalDateTime[]{s, e});
+        }
+        intervals.sort((a, b) -> a[0].compareTo(b[0]));
+        List<java.time.LocalDateTime[]> merged = new java.util.ArrayList<>();
+        for (java.time.LocalDateTime[] iv : intervals) {
+            if (!merged.isEmpty() && !iv[0].isAfter(merged.get(merged.size() - 1)[1])) {
+                // 端点重叠或交叠 → 合并：扩展尾端到 max(当前尾, 新尾)
+                java.time.LocalDateTime[] last = merged.get(merged.size() - 1);
+                if (iv[1].isAfter(last[1])) last[1] = iv[1];
+            } else {
+                merged.add(new java.time.LocalDateTime[]{iv[0], iv[1]});
+            }
+        }
         double leaveDays = 0;
         // 收集本月每一天是否被请假覆盖；前端日历用这个清单把请假天的格子渲染成"请假"而不是"缺勤"
         java.util.Set<String> leaveDateSet = new java.util.LinkedHashSet<>();
-        for (LeaveRequest l : approvedLeaves) {
-            // 截到本月窗口里再算天数，跨月请假只计本月那段
-            java.time.LocalDateTime s = l.getStartTime().isBefore(start.atStartOfDay()) ? start.atStartOfDay() : l.getStartTime();
-            java.time.LocalDateTime e = l.getEndTime().isAfter(end.atTime(LocalTime.MAX)) ? end.atTime(LocalTime.MAX) : l.getEndTime();
-            Double d = LeaveDaysUtil.calcDays(s, e, workStart, workEnd);
+        for (java.time.LocalDateTime[] iv : merged) {
+            Double d = LeaveDaysUtil.calcDays(iv[0], iv[1], workStart, workEnd);
             if (d != null) leaveDays += d;
-            // 把覆盖到的每一个本月日期加入集合（即使是当日的半天请假也算这天被覆盖）
-            LocalDate cur = s.toLocalDate();
-            LocalDate endDay = e.toLocalDate();
+            LocalDate cur = iv[0].toLocalDate();
+            LocalDate endDay = iv[1].toLocalDate();
             while (!cur.isAfter(endDay)) {
                 if (!cur.isBefore(start) && !cur.isAfter(end)) {
                     leaveDateSet.add(cur.toString());

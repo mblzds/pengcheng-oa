@@ -259,4 +259,65 @@ class AttendanceServiceImplTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("员工ID不能为空");
     }
+
+    @Test
+    @DisplayName("submitLeaveRequest 同时段已有 PENDING/APPROVED 单时拒绝重复提交")
+    void submitLeaveRequestRejectsOverlap() {
+        LeaveRequest existing = LeaveRequest.builder()
+                .userId(1L)
+                .status(1)  // PENDING
+                .startTime(LocalDateTime.of(2026, 5, 14, 9, 0))
+                .endTime(LocalDateTime.of(2026, 5, 14, 18, 0))
+                .build();
+        existing.setId(8001L);
+        when(leaveRequestMapper.selectList(any())).thenReturn(List.of(existing));
+
+        assertThatThrownBy(() -> service.submitLeaveRequest(LeaveRequestDTO.builder()
+                .userId(1L)
+                .leaveType(1)
+                .startTime(LocalDateTime.of(2026, 5, 14, 10, 0))
+                .endTime(LocalDateTime.of(2026, 5, 14, 16, 0))
+                .reason("重复提交")
+                .build()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("8001")
+                .hasMessageContaining("待审批");
+    }
+
+    @Test
+    @DisplayName("submitCompensateRequest 同日已有 PENDING/APPROVED 单时拒绝重复提交")
+    void submitCompensateRequestRejectsDuplicateDate() {
+        CompensateRequest existing = CompensateRequest.builder()
+                .userId(1L)
+                .status(2)  // APPROVED
+                .compensateDate(LocalDate.of(2026, 5, 14))
+                .build();
+        existing.setId(8101L);
+        when(compensateRequestMapper.selectList(any())).thenReturn(List.of(existing));
+
+        assertThatThrownBy(() -> service.submitCompensateRequest(1L, LocalDate.of(2026, 5, 14), "重复"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("8101")
+                .hasMessageContaining("已通过");
+    }
+
+    @Test
+    @DisplayName("getMonthlySummary 两条完全重叠的已审批请假应合并为 1 天，不重复计")
+    void getMonthlySummaryMergesOverlappingLeaves() {
+        when(attendanceRecordMapper.selectList(any())).thenReturn(java.util.Collections.emptyList());
+        // 同一天两条 APPROVED 请假（脏数据场景，比如重叠拦截上线前历史已落库）
+        LeaveRequest l1 = LeaveRequest.builder().userId(1L).status(2)
+                .startTime(LocalDateTime.of(2026, 4, 8, 9, 0))
+                .endTime(LocalDateTime.of(2026, 4, 8, 18, 0))
+                .build();
+        LeaveRequest l2 = LeaveRequest.builder().userId(1L).status(2)
+                .startTime(LocalDateTime.of(2026, 4, 8, 9, 0))
+                .endTime(LocalDateTime.of(2026, 4, 8, 18, 0))
+                .build();
+        when(leaveRequestMapper.selectList(any())).thenReturn(List.of(l1, l2));
+
+        AttendanceMonthlyVO summary = service.getMonthlySummary(1L, 2026, 4);
+
+        assertThat(summary.getLeaveDays()).isEqualTo(1);  // 完全重叠 → 1 天，不是 2 天
+    }
 }
