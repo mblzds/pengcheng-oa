@@ -63,7 +63,7 @@
                 "desc" : "你的位置信息将用于展示"
             }
         },
-        "requiredPrivateInfos" : [ "chooseAddress" ]
+        "requiredPrivateInfos" : [ "getLocation", "chooseAddress" ]
     },
     "mp-alipay" : {
         "usingComponents" : true

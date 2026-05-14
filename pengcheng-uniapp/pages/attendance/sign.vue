@@ -42,6 +42,7 @@
 
 <script>
 	import { signAttendance } from '../../utils/api.js'
+	import { gcj02ToWgs84 } from '../../utils/coordTransform.js'
 
 	export default {
 		data() {
@@ -75,10 +76,11 @@
 							fail: () => reject(new Error('获取定位失败，请开启定位权限'))
 						})
 					})
+					const [wgsLng, wgsLat] = gcj02ToWgs84(locRes.longitude, locRes.latitude)
 					const res = await signAttendance({
 						projectCode,
-						latitude: locRes.latitude,
-						longitude: locRes.longitude
+						latitude: wgsLat,
+						longitude: wgsLng
 					})
 					this.signResult = res.data || { projectName: projectCode, signTime: new Date().toISOString(), locationDesc: '' }
 				} catch (err) {
