@@ -496,7 +496,8 @@ async function loadUserOptions() {
 const approvalStatusOptions = [
   { label: '待审批', value: 1 },
   { label: '已通过', value: 2 },
-  { label: '已驳回', value: 3 }
+  { label: '已驳回', value: 3 },
+  { label: '已撤销', value: 4 }
 ]
 
 const recordColumns: DataTableColumns<AttendanceRecordItem> = [
@@ -715,12 +716,13 @@ function renderClockStatus(status?: number, isIn = true) {
 }
 
 function renderApprovalStatus(status: number) {
-  const map: Record<number, { text: string; type: 'warning' | 'success' | 'error' }> = {
+  const map: Record<number, { text: string; type: 'default' | 'warning' | 'success' | 'error' }> = {
     1: { text: '待审批', type: 'warning' },
     2: { text: '已通过', type: 'success' },
-    3: { text: '已驳回', type: 'error' }
+    3: { text: '已驳回', type: 'error' },
+    4: { text: '已撤销', type: 'default' }
   }
-  const item = map[status] || { text: '-', type: 'warning' as const }
+  const item = map[status] || { text: '-', type: 'default' as const }
   return h(NTag, { size: 'small', type: item.type }, { default: () => item.text })
 }
 
