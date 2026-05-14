@@ -38,6 +38,14 @@ public class AttendanceScopeHelper {
     private static final int DATA_SCOPE_ALL = 1;
 
     /**
+     * 考勤模块的"全公司可见"排除集：这些角色 sys_role.data_scope=1 是为了在
+     * 自己业务（付款 / 佣金）里看到全员相关单据，跨界到考勤模块并不合理——
+     * 考勤是 HR 领域，财务/销售不应越权看销售部、市场部的打卡记录。
+     * 这里把它们从"全员可见"里拿掉，按部门兜底（自己 + 担任 leader 的部门）。
+     */
+    private static final Set<String> NON_ATTENDANCE_FULL_SCOPE_ROLE_CODES = Set.of("finance");
+
+    /**
      * 当前登录用户在考勤数据上的可见 userId 集合
      * @return null 表示不限；非空集合表示限定为这些 userId
      */
@@ -47,9 +55,11 @@ public class AttendanceScopeHelper {
                 .filter(r -> r != null && Integer.valueOf(1).equals(r.getStatus()))
                 .collect(Collectors.toList());
 
-        // 任一启用角色 data_scope=1（全部）→ 不限
+        // 任一启用角色 data_scope=1（全部）→ 不限；排除集中的角色（如 finance）
+        // 即便 data_scope=1 也不算"全员可见"——考勤是 HR 领域，财务不应跨界
         for (SysRole r : userRoles) {
-            if (Integer.valueOf(DATA_SCOPE_ALL).equals(r.getDataScope())) {
+            if (Integer.valueOf(DATA_SCOPE_ALL).equals(r.getDataScope())
+                    && !NON_ATTENDANCE_FULL_SCOPE_ROLE_CODES.contains(r.getCode())) {
                 return null;
             }
         }
