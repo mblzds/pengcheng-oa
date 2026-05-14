@@ -40,9 +40,9 @@ fi
 echo "✅ 环境检查通过"
 echo ""
 
-# 启动服务
+# 启动服务（首次或源码有变化时会自动 docker build，多阶段 Dockerfile 内置 mvn）
 echo "🚀 正在启动服务..."
-docker-compose up -d
+docker-compose up -d --build
 
 echo ""
 echo "⏳ 等待服务启动..."

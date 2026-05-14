@@ -16,7 +16,6 @@ services:
     container_name: masterlife-app
     restart: unless-stopped
     volumes:
-      - ./release/app.jar:/app/app.jar:ro
       - app-uploads:/app/uploads
       - app-logs:/app/logs
     ports:
