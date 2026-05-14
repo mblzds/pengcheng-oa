@@ -6,24 +6,34 @@
 
 ---
 
-## 一、两个独立轴
+## 一、三段权限模型
 
-权限分两个**互不耦合**的维度：
+权限分三段，串行决定"我能看哪些数据 / 进哪些功能"：
 
-| 维度 | 字段 | 控制什么 | 在哪里配置 |
+| 段 | 字段 / 配置 | 控制什么 | 在哪里配置 |
 |---|---|---|---|
-| **数据可见范围** | `sys_role.data_scope` | "能看到几行数据" | 角色管理 → 编辑角色 → 数据范围 |
-| **模块可见性** | `sys_role_menu` | "能进哪些页面 / 按哪些按钮" | 角色管理 → 编辑角色 → 菜单权限 |
+| **A. 基础可见范围** | `sys_role.data_scope`（按职级角色） | 能看几行数据的"底色" | 角色管理 → 编辑角色 → 数据范围 |
+| **B. 业务模块加成** | `sys_config_group(<module>).fullScopeRoleCodes` | 在某业务模块**升级**为全员可见 | 系统配置 → 各业务设置 |
+| **C. 模块入口闸** | `sys_role_menu` | 能进哪些页面 / 按哪些按钮 | 角色管理 → 编辑角色 → 菜单权限 |
 
-举例：
-- HR 和 财务 两个角色都有 `data_scope=1`（看全公司行）
-- 但 HR 角色只绑了"人力相关"菜单（考勤 / 请假 / 档案）
-- 财务角色只绑了"财务相关"菜单（报销 / 付款 / 工资 / 发票）
-- 结果：HR 看的是全公司考勤；财务看的是全公司报销 —— 互不踏入对方领地
+**核心思路**：
+- 基础（A）按"职级"：员工 / 部门经理 / 高管，跟职能无关
+- 加成（B）按"职能"：财务在付款全员、HR 在考勤全员，跟职级正交
+- 入口（C）控制谁能进入哪个模块；进入后由 A+B 一起决定看多少行
+
+举例（这次设计的关键 use case）：
+
+| 用户 | 挂载角色 | 看自己考勤 | 看全公司报销 |
+|---|---|---|---|
+| 马财务 | `employee + finance` | ✅ A=5 自己 + B 不在 attendance 加成 | ✅ A=5 自己 + B finance 在 payment 加成 = 全员 |
+| 王人事 | `employee + hr` | ✅ A=5 自己 + B hr 在 attendance 加成 = 全员 | ❌ A=5 自己（报销不属 hr 职能） |
+| 李销售经理 | `dept_manager + sales(无)` | 看销售部+下级 | 自己（payment 加成不含 sales）|
+| HR 总监 | `dept_manager + hr` | A=4 部门 ∪ B hr=全员 → 全员 | A=4 部门 |
+| 董事长 | `chairman` | A=1 全员 | A=1 全员 |
 
 ---
 
-## 二、`data_scope` 五档语义
+## 二、A. `data_scope` 五档语义（基础可见）
 
 | 值 | 含义 | 展开规则 |
 |---|---|---|
@@ -33,43 +43,73 @@
 | `4` | 本部门及以下 | `user.dept_id` + 所有后代部门（沿 `sys_dept.ancestors` 下钻） |
 | `5` | 仅本人 | 只能看到自己创建/参与的数据 |
 
-**多角色取并集，最宽胜出**。一人挂多个角色时，按 data_scope 数字最小（最宽）的那条算。
+**多角色取并集，最宽胜出**。
+
+> ⚠️ V73 起：`finance` / `hr` 不再走 data_scope=1。它们是"职能角色"，基础 data_scope=5（仅本人），全员加成靠 B 段实现。
 
 ---
 
-## 三、当前角色清单（V72 之后）
+## 三、B. 业务模块加成（按职能）
 
-| code | 中文名 | data_scope | 适用岗位 |
+每个业务模块在 `sys_config_group(<module>)` 配一个 `fullScopeRoleCodes` 字段（CSV 角色 code），命中的角色在该模块升级为全员可见：
+
+| 模块 | 配置 key | 默认值 | 语义 |
 |---|---|---|---|
-| `admin` | 超级管理员 | 1 全部 | 系统运维、技术管理员 |
-| `chairman` | 董事长 | 1 全部 | 董事长（V72 新建）|
-| `general_manager` | 总经理 | 1 全部 | 总经理 |
-| `hr` | 人事 | 1 全部 | HR 经理 / HR 专员 |
-| `finance` | 财务 | 1 全部 | 财务经理 / 财务专员 |
-| `dept_manager` | 部门经理 | 4 本部门及下级 | 销售部 / 技术部 / 市场部 等部门经理 |
-| `employee` | 普通员工 | 5 仅本人 | 普通员工（销售员 / 开发 / 设计 / 行政 等）|
+| 考勤 / 请假 / 调休 | `attendance.fullScopeRoleCodes` | `"hr"` | hr 角色在考勤升级全员 |
+| 付款 / 报销 | `payment.fullScopeRoleCodes` | `"finance"` | finance 角色在付款升级全员 |
+| 佣金 | `commission.fullScopeRoleCodes` | `"finance"` | finance 角色在佣金升级全员 |
+
+**注意**：
+- `admin / chairman / general_manager` 通过 A 段 data_scope=1 已经全员，**不需要**列入加成清单
+- 运行时改 `sys_config_group` 立即生效，无需重启代码
+- 想新加一个职能角色（如 `legal_counsel` 在合同模块全员），加进对应模块的清单即可
 
 ---
 
-## 四、岗位 → 角色对照表
+## 四、当前角色清单（V73 之后）
 
-**最简法则**：一人一个主角色，按"这个人主要做什么"挂。
+| code | 中文名 | data_scope | 加成 | 适用岗位 |
+|---|---|---|---|---|
+| `admin` | 超级管理员 | 1 全部 | — | 系统运维、技术管理员 |
+| `chairman` | 董事长 | 1 全部 | — | 董事长 |
+| `general_manager` | 总经理 | 1 全部 | — | 总经理 |
+| `hr` | 人事 | **5 仅本人** | 考勤模块全员 | HR 经理 / HR 专员（**叠挂 employee 或 dept_manager**）|
+| `finance` | 财务 | **5 仅本人** | 付款 / 佣金模块全员 | 财务经理 / 财务专员（**叠挂 employee 或 dept_manager**）|
+| `dept_manager` | 部门经理 | 4 本部门及下级 | — | 销售部 / 技术部 / 市场部 等部门经理 |
+| `employee` | 普通员工 | 5 仅本人 | — | 普通员工 |
+
+---
+
+## 五、岗位 → 角色挂法
+
+**新模型核心**：财务/HR 必须**叠挂基础角色** + **职能角色**，因为他们既是"员工/经理"又是"职能岗位"。
 
 | 岗位 | 应挂角色 | 备注 |
 |---|---|---|
-| 公司董事长 | `chairman` | + 看你是否给 admin |
-| 公司总经理 | `general_manager` | |
-| HR 经理 / HR 专员 | `hr` | **不要叠加 `dept_manager`**：data_scope=1 已经覆盖本部门 |
-| 财务经理 / 财务专员 | `finance` | 同上 |
-| 销售部 / 技术部 等部门经理 | `dept_manager` | 看本部门 + 下级；自动是部门 leader |
-| 销售员 / 开发 / 设计 / 行政 等普通员工 | `employee` | 仅本人 |
-| 系统运维 / 实施 | `admin` | 系统超管，慎挂 |
+| 公司董事长 | `chairman` | A=1 全员，不需职能加成 |
+| 公司总经理 | `general_manager` | A=1 全员 |
+| HR 经理（管 HR 部） | `dept_manager + hr` | A=4 HR部 + B 考勤=全员；报销=HR部 |
+| HR 专员 | `employee + hr` | A=5 自己 + B 考勤=全员；报销=自己 |
+| 财务经理（管财务部） | `dept_manager + finance` | A=4 财务部 + B 付款/佣金=全员；考勤=财务部 |
+| 财务专员 | `employee + finance` | A=5 自己 + B 付款/佣金=全员；考勤=自己 |
+| 其他部门经理 | `dept_manager` | 看本部门 + 下级 |
+| 普通员工 | `employee` | 仅本人 |
+| 系统运维 | `admin` | 慎挂 |
 
-### 几个关键的"不要"
+### 几个"不要"
 
-1. **不要给 HR / 财务 经理 叠挂 `dept_manager`**。HR 角色 data_scope=1 已经包含本部门；多挂只会增加配置噪音
-2. **不要给部门经理叠挂 `admin` / `general_manager`**。这两个 data_scope=1 会让 `dept_manager` 的"本部门限制"失效
-3. **不要让普通员工挂多角色凑权限**。某人需要看本部门数据 → 改挂 `dept_manager`，不要 `employee + admin`
+1. **不要只挂 `finance` 不挂基础角色**。否则 data_scope=5 后该用户连"自己提的请假"都看不见——基础职级层失守
+2. **不要给 HR / 财务 叠挂 `chairman / general_manager / admin`**。那会让 A 段直接全员，B 段加成失效，反而看到一切（包括不该看的）
+3. **不要让普通员工挂 `dept_manager` 凑权限**。改职级用 `dept_manager`，不要叠加 `employee + dept_manager`
+
+### V73 自动迁移
+
+V73 已自动处理：
+- `finance.data_scope: 1 → 5`、`hr.data_scope: 1 → 5`
+- 给所有挂 `finance` 的用户**追加挂 `employee`** —— 保证基础职级层不丢
+- 给所有挂 `hr` 的用户**追加挂 `employee`** —— 同上
+
+**HR 后台仍需手工补**：原 HR 经理 / 财务经理 这种是部门经理身份的，要从 `employee` 调整为 `dept_manager`（迁移脚本不自动判定"部门经理"避免误升权）
 
 ---
 
@@ -166,12 +206,15 @@ if (approvers.isEmpty()) {
 
 | 现象 | 可能原因 | 排查 |
 |---|---|---|
-| 部门经理却看到全公司数据 | 同时挂了 data_scope=1 的角色（`admin` / `general_manager` 等） | 查 `sys_user_role` 看是否多挂；按"一人一主角色"清理 |
+| 部门经理却看到全公司数据 | 同时挂了 data_scope=1 的角色（`admin` / `chairman` / `general_manager` 等） | 查 `sys_user_role` 看是否多挂 |
+| 财务能看销售部考勤 | `attendance.fullScopeRoleCodes` 误把 finance 加进去；或 finance.data_scope=1 没改成 5 | 检查 `sys_config_group(attendance)` 配置 + sys_role.data_scope |
+| HR 能看全公司报销 | `payment.fullScopeRoleCodes` 误把 hr 加进去 | 检查 `sys_config_group(payment)` 配置 |
+| 财务专员连自己提的请假都看不到 | 用户只挂了 `finance` 没挂基础角色（V73 之后 finance.data_scope=5） | sys_user_role 追加 `employee` |
 | 员工提交请假找不到上级 | 部门 `leader_id` 为 NULL，且祖先部门也没设 | 部门管理→编辑→部门负责人 |
-| HR 角色看不到全公司考勤 | `hr.data_scope` 被误调低 / HR 用户没挂 `hr` 角色 | 查 `sys_role` + `sys_user_role` |
+| HR 角色看不到全公司考勤 | `attendance.fullScopeRoleCodes` 配置缺 hr / 或用户没挂 `hr` 角色 | 查配置 + sys_user_role |
 | `dept_manager` 挂了但只看到自己 | `user.dept_id` 为 NULL 或指向根部门 | 用户管理→编辑→所属部门 |
 | 销售员看到了同部门同事的客户 | 同时挂了 `dept_manager` 或 data_scope ≥ 3 的角色 | 检查多挂；正常应只挂 `employee`（data_scope=5）|
-| 审批流"直接上级"卡住 | 全链路都找不到 leader_id | 顶层部门必须有 leader_id；不希望走到顶就给中间部门补 leader_id |
+| 审批流"直接上级"卡住 | 全链路都找不到 leader_id | 顶层部门必须有 leader_id |
 
 ---
 
@@ -192,14 +235,18 @@ if (approvers.isEmpty()) {
 
 | 文件 | 作用 |
 |---|---|
-| `pengcheng-api/pengcheng-admin-api/.../hr/AttendanceScopeHelper.java` | 考勤模块的可见 userId 解析（支持完整 data_scope 1/3/4/5 + leader_id 兜底） |
+| `pengcheng-api/pengcheng-admin-api/.../hr/AttendanceScopeHelper.java` | 通用 ScopeHelper：`visibleUserIds()` / `visibleUserIdsForPayment()` / `visibleUserIdsForCommission()` / 通用 `visibleUserIdsForModule(roleCodes)` |
+| `pengcheng-core/pengcheng-system/.../helper/SystemConfigHelper.java` | `getAttendanceFullScopeRoleCodes()` / `getPaymentFullScopeRoleCodes()` / `getCommissionFullScopeRoleCodes()` — 业务加成配置读取 |
+| `pengcheng-api/pengcheng-admin-api/.../realty/PaymentController.java` | 付款列表注入可见集合 |
+| `pengcheng-api/pengcheng-admin-api/.../realty/CommissionController.java` | 佣金列表注入可见集合 |
 | `pengcheng-infra/pengcheng-db/.../interceptor/DataPermissionInterceptor.java` | 通用数据权限拦截器（客户 / 销售模块走这条） |
-| `pengcheng-core/pengcheng-hr/.../approval/service/impl/ApprovalFlowServiceImpl.java` | 审批流引擎，`resolveApprovers` / `resolveDirectSupervisor` 在这里 |
+| `pengcheng-core/pengcheng-hr/.../approval/service/impl/ApprovalFlowServiceImpl.java` | 审批流引擎，`resolveApprovers` / `resolveDirectSupervisor` |
 | `pengcheng-starter/.../db/migration/V67__customer_data_scope_roles.sql` | 销售线角色定义 + data_scope 5 档语义 |
 | `pengcheng-starter/.../db/migration/V70__user_role_data_scope_self_only.sql` | `user` 角色 data_scope 3→5 |
 | `pengcheng-starter/.../db/migration/V71__manager_role_data_scope_dept_subtree.sql` | `manager` 角色 data_scope 1→4 |
 | `pengcheng-starter/.../db/migration/V72__unify_role_system.sql` | 角色重命名 + flow_* 迁移 + 新建 chairman |
+| `pengcheng-starter/.../db/migration/V73__split_role_basic_and_business_scope.sql` | finance/hr.data_scope 1→5；为现有 finance/hr 用户追加挂 employee |
 
 ---
 
-最后更新：V72 落地后（2026-05-13）
+最后更新：V73 落地后（2026-05-14）
