@@ -140,21 +140,6 @@
           </n-list>
         </div>
 
-        <!-- 最近申请记录 -->
-        <div class="section-card recent-files">
-          <div class="section-header">
-            <span class="title">最近申请记录</span>
-            <n-button text size="small" type="primary" @click="router.push('/realty/payment')">更多</n-button>
-          </div>
-          <n-data-table
-            :columns="applicationColumns"
-            :data="recentApplications"
-            :pagination="false"
-            size="small"
-            :bordered="false"
-          />
-        </div>
-
         <!-- AI 洞察（最下列） -->
         <div v-if="aiInsights.length > 0" class="section-card ai-insights">
           <div class="section-header">
@@ -248,9 +233,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, h } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { NTag, NButton, NAvatar } from 'naive-ui'
+import { NButton, NAvatar } from 'naive-ui'
 import {
   ChatbubbleOutline,
   GridOutline,
@@ -544,111 +529,6 @@ async function loadTodayMeetings() {
   }
 }
 
-// 最近申请记录（合并请假/调休 + 付款类申请，按提交时间倒序取前 5 条）
-interface RecentApplication {
-  id: string
-  type: string
-  typeLabel: string
-  summary: string
-  status: number
-  statusLabel: string
-  statusType: 'success' | 'warning' | 'error' | 'default' | 'info'
-  time: string
-}
-const recentApplications = ref<RecentApplication[]>([])
-
-const PAYMENT_REQUEST_TYPES: Record<number, string> = { 1: '费用报销', 2: '垫佣申请', 3: '预付佣申请' }
-
-function statusOf(status: number | null | undefined): { label: string; type: RecentApplication['statusType'] } {
-  // 0 待审批 / 1 通过 / 2 驳回（与后端一致）
-  if (status === 1) return { label: '已通过', type: 'success' }
-  if (status === 2) return { label: '已驳回', type: 'error' }
-  return { label: '审批中', type: 'warning' }
-}
-
-async function loadRecentApplications() {
-  try {
-    const { request } = await import('@/utils/request')
-    const [leaveRes, payRes] = await Promise.allSettled([
-      request({ url: '/app/leave/list', method: 'get', params: { page: 1, pageSize: 10 } }),
-      request({ url: '/app/payment/list', method: 'get', params: { page: 1, pageSize: 10 } }),
-    ])
-
-    const items: RecentApplication[] = []
-
-    if (leaveRes.status === 'fulfilled') {
-      const list = (leaveRes.value as any)?.list ?? leaveRes.value ?? []
-      for (const r of list) {
-        const type = r.type === 'compensate' ? 'compensate' : 'leave'
-        const typeLabel = type === 'compensate' ? '调休' : '请假'
-        const s = statusOf(r.status)
-        items.push({
-          id: `${type}-${r.id}`,
-          type, typeLabel,
-          summary: r.reason || typeLabel + '申请',
-          status: r.status, statusLabel: s.label, statusType: s.type,
-          time: r.createTime || ''
-        })
-      }
-    }
-    if (payRes.status === 'fulfilled') {
-      const list = (payRes.value as any)?.list ?? payRes.value ?? []
-      for (const r of list) {
-        const typeLabel = PAYMENT_REQUEST_TYPES[r.requestType] || '付款申请'
-        const s = statusOf(r.status)
-        items.push({
-          id: `pay-${r.id}`,
-          type: 'payment', typeLabel,
-          summary: r.description || typeLabel,
-          status: r.status, statusLabel: s.label, statusType: s.type,
-          time: r.createTime || ''
-        })
-      }
-    }
-
-    recentApplications.value = items
-      .sort((a, b) => (new Date(b.time).getTime() || 0) - (new Date(a.time).getTime() || 0))
-      .slice(0, 5)
-  } catch {
-    recentApplications.value = []
-  }
-}
-
-const applicationColumns = [
-  {
-    title: '类型',
-    key: 'typeLabel',
-    width: 90,
-    render(row: RecentApplication) {
-      return h(NTag, { size: 'small', type: 'info', round: true }, { default: () => row.typeLabel })
-    }
-  },
-  {
-    title: '内容',
-    key: 'summary',
-    ellipsis: { tooltip: true },
-    render(row: RecentApplication) {
-      return h('span', { style: 'color: #333;' }, row.summary || '-')
-    }
-  },
-  {
-    title: '状态',
-    key: 'statusLabel',
-    width: 80,
-    render(row: RecentApplication) {
-      return h(NTag, { size: 'small', type: row.statusType }, { default: () => row.statusLabel })
-    }
-  },
-  {
-    title: '提交时间',
-    key: 'time',
-    width: 110,
-    render(row: RecentApplication) {
-      return row.time ? new Date(row.time).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' }) : '-'
-    }
-  }
-]
-
 // 今日会议（由 loadTodayMeetings 从 /calendar/today 接口拉取）
 const todayMeetings = ref<Array<{ id: number; title: string; startTime: number; endTime: number; location: string; status: number }>>([])
 
@@ -735,7 +615,6 @@ onMounted(() => {
   loadMyTasks()
   loadTodayMeetings()
   loadNotices()
-  loadRecentApplications()
 })
 
 onUnmounted(() => {
