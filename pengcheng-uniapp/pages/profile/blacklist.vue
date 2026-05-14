@@ -11,7 +11,7 @@
 			</view>
 
 			<view class="empty" v-if="!loading && blacklist.length === 0">
-				<u-icon name="minus-circle" color="#CFCFCF" size="56"></u-icon>
+				<pc-icon name="minus-circle" color="#CFCFCF" size="56"></pc-icon>
 				<text class="empty-text">暂无黑名单用户</text>
 			</view>
 		</scroll-view>

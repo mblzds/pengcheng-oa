@@ -20,7 +20,7 @@
 				<text class="info-label">手机号</text>
 				<view class="info-value-with-arrow">
 					<text class="info-value link">{{ phone }}</text>
-					<u-icon name="arrow-right" color="#CCC" size="14"></u-icon>
+					<pc-icon name="arrow-right" color="#CCC" size="14"></pc-icon>
 				</view>
 			</view>
 		</view>

@@ -29,7 +29,7 @@
 					<view class="grid-item" v-for="(entry, idx) in quickEntries" :key="idx"
 						@tap="navigateTo(entry)">
 						<view class="grid-icon-wrap" :style="{ background: entry.bgColor }">
-							<u-icon :name="entry.icon" color="#FFF" size="22"></u-icon>
+							<pc-icon :name="entry.icon" color="#FFF" size="22"></pc-icon>
 							<view class="grid-badge" v-if="entry.badge > 0">
 								<text>{{ entry.badge > 99 ? '99+' : entry.badge }}</text>
 							</view>

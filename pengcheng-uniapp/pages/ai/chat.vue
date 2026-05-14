@@ -17,7 +17,7 @@
 			<view class="panel-result" v-if="copyResult">
 				<text class="result-text" selectable>{{ copyResult }}</text>
 				<view class="result-copy" @tap="copyText(copyResult)">
-					<u-icon name="file-text" color="#07C160" size="14"></u-icon>
+					<pc-icon name="file-text" color="#07C160" size="14"></pc-icon>
 					<text>复制文案</text>
 				</view>
 			</view>
@@ -28,7 +28,7 @@
 			scroll-with-animation>
 			<view class="chat-welcome" v-if="messages.length === 0">
 				<view class="welcome-icon">
-					<u-icon name="integral" color="#07C160" size="48"></u-icon>
+					<pc-icon name="integral" color="#07C160" size="48"></pc-icon>
 				</view>
 				<text class="welcome-title">AI 助手</text>
 				<text class="welcome-desc">我是您的房产销售智能助手，可以帮您：</text>
@@ -43,13 +43,13 @@
 			<view class="msg-item" v-for="(msg, idx) in messages" :key="idx"
 				:id="'msg-' + idx" :class="{ 'msg-user': msg.role === 'user' }">
 				<view class="msg-avatar" v-if="msg.role === 'ai'">
-					<view class="avatar-ai"><u-icon name="integral" color="#FFF" size="16"></u-icon></view>
+					<view class="avatar-ai"><pc-icon name="integral" color="#FFF" size="16"></pc-icon></view>
 				</view>
 				<view class="msg-bubble" :class="msg.role === 'user' ? 'bubble-user' : 'bubble-ai'">
 					<text class="msg-text" selectable>{{ msg.content }}</text>
 					<view class="msg-actions" v-if="msg.role === 'ai'">
 						<view class="action-btn" @tap="copyText(msg.content)">
-							<u-icon name="file-text" color="#999" size="14"></u-icon>
+							<pc-icon name="file-text" color="#999" size="14"></pc-icon>
 							<text>复制</text>
 						</view>
 					</view>
@@ -64,7 +64,7 @@
 			<!-- AI 正在输入 -->
 			<view class="msg-item" v-if="aiLoading" id="msg-loading">
 				<view class="msg-avatar">
-					<view class="avatar-ai"><u-icon name="integral" color="#FFF" size="16"></u-icon></view>
+					<view class="avatar-ai"><pc-icon name="integral" color="#FFF" size="16"></pc-icon></view>
 				</view>
 				<view class="msg-bubble bubble-ai">
 					<view class="typing-dots">
@@ -85,7 +85,7 @@
 			<input class="chat-input" v-model="inputText" placeholder="输入消息..."
 				confirm-type="send" @confirm="sendMessage" :disabled="aiLoading" />
 			<view class="send-btn" :class="{ active: inputText.trim() }" @tap="sendMessage">
-				<u-icon name="arrow-up" :color="inputText.trim() ? '#FFF' : '#CCC'" size="18"></u-icon>
+				<pc-icon name="arrow-up" :color="inputText.trim() ? '#FFF' : '#CCC'" size="18"></pc-icon>
 			</view>
 		</view>
 	</view>

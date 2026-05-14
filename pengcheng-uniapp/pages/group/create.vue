@@ -14,14 +14,14 @@
 		</view>
 
 		<view class="search-wrap">
-			<u-icon name="search" color="#999" size="28" style="margin-right: 12rpx;"></u-icon>
+			<pc-icon name="search" color="#999" size="28" style="margin-right: 12rpx;"></pc-icon>
 			<input class="search-input" v-model="searchText" placeholder="搜索联系人" placeholder-class="form-placeholder" />
 		</view>
 
 		<scroll-view scroll-y class="user-list">
 			<view class="user-item" v-for="user in filteredUsers" :key="user.id" @tap="toggleSelect(user)">
 				<view class="check-box" :class="{ checked: isSelected(user.id) }">
-					<u-icon v-if="isSelected(user.id)" name="checkmark" color="#FFFFFF" size="24"></u-icon>
+					<pc-icon v-if="isSelected(user.id)" name="checkmark" color="#FFFFFF" size="24"></pc-icon>
 				</view>
 				<image class="user-avatar" :src="resolveAvatar(user.avatar)" mode="aspectFill"></image>
 				<text class="user-name">{{ user.nickname || user.username }}</text>

@@ -7,7 +7,7 @@
 					<picker mode="date" @change="e => form.compensateDate = e.detail.value">
 						<view class="picker-value">
 							<text :class="{ placeholder: !form.compensateDate }">{{ form.compensateDate || '请选择调休日期' }}</text>
-							<u-icon name="arrow-right" color="#CCC" size="14"></u-icon>
+							<pc-icon name="arrow-right" color="#CCC" size="14"></pc-icon>
 						</view>
 					</picker>
 				</view>

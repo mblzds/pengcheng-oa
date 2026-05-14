@@ -2,15 +2,15 @@
 	<view class="page">
 		<view class="search-bar">
 			<view class="search-input">
-				<u-icon name="search" color="rgba(255,255,255,0.55)" size="15"></u-icon>
+				<pc-icon name="search" color="rgba(255,255,255,0.55)" size="15"></pc-icon>
 				<input class="search-input-text" v-model="searchText" placeholder="搜索联系人 / 聊天内容"
 					placeholder-class="search-placeholder" confirm-type="search" />
 				<view v-if="searchText" class="clear-icon" @tap="searchText = ''">
-					<u-icon name="close-circle-fill" color="rgba(255,255,255,0.7)" size="16"></u-icon>
+					<pc-icon name="close-circle-fill" color="rgba(255,255,255,0.7)" size="16"></pc-icon>
 				</view>
 			</view>
 			<view v-if="!isSearching" class="add-btn" @tap="showAddMenu = !showAddMenu">
-				<u-icon name="plus-circle" color="rgba(255,255,255,0.9)" size="22"></u-icon>
+				<pc-icon name="plus-circle" color="rgba(255,255,255,0.9)" size="22"></pc-icon>
 			</view>
 			<text v-else class="cancel-btn" @tap="searchText = ''">取消</text>
 		</view>
@@ -107,12 +107,12 @@
 			</view>
 
 			<view class="empty-state" v-if="isSearching && filteredConversations.length === 0 && filteredGroups.length === 0 && messageMatches.length === 0 && !searchingMessages">
-				<u-icon name="search" color="#D0D0D0" size="56"></u-icon>
+				<pc-icon name="search" color="#D0D0D0" size="56"></pc-icon>
 				<text class="empty-text">没有匹配的会话或聊天记录</text>
 				<text class="empty-hint">换个关键词试试</text>
 			</view>
 			<view class="empty-state" v-else-if="!isSearching && conversations.length === 0 && groups.length === 0 && !loading">
-				<u-icon name="chat" color="#D0D0D0" size="56"></u-icon>
+				<pc-icon name="chat" color="#D0D0D0" size="56"></pc-icon>
 				<text class="empty-text">暂无消息</text>
 				<text class="empty-hint">去通讯录找人聊天吧</text>
 			</view>

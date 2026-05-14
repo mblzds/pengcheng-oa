@@ -2,7 +2,7 @@
 	<view class="page">
 		<view class="header">
 			<view class="search-wrap">
-				<u-icon name="search" color="#999" size="28"></u-icon>
+				<pc-icon name="search" color="#999" size="28"></pc-icon>
 				<input class="search-input" v-model="searchText" placeholder="搜索姓名 / 工号 / 手机号"
 					placeholder-class="placeholder" />
 			</view>
@@ -12,7 +12,7 @@
 		<scroll-view scroll-y class="user-list">
 			<view class="user-item" v-for="user in filteredUsers" :key="user.id" @tap="toggleSelect(user)">
 				<view class="check-box" :class="{ checked: isSelected(user.id) }">
-					<u-icon v-if="isSelected(user.id)" name="checkmark" color="#FFFFFF" size="22"></u-icon>
+					<pc-icon v-if="isSelected(user.id)" name="checkmark" color="#FFFFFF" size="22"></pc-icon>
 				</view>
 				<image v-if="user.avatar" class="user-avatar" :src="resolveAvatar(user.avatar)" mode="aspectFill"></image>
 				<view v-else class="user-avatar avatar-text" :style="{ background: avatarColor(user.nickname || user.username) }">

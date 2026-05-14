@@ -13,7 +13,7 @@
 					<image class="user-avatar" :src="resolveAvatar(userInfo.avatar)"
 						mode="aspectFill"></image>
 					<view class="avatar-camera">
-						<u-icon name="camera-fill" color="#FFF" size="11"></u-icon>
+						<pc-icon name="camera-fill" color="#FFF" size="11"></pc-icon>
 					</view>
 				</view>
 				<text class="user-nickname">{{ userInfo.nickname || '未设置昵称' }}</text>
@@ -26,84 +26,84 @@
 			<view class="menu-group">
 				<view class="menu-item" @tap="handleEditProfile">
 					<view class="menu-icon-wrap" style="background: rgba(7,193,96,0.1);">
-						<u-icon name="account" color="#07C160" size="18"></u-icon>
+						<pc-icon name="account" color="#07C160" size="18"></pc-icon>
 					</view>
 					<text class="menu-text">个人信息</text>
-					<u-icon name="arrow-right" color="#CCCCCC" size="14"></u-icon>
+					<pc-icon name="arrow-right" color="#CCCCCC" size="14"></pc-icon>
 				</view>
 				<view class="menu-item" @tap="handleChangePassword">
 					<view class="menu-icon-wrap" style="background: rgba(24,144,255,0.1);">
-						<u-icon name="lock" color="#1890FF" size="18"></u-icon>
+						<pc-icon name="lock" color="#1890FF" size="18"></pc-icon>
 					</view>
 					<text class="menu-text">修改密码</text>
-					<u-icon name="arrow-right" color="#CCCCCC" size="14"></u-icon>
+					<pc-icon name="arrow-right" color="#CCCCCC" size="14"></pc-icon>
 				</view>
 			</view>
 
 			<view class="menu-group">
 				<view class="menu-item" @tap="navigateTo('/pages/attendance/clock')">
 					<view class="menu-icon-wrap" style="background: rgba(250,140,22,0.1);">
-						<u-icon name="map" color="#FA8C16" size="18"></u-icon>
+						<pc-icon name="map" color="#FA8C16" size="18"></pc-icon>
 					</view>
 					<text class="menu-text">考勤打卡</text>
-					<u-icon name="arrow-right" color="#CCCCCC" size="14"></u-icon>
+					<pc-icon name="arrow-right" color="#CCCCCC" size="14"></pc-icon>
 				</view>
 				<view class="menu-item" @tap="navigateTo('/pages/apply/list?type=leave')">
 					<view class="menu-icon-wrap" style="background: rgba(114,46,209,0.1);">
-						<u-icon name="calendar" color="#722ED1" size="18"></u-icon>
+						<pc-icon name="calendar" color="#722ED1" size="18"></pc-icon>
 					</view>
 					<text class="menu-text">我的请假</text>
-					<u-icon name="arrow-right" color="#CCCCCC" size="14"></u-icon>
+					<pc-icon name="arrow-right" color="#CCCCCC" size="14"></pc-icon>
 				</view>
 				<view class="menu-item" @tap="navigateTo('/pages/apply/list?type=expense')">
 					<view class="menu-icon-wrap" style="background: rgba(245,34,45,0.1);">
-						<u-icon name="rmb-circle" color="#F5222D" size="18"></u-icon>
+						<pc-icon name="rmb-circle" color="#F5222D" size="18"></pc-icon>
 					</view>
 					<text class="menu-text">我的报销</text>
-					<u-icon name="arrow-right" color="#CCCCCC" size="14"></u-icon>
+					<pc-icon name="arrow-right" color="#CCCCCC" size="14"></pc-icon>
 				</view>
 				<view class="menu-item" @tap="navigateTo('/pages/approval/list')">
 					<view class="menu-icon-wrap" style="background: rgba(235,47,150,0.1);">
-						<u-icon name="checkbox-mark" color="#EB2F96" size="18"></u-icon>
+						<pc-icon name="checkbox-mark" color="#EB2F96" size="18"></pc-icon>
 					</view>
 					<text class="menu-text">我的审批</text>
-					<u-icon name="arrow-right" color="#CCCCCC" size="14"></u-icon>
+					<pc-icon name="arrow-right" color="#CCCCCC" size="14"></pc-icon>
 				</view>
 				<view class="menu-item" @tap="navigateTo('/pages/attendance/calendar')">
 					<view class="menu-icon-wrap" style="background: rgba(19,194,194,0.1);">
-						<u-icon name="calendar" color="#13C2C2" size="18"></u-icon>
+						<pc-icon name="calendar" color="#13C2C2" size="18"></pc-icon>
 					</view>
 					<text class="menu-text">考勤月报</text>
-					<u-icon name="arrow-right" color="#CCCCCC" size="14"></u-icon>
+					<pc-icon name="arrow-right" color="#CCCCCC" size="14"></pc-icon>
 				</view>
 			</view>
 
 			<view class="menu-group">
 				<view class="menu-item" @tap="handleBlacklist">
 					<view class="menu-icon-wrap" style="background: rgba(250,173,20,0.1);">
-						<u-icon name="minus-circle" color="#FAAD14" size="18"></u-icon>
+						<pc-icon name="minus-circle" color="#FAAD14" size="18"></pc-icon>
 					</view>
 					<text class="menu-text">黑名单</text>
-					<u-icon name="arrow-right" color="#CCCCCC" size="14"></u-icon>
+					<pc-icon name="arrow-right" color="#CCCCCC" size="14"></pc-icon>
 				</view>
 				<view class="menu-item" @tap="handleClearCache">
 					<view class="menu-icon-wrap" style="background: rgba(153,153,153,0.08);">
-						<u-icon name="trash" color="#999" size="18"></u-icon>
+						<pc-icon name="trash" color="#999" size="18"></pc-icon>
 					</view>
 					<text class="menu-text">清除缓存</text>
 					<text class="menu-value">{{ cacheSize }}</text>
-					<u-icon name="arrow-right" color="#CCCCCC" size="14"></u-icon>
+					<pc-icon name="arrow-right" color="#CCCCCC" size="14"></pc-icon>
 				</view>
 			</view>
 
 			<view class="menu-group">
 				<view class="menu-item" @tap="handleAbout">
 					<view class="menu-icon-wrap" style="background: rgba(114,46,209,0.08);">
-						<u-icon name="info-circle" color="#722ED1" size="18"></u-icon>
+						<pc-icon name="info-circle" color="#722ED1" size="18"></pc-icon>
 					</view>
 					<text class="menu-text">关于</text>
 					<text class="menu-value">v1.0.0</text>
-					<u-icon name="arrow-right" color="#CCCCCC" size="14"></u-icon>
+					<pc-icon name="arrow-right" color="#CCCCCC" size="14"></pc-icon>
 				</view>
 			</view>
 

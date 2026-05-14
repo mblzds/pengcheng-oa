@@ -2,7 +2,7 @@
 		<view class="page">
 		<view class="search-bar-wrap">
 			<view class="search-input-area">
-				<u-icon name="search" color="rgba(255,255,255,0.55)" size="15"></u-icon>
+				<pc-icon name="search" color="rgba(255,255,255,0.55)" size="15"></pc-icon>
 				<input class="search-input" v-model="searchText" placeholder="搜索姓名 / 工号 / 手机号"
 					placeholder-class="search-placeholder" />
 			</view>
@@ -17,7 +17,7 @@
 						<text class="func-icon-text">群</text>
 					</view>
 				<text class="func-name">群聊</text>
-				<u-icon name="arrow-right" color="#CCC" size="14"></u-icon>
+				<pc-icon name="arrow-right" color="#CCC" size="14"></pc-icon>
 			</view>
 
 			<!-- 联系人 -->
@@ -51,7 +51,7 @@
 			</view>
 
 				<view class="empty-state" v-if="filteredUsers.length === 0 && filteredGroups.length === 0 && !loading">
-					<u-icon name="account" color="#D0D0D0" size="48"></u-icon>
+					<pc-icon name="account" color="#D0D0D0" size="48"></pc-icon>
 					<text class="empty-text">{{ searchText.trim() ? '没有匹配的联系人或群聊' : '暂无联系人' }}</text>
 				</view>
 			</scroll-view>

@@ -28,7 +28,7 @@
               <image v-else-if="msg.msgType === 2" class="msg-image" :src="resolveFileUrl(msg.content)"
                      mode="widthFix" @tap="previewImage(msg.content)"></image>
 	              <view v-else-if="msg.msgType === 3" class="msg-file" @tap="previewFile(msg)">
-	                <u-icon name="attach" color="#666" size="18"></u-icon>
+	                <pc-icon name="attach" color="#666" size="18"></pc-icon>
 	                <text class="file-name">{{ getFileName(msg.content) }}</text>
 	              </view>
             </view>
@@ -43,7 +43,7 @@
               <image v-else-if="msg.msgType === 2" class="msg-image" :src="resolveFileUrl(msg.content)"
                      mode="widthFix" @tap="previewImage(msg.content)"></image>
 	              <view v-else-if="msg.msgType === 3" class="msg-file" @tap="previewFile(msg)">
-	                <u-icon name="attach" color="#666" size="18"></u-icon>
+	                <pc-icon name="attach" color="#666" size="18"></pc-icon>
 	                <text class="file-name">{{ getFileName(msg.content) }}</text>
 	              </view>
             </view>
@@ -64,7 +64,7 @@
     <view class="input-bar safe-area-bottom">
       <view class="input-bar-main">
         <view class="bar-icon-btn" @tap="toggleVoice">
-          <u-icon :name="isVoiceMode ? 'edit-pen' : 'mic'" color="#181818" size="28"></u-icon>
+          <pc-icon :name="isVoiceMode ? 'edit-pen' : 'mic'" color="#181818" size="28"></pc-icon>
         </view>
 
         <view v-if="isVoiceMode" class="voice-btn"
@@ -81,14 +81,14 @@
         </view>
 
         <view class="bar-icon-btn" @tap="toggleEmoji">
-          <u-icon :name="showEmojiPanel ? 'edit-pen' : 'red-packet'" color="#181818" size="28"></u-icon>
+          <pc-icon :name="showEmojiPanel ? 'edit-pen' : 'red-packet'" color="#181818" size="28"></pc-icon>
         </view>
 
         <view v-if="inputText.trim()" class="send-btn-new" @tap="handleSend">
           <text>发送</text>
         </view>
         <view v-else class="bar-icon-btn" @tap="toggleExtra">
-          <u-icon name="plus-circle" color="#181818" size="30"></u-icon>
+          <pc-icon name="plus-circle" color="#181818" size="30"></pc-icon>
         </view>
       </view>
 
@@ -106,19 +106,19 @@
         <view class="extra-grid">
           <view class="extra-item" @tap="handleChooseImage">
             <view class="extra-icon" style="background: #3CC51F;">
-              <u-icon name="photo" color="#FFF" size="28"></u-icon>
+              <pc-icon name="photo" color="#FFF" size="28"></pc-icon>
             </view>
             <text class="extra-label">相册</text>
           </view>
           <view class="extra-item" @tap="handleTakePhoto">
             <view class="extra-icon" style="background: #3CC51F;">
-              <u-icon name="camera" color="#FFF" size="28"></u-icon>
+              <pc-icon name="camera" color="#FFF" size="28"></pc-icon>
             </view>
             <text class="extra-label">拍摄</text>
           </view>
           <view class="extra-item" @tap="handleChooseFile">
             <view class="extra-icon" style="background: #409EFF;">
-              <u-icon name="attach" color="#FFF" size="28"></u-icon>
+              <pc-icon name="attach" color="#FFF" size="28"></pc-icon>
             </view>
             <text class="extra-label">文件</text>
           </view>

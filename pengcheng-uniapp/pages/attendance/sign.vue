@@ -3,12 +3,12 @@
 		<!-- 签到前：扫码提示 -->
 		<view class="scan-section" v-if="!signResult">
 			<view class="scan-icon-wrap">
-				<u-icon name="scan" color="#07C160" size="64"></u-icon>
+				<pc-icon name="scan" color="#07C160" size="64"></pc-icon>
 			</view>
 			<text class="scan-title">扫码签到</text>
 			<text class="scan-desc">请扫描项目现场二维码进行签到</text>
 			<button class="scan-btn" @tap="handleScan">
-				<u-icon name="scan" color="#FFF" size="18"></u-icon>
+				<pc-icon name="scan" color="#FFF" size="18"></pc-icon>
 				<text class="scan-btn-text">打开扫码</text>
 			</button>
 		</view>
@@ -17,7 +17,7 @@
 		<view class="result-section" v-else>
 			<view class="result-card">
 				<view class="result-icon">
-					<u-icon name="checkmark-circle" color="#07C160" size="48"></u-icon>
+					<pc-icon name="checkmark-circle" color="#07C160" size="48"></pc-icon>
 				</view>
 				<text class="result-title">签到成功</text>
 				<view class="result-info">

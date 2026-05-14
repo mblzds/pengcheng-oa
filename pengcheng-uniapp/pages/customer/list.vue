@@ -2,7 +2,7 @@
 	<view class="page">
 		<!-- 选客户后自动打开到访录入的提示 -->
 		<view class="action-hint" v-if="pendingAction === 'visit'">
-			<u-icon name="info-circle" color="#722ED1" size="14"></u-icon>
+			<pc-icon name="info-circle" color="#722ED1" size="14"></pc-icon>
 			<text class="hint-text">请选择客户，将自动打开「到访录入」</text>
 		</view>
 		<!-- 筛选栏 -->
@@ -11,13 +11,13 @@
 			<picker :range="projectList" range-key="projectName" @change="onProjectChange">
 				<view class="filter-picker">
 					<text>{{ selectedProjectLabel }}</text>
-					<u-icon name="arrow-down" color="#999" size="12"></u-icon>
+					<pc-icon name="arrow-down" color="#999" size="12"></pc-icon>
 				</view>
 			</picker>
 			<picker :range="statusList" range-key="label" @change="onStatusChange">
 				<view class="filter-picker">
 					<text>{{ selectedStatusLabel }}</text>
-					<u-icon name="arrow-down" color="#999" size="12"></u-icon>
+					<pc-icon name="arrow-down" color="#999" size="12"></pc-icon>
 				</view>
 			</picker>
 		</view>
@@ -49,14 +49,14 @@
 			<view class="load-tip" v-if="loading"><text>加载中...</text></view>
 			<view class="load-tip" v-else-if="noMore && list.length > 0"><text>没有更多了</text></view>
 			<view class="empty-state" v-if="!loading && list.length === 0">
-				<u-icon name="order" color="#D0D0D0" size="56"></u-icon>
+				<pc-icon name="order" color="#D0D0D0" size="56"></pc-icon>
 				<text class="empty-text">暂无客户</text>
 			</view>
 		</scroll-view>
 
 		<!-- 右下角报备按钮 -->
 		<view class="fab-btn" @tap="goReport">
-			<u-icon name="plus" color="#FFF" size="24"></u-icon>
+			<pc-icon name="plus" color="#FFF" size="24"></pc-icon>
 		</view>
 	</view>
 </template>

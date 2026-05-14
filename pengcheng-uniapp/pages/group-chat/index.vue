@@ -4,11 +4,11 @@
 			<view class="status-bar" :style="{ height: statusBarHeight + 'px' }"></view>
 			<view class="nav-bar">
 				<view class="nav-back" @tap="navBack">
-					<u-icon name="arrow-left" color="#181818" size="22"></u-icon>
+					<pc-icon name="arrow-left" color="#181818" size="22"></pc-icon>
 				</view>
 				<view class="nav-title-wrap" @tap="goGroupDetail">
 					<text class="nav-title">{{ groupName }}</text>
-					<u-icon name="info-circle" color="#999" size="14" customStyle="margin-left: 6rpx;"></u-icon>
+					<pc-icon name="info-circle" color="#999" size="14" customStyle="margin-left: 6rpx;"></pc-icon>
 				</view>
 				<!-- 右侧让出给微信胶囊（… / 关闭），不放任何元素避免重叠 -->
 			</view>
@@ -78,7 +78,7 @@
 		<view class="input-bar safe-area-bottom">
 			<view class="input-bar-main">
 				<view class="bar-icon-btn" @tap="toggleVoice">
-					<u-icon :name="isVoiceMode ? 'edit-pen' : 'mic'" color="#181818" size="28"></u-icon>
+					<pc-icon :name="isVoiceMode ? 'edit-pen' : 'mic'" color="#181818" size="28"></pc-icon>
 				</view>
 
 				<view v-if="isVoiceMode" class="voice-btn"
@@ -95,14 +95,14 @@
 				</view>
 
 				<view class="bar-icon-btn" @tap="toggleEmoji">
-					<u-icon :name="showEmojiPanel ? 'edit-pen' : 'red-packet'" color="#181818" size="28"></u-icon>
+					<pc-icon :name="showEmojiPanel ? 'edit-pen' : 'red-packet'" color="#181818" size="28"></pc-icon>
 				</view>
 
 				<view v-if="inputText.trim()" class="send-btn-new" @tap="handleSend">
 					<text>发送</text>
 				</view>
 				<view v-else class="bar-icon-btn" @tap="toggleExtra">
-					<u-icon name="plus-circle" color="#181818" size="30"></u-icon>
+					<pc-icon name="plus-circle" color="#181818" size="30"></pc-icon>
 				</view>
 			</view>
 
@@ -120,13 +120,13 @@
 				<view class="extra-grid">
 					<view class="extra-item" @tap="handleChooseImage">
 						<view class="extra-icon" style="background: #3CC51F;">
-							<u-icon name="photo" color="#FFF" size="28"></u-icon>
+							<pc-icon name="photo" color="#FFF" size="28"></pc-icon>
 						</view>
 						<text class="extra-label">相册</text>
 					</view>
 					<view class="extra-item" @tap="handleTakePhoto">
 						<view class="extra-icon" style="background: #3CC51F;">
-							<u-icon name="camera" color="#FFF" size="28"></u-icon>
+							<pc-icon name="camera" color="#FFF" size="28"></pc-icon>
 						</view>
 						<text class="extra-label">拍摄</text>
 					</view>

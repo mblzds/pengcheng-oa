@@ -7,7 +7,7 @@
 					<picker :range="allianceList" range-key="companyName" @change="onAllianceChange">
 						<view class="picker-value">
 							<text :class="{ placeholder: !form.allianceId }">{{ selectedAllianceName || '请选择联盟商' }}</text>
-							<u-icon name="arrow-right" color="#CCC" size="14"></u-icon>
+							<pc-icon name="arrow-right" color="#CCC" size="14"></pc-icon>
 						</view>
 					</picker>
 				</view>
@@ -16,7 +16,7 @@
 					<picker :range="dealList" range-key="label" @change="onDealChange">
 						<view class="picker-value">
 							<text :class="{ placeholder: !form.dealId }">{{ selectedDealLabel || '请选择成交记录' }}</text>
-							<u-icon name="arrow-right" color="#CCC" size="14"></u-icon>
+							<pc-icon name="arrow-right" color="#CCC" size="14"></pc-icon>
 						</view>
 					</picker>
 				</view>

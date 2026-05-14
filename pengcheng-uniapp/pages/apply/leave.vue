@@ -7,7 +7,7 @@
 					<picker :range="leaveTypes" range-key="label" @change="onLeaveTypeChange">
 						<view class="picker-value">
 							<text :class="{ placeholder: !form.leaveTypeLabel }">{{ form.leaveTypeLabel || '请选择请假类型' }}</text>
-							<u-icon name="arrow-right" color="#CCC" size="14"></u-icon>
+							<pc-icon name="arrow-right" color="#CCC" size="14"></pc-icon>
 						</view>
 					</picker>
 				</view>
@@ -15,14 +15,14 @@
 					<text class="form-label">开始时间 <text class="required">*</text></text>
 					<view class="picker-value">
 						<text :class="{ placeholder: !form.startTime }">{{ form.startTime || '请选择开始时间' }}</text>
-						<u-icon name="arrow-right" color="#CCC" size="14"></u-icon>
+						<pc-icon name="arrow-right" color="#CCC" size="14"></pc-icon>
 					</view>
 				</view>
 				<view class="form-item" @tap="openEndPicker">
 					<text class="form-label">结束时间 <text class="required">*</text></text>
 					<view class="picker-value">
 						<text :class="{ placeholder: !form.endTime }">{{ form.endTime || '请选择结束时间' }}</text>
-						<u-icon name="arrow-right" color="#CCC" size="14"></u-icon>
+						<pc-icon name="arrow-right" color="#CCC" size="14"></pc-icon>
 					</view>
 				</view>
 				<view v-if="workStart && workEnd" class="hint-line">

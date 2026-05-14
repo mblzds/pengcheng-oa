@@ -3,7 +3,7 @@
 		<view class="header-wrap">
 			<view class="status-bar" :style="{ height: statusBarHeight + 'px' }"></view>
 			<view class="nav-bar">
-				<view class="nav-back" @tap="goBack"><u-icon name="arrow-left" color="#FFF" size="18"></u-icon></view>
+				<view class="nav-back" @tap="goBack"><pc-icon name="arrow-left" color="#FFF" size="18"></pc-icon></view>
 				<text class="nav-title">考勤打卡</text>
 				<view class="nav-placeholder"></view>
 			</view>
@@ -29,7 +29,7 @@
 			<map class="clock-map" :latitude="latitude" :longitude="longitude" :markers="markers"
 				:scale="16" show-location></map>
 			<view class="location-tip" v-if="locationError">
-				<u-icon name="info-circle" color="#F5222D" size="14"></u-icon>
+				<pc-icon name="info-circle" color="#F5222D" size="14"></pc-icon>
 				<text class="tip-text">{{ locationError }}</text>
 			</view>
 		</view>
@@ -39,7 +39,7 @@
 			<!-- 未拍照：显示拍照入口 -->
 			<view v-if="!photoPath" class="photo-placeholder" @tap="takePhoto">
 				<view class="camera-icon-wrap">
-					<u-icon name="camera" color="#07C160" size="36"></u-icon>
+					<pc-icon name="camera" color="#07C160" size="36"></pc-icon>
 				</view>
 				<text class="photo-hint-main">拍照打卡</text>
 				<text class="photo-hint-sub">点击拍摄现场照片（可选）</text>
@@ -50,11 +50,11 @@
 				<image class="photo-preview" :src="photoPath" mode="aspectFill" @tap="previewPhoto" />
 				<view class="photo-actions">
 					<view class="photo-tag">
-						<u-icon name="checkmark-circle-fill" color="#07C160" size="14"></u-icon>
+						<pc-icon name="checkmark-circle-fill" color="#07C160" size="14"></pc-icon>
 						<text class="photo-tag-text">已拍照</text>
 					</view>
 					<view class="retake-btn" @tap="takePhoto">
-						<u-icon name="reload" color="#666" size="14"></u-icon>
+						<pc-icon name="reload" color="#666" size="14"></pc-icon>
 						<text class="retake-text">重拍</text>
 					</view>
 				</view>

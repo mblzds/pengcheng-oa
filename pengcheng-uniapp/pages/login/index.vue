@@ -14,7 +14,7 @@
 		<view class="login-body">
 			<view class="login-card">
 				<button v-if="!needBindPhone" class="wx-login-btn" @tap="handleWxLogin" :loading="loading">
-					<u-icon name="weixin-fill" color="#FFFFFF" size="20"></u-icon>
+					<pc-icon name="weixin-fill" color="#FFFFFF" size="20"></pc-icon>
 					<text class="wx-btn-text">微信授权登录</text>
 				</button>
 
@@ -39,14 +39,14 @@
 				<view class="phone-form" v-if="showPhoneLogin">
 					<view class="input-group">
 						<view class="input-wrap">
-							<u-icon name="phone" color="#BBB" size="18" style="margin-right: 16rpx;"></u-icon>
+							<pc-icon name="phone" color="#BBB" size="18" style="margin-right: 16rpx;"></pc-icon>
 							<input class="input-field" type="number" maxlength="11"
 								v-model="phone" placeholder="请输入手机号" placeholder-class="placeholder" />
 						</view>
 					</view>
 					<view class="input-group">
 						<view class="input-wrap">
-							<u-icon name="lock" color="#BBB" size="18" style="margin-right: 16rpx;"></u-icon>
+							<pc-icon name="lock" color="#BBB" size="18" style="margin-right: 16rpx;"></pc-icon>
 							<input class="input-field code-field" type="number" maxlength="6"
 								v-model="smsCode" placeholder="请输入验证码" placeholder-class="placeholder" />
 							<view class="code-btn" :class="{ 'code-disabled': codeCountdown > 0 }" @tap="handleSendCode">

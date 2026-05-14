@@ -2,9 +2,9 @@
 	<view class="page">
 		<!-- 月份切换 -->
 		<view class="month-bar">
-			<view class="month-arrow" @tap="prevMonth"><u-icon name="arrow-left" color="#333" size="16"></u-icon></view>
+			<view class="month-arrow" @tap="prevMonth"><pc-icon name="arrow-left" color="#333" size="16"></pc-icon></view>
 			<text class="month-text">{{ year }}年{{ month }}月</text>
-			<view class="month-arrow" @tap="nextMonth"><u-icon name="arrow-right" color="#333" size="16"></u-icon></view>
+			<view class="month-arrow" @tap="nextMonth"><pc-icon name="arrow-right" color="#333" size="16"></pc-icon></view>
 		</view>
 
 		<!-- 星期头 -->

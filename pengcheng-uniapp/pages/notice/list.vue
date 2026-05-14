@@ -10,7 +10,7 @@
 			@scrolltolower="loadMore">
 
 			<view class="empty" v-if="!loading && list.length === 0">
-				<u-icon name="bell" color="#D0D0D0" size="56"></u-icon>
+				<pc-icon name="bell" color="#D0D0D0" size="56"></pc-icon>
 				<text class="empty-text">暂无系统通知</text>
 			</view>
 
@@ -20,7 +20,7 @@
 					<text class="title" :class="{ read: !isUnread(n) }">{{ n.title || '系统通知' }}</text>
 					<text class="time">{{ formatTime(n.createTime || n.publishTime) }}</text>
 				</view>
-				<u-icon name="arrow-right" color="#CCC" size="14"></u-icon>
+				<pc-icon name="arrow-right" color="#CCC" size="14"></pc-icon>
 			</view>
 
 			<view class="footer" v-if="list.length > 0">

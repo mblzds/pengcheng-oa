@@ -2,7 +2,7 @@
 	<view class="page">
 		<!-- 提示信息 -->
 		<view class="tip-bar">
-			<u-icon name="info-circle" color="#1890FF" size="15"></u-icon>
+			<pc-icon name="info-circle" color="#1890FF" size="15"></pc-icon>
 			<text class="tip-text">为了账号安全，请设置一个不易被猜到的密码</text>
 		</view>
 
@@ -20,7 +20,7 @@
 						maxlength="32"
 					/>
 					<view class="eye-btn" @tap="showOld = !showOld">
-						<u-icon :name="showOld ? 'eye' : 'eye-off'" color="#999" size="18"></u-icon>
+						<pc-icon :name="showOld ? 'eye' : 'eye-off'" color="#999" size="18"></pc-icon>
 					</view>
 				</view>
 			</view>
@@ -37,7 +37,7 @@
 						maxlength="32"
 					/>
 					<view class="eye-btn" @tap="showNew = !showNew">
-						<u-icon :name="showNew ? 'eye' : 'eye-off'" color="#999" size="18"></u-icon>
+						<pc-icon :name="showNew ? 'eye' : 'eye-off'" color="#999" size="18"></pc-icon>
 					</view>
 				</view>
 			</view>
@@ -54,7 +54,7 @@
 						maxlength="32"
 					/>
 					<view class="eye-btn" @tap="showConfirm = !showConfirm">
-						<u-icon :name="showConfirm ? 'eye' : 'eye-off'" color="#999" size="18"></u-icon>
+						<pc-icon :name="showConfirm ? 'eye' : 'eye-off'" color="#999" size="18"></pc-icon>
 					</view>
 				</view>
 			</view>

@@ -9,7 +9,7 @@
 					<picker :range="projectList" range-key="projectName" @change="onProjectChange">
 						<view class="picker-value">
 							<text :class="{ placeholder: !form.projectIds.length }">{{ selectedProjectName || '请选择项目' }}</text>
-							<u-icon name="arrow-right" color="#CCC" size="14"></u-icon>
+							<pc-icon name="arrow-right" color="#CCC" size="14"></pc-icon>
 						</view>
 					</picker>
 				</view>
@@ -29,7 +29,7 @@
 					<text class="form-label">带看时间 <text class="required">*</text></text>
 					<view class="picker-value">
 						<text :class="{ placeholder: !form.visitTime }">{{ form.visitTime || '请选择日期时间' }}</text>
-						<u-icon name="arrow-right" color="#CCC" size="14"></u-icon>
+						<pc-icon name="arrow-right" color="#CCC" size="14"></pc-icon>
 					</view>
 				</view>
 				<view class="form-item">
@@ -39,7 +39,7 @@
 					<picker :range="allianceList" range-key="companyName" @change="onAllianceChange">
 						<view class="picker-value">
 							<text :class="{ placeholder: !form.allianceId }">{{ selectedAllianceName || '请选择联盟商' }}</text>
-							<u-icon name="arrow-right" color="#CCC" size="14"></u-icon>
+							<pc-icon name="arrow-right" color="#CCC" size="14"></pc-icon>
 						</view>
 					</picker>
 				</view>

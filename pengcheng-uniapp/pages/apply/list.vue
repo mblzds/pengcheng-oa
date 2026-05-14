@@ -55,7 +55,7 @@
 			<view class="load-tip" v-if="loading"><text>加载中...</text></view>
 			<view class="load-tip" v-else-if="noMore && list.length > 0"><text>没有更多了</text></view>
 			<view class="empty-state" v-if="!loading && list.length === 0">
-				<u-icon name="order" color="#D0D0D0" size="56"></u-icon>
+				<pc-icon name="order" color="#D0D0D0" size="56"></pc-icon>
 				<text class="empty-text">暂无记录</text>
 			</view>
 		</scroll-view>
@@ -89,7 +89,7 @@
 		<!-- 新建申请按钮 -->
 		<view class="fab-wrap">
 			<view class="fab-btn" @tap="showApplyMenu = !showApplyMenu">
-				<u-icon name="plus" color="#FFF" size="24"></u-icon>
+				<pc-icon name="plus" color="#FFF" size="24"></pc-icon>
 			</view>
 			<view class="fab-menu" v-if="showApplyMenu">
 				<view class="fab-menu-item" @tap="goApply('/pages/apply/leave')">请假</view>

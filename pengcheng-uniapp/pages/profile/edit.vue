@@ -6,7 +6,7 @@
 				<text class="cell-label">头像</text>
 				<view class="cell-right">
 					<image class="avatar-img" :src="resolveAvatar(form.avatar)" mode="aspectFill"></image>
-					<u-icon name="arrow-right" color="#CCCCCC" size="14"></u-icon>
+					<pc-icon name="arrow-right" color="#CCCCCC" size="14"></pc-icon>
 				</view>
 			</view>
 		</view>
@@ -17,28 +17,28 @@
 				<text class="cell-label">昵称</text>
 				<view class="cell-right">
 					<text class="cell-value">{{ form.nickname || '未设置' }}</text>
-					<u-icon name="arrow-right" color="#CCCCCC" size="14"></u-icon>
+					<pc-icon name="arrow-right" color="#CCCCCC" size="14"></pc-icon>
 				</view>
 			</view>
 			<view class="cell" @tap="showGenderPicker">
 				<text class="cell-label">性别</text>
 				<view class="cell-right">
 					<text class="cell-value">{{ genderText }}</text>
-					<u-icon name="arrow-right" color="#CCCCCC" size="14"></u-icon>
+					<pc-icon name="arrow-right" color="#CCCCCC" size="14"></pc-icon>
 				</view>
 			</view>
 			<view class="cell" @tap="editPhone">
 				<text class="cell-label">手机号</text>
 				<view class="cell-right">
 					<text class="cell-value">{{ form.phone || '未设置' }}</text>
-					<u-icon name="arrow-right" color="#CCCCCC" size="14"></u-icon>
+					<pc-icon name="arrow-right" color="#CCCCCC" size="14"></pc-icon>
 				</view>
 			</view>
 			<view class="cell" @tap="editEmail">
 				<text class="cell-label">邮箱</text>
 				<view class="cell-right">
 					<text class="cell-value">{{ form.email || '未设置' }}</text>
-					<u-icon name="arrow-right" color="#CCCCCC" size="14"></u-icon>
+					<pc-icon name="arrow-right" color="#CCCCCC" size="14"></pc-icon>
 				</view>
 			</view>
 		</view>

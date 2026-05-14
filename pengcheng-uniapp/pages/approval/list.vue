@@ -30,12 +30,12 @@
 					<text class="item-desc">{{ item.applicantName }} · {{ formatDateTime(item.applyTime) }}</text>
 				</view>
 				<view class="item-right">
-					<u-icon name="arrow-right" color="#CCC" size="14"></u-icon>
+					<pc-icon name="arrow-right" color="#CCC" size="14"></pc-icon>
 				</view>
 			</view>
 
 			<view class="empty-state" v-if="!loading && filteredList.length === 0">
-				<u-icon name="checkbox-mark" color="#D0D0D0" size="56"></u-icon>
+				<pc-icon name="checkbox-mark" color="#D0D0D0" size="56"></pc-icon>
 				<text class="empty-text">暂无待审批事项</text>
 			</view>
 		</scroll-view>

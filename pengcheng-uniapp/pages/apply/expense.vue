@@ -7,7 +7,7 @@
 					<picker :range="expenseTypes" range-key="label" @change="onExpenseTypeChange">
 						<view class="picker-value">
 							<text :class="{ placeholder: !form.expenseTypeLabel }">{{ form.expenseTypeLabel || '请选择报销类型' }}</text>
-							<u-icon name="arrow-right" color="#CCC" size="14"></u-icon>
+							<pc-icon name="arrow-right" color="#CCC" size="14"></pc-icon>
 						</view>
 					</picker>
 				</view>
@@ -19,7 +19,7 @@
 					<text class="form-label">发生时间 <text class="required">*</text></text>
 					<view class="picker-value">
 						<text :class="{ placeholder: !form.occurTime }">{{ form.occurTime || '请选择发生时间' }}</text>
-						<u-icon name="arrow-right" color="#CCC" size="14"></u-icon>
+						<pc-icon name="arrow-right" color="#CCC" size="14"></pc-icon>
 					</view>
 				</view>
 				<view class="form-item">
@@ -31,10 +31,10 @@
 					<view class="image-list">
 						<view class="image-item" v-for="(img, i) in attachments" :key="i">
 							<image :src="resolveImg(img)" mode="aspectFill" class="att-image"></image>
-							<view class="image-del" @tap="removeImage(i)"><u-icon name="close" color="#FFF" size="10"></u-icon></view>
+							<view class="image-del" @tap="removeImage(i)"><pc-icon name="close" color="#FFF" size="10"></pc-icon></view>
 						</view>
 						<view class="image-add" @tap="chooseImage" v-if="attachments.length < 9">
-							<u-icon name="plus" color="#CCC" size="24"></u-icon>
+							<pc-icon name="plus" color="#CCC" size="24"></pc-icon>
 						</view>
 					</view>
 				</view>

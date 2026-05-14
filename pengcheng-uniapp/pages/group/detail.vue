@@ -26,7 +26,7 @@
 					</view>
 					<view class="member-item add-member" @tap="handleAddMember" v-if="isOwnerOrAdmin">
 						<view class="add-member-icon">
-							<u-icon name="plus" color="#999" size="36"></u-icon>
+							<pc-icon name="plus" color="#999" size="36"></pc-icon>
 						</view>
 						<text class="member-name">添加</text>
 					</view>
@@ -37,12 +37,12 @@
 				<view class="setting-row" @tap="editGroupName">
 					<text class="setting-label">群名称</text>
 					<text class="setting-value">{{ group.name || '未命名群聊' }}</text>
-					<u-icon v-if="isOwnerOrAdmin" name="arrow-right" color="#CCC" size="14"></u-icon>
+					<pc-icon v-if="isOwnerOrAdmin" name="arrow-right" color="#CCC" size="14"></pc-icon>
 				</view>
 				<view class="setting-row" @tap="editAnnouncement">
 					<text class="setting-label">群公告</text>
 					<text class="setting-value" :class="{ placeholder: !group.announcement }">{{ group.announcement || '未设置' }}</text>
-					<u-icon v-if="isOwnerOrAdmin" name="arrow-right" color="#CCC" size="14"></u-icon>
+					<pc-icon v-if="isOwnerOrAdmin" name="arrow-right" color="#CCC" size="14"></pc-icon>
 				</view>
 				<view class="setting-row">
 					<text class="setting-label">群主</text>
@@ -55,21 +55,21 @@
 				<view class="setting-row" v-if="isOwner" @tap="openTransferOwner">
 					<text class="setting-label">转让群主</text>
 					<text class="setting-value placeholder">将群主转让给其他成员</text>
-					<u-icon name="arrow-right" color="#CCC" size="14"></u-icon>
+					<pc-icon name="arrow-right" color="#CCC" size="14"></pc-icon>
 				</view>
 			</view>
 
 			<view class="action-section">
 				<view class="action-item" @tap="handleClearHistory">
-					<u-icon name="trash" color="#666" size="32" style="margin-right: 12rpx;"></u-icon>
+					<pc-icon name="trash" color="#666" size="32" style="margin-right: 12rpx;"></pc-icon>
 					<text class="action-text">清空聊天记录</text>
 				</view>
 				<view class="action-item danger" v-if="!isOwner" @tap="handleQuitGroup">
-					<u-icon name="minus-circle" color="#FA5151" size="32" style="margin-right: 12rpx;"></u-icon>
+					<pc-icon name="minus-circle" color="#FA5151" size="32" style="margin-right: 12rpx;"></pc-icon>
 					<text class="action-text">退出群聊</text>
 				</view>
 				<view class="action-item danger" v-if="isOwner" @tap="handleDissolveGroup">
-					<u-icon name="close-circle" color="#FA5151" size="32" style="margin-right: 12rpx;"></u-icon>
+					<pc-icon name="close-circle" color="#FA5151" size="32" style="margin-right: 12rpx;"></pc-icon>
 					<text class="action-text">解散群聊</text>
 				</view>
 			</view>
@@ -88,7 +88,7 @@
 							<text class="popup-name">{{ m.userNickname || m.nickname || '成员' }}</text>
 						</view>
 						<text class="popup-role" v-if="m.role === 1">管理员</text>
-						<u-icon name="arrow-right" color="#CCC" size="14"></u-icon>
+						<pc-icon name="arrow-right" color="#CCC" size="14"></pc-icon>
 					</view>
 					<view v-if="transferableMembers.length === 0" class="popup-empty">
 						<text>暂无可转让的成员</text>
