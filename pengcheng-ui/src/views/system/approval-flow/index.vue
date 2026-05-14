@@ -377,8 +377,8 @@ async function loadRoleOptions() {
 }
 
 async function loadUserOptions() {
-  // 拉取前 9999 条用户作为可选项；超大用户量场景可改为远程搜索
-  const result = await userApi.page({ page: 1, pageSize: 9999 })
+  // 用通讯录接口（权限码 sys:chat:list），避免 HR / 部门经理等非 admin 角色进入审批流配置时被 sys:user:list 拦截
+  const result = await userApi.contactsPage({ page: 1, pageSize: 9999 })
   const list: SysUser[] = result?.list || []
   userOptions.value = list.map(u => ({
     label: `${u.nickname || u.username}（${u.username}）`,
