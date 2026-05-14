@@ -17,6 +17,12 @@ public interface SysUserService extends IService<SysUser> {
     PageResult<SysUser> page(Integer page, Integer pageSize, String username, Integer status, String userType, Long deptId, Long postId, Long roleId);
 
     /**
+     * 通讯录分页：全员可见、不走 @DataScope、返回精简字段（nickname/phone/email/dept/post），密码与角色等敏感字段一律置空。
+     * 对应权限码：sys:chat:list
+     */
+    PageResult<SysUser> pageForContacts(Integer page, Integer pageSize, String keyword, Long deptId);
+
+    /**
      * 获取用户详情（包含角色和岗位）
      */
     SysUser getDetail(Long id);

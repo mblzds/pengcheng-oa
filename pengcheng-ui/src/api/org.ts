@@ -22,6 +22,10 @@ export const deptApi = {
   tree(params?: { deptName?: string; status?: number; includeDisabled?: boolean }): Promise<SysDept[]> {
     return request({ url: '/sys/dept/tree', method: 'get', params })
   },
+  /** 通讯录用：权限码 sys:chat:list（普通员工可访问），仅启用部门 */
+  contactsTree(): Promise<SysDept[]> {
+    return request({ url: '/sys/dept/contacts-tree', method: 'get' })
+  },
   list(): Promise<SysDept[]> {
     return request({ url: '/sys/dept/list', method: 'get' })
   },

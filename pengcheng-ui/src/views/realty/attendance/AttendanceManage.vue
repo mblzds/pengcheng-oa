@@ -406,7 +406,8 @@ const summaryDeptOptions = ref<any[]>([])
 async function loadSummaryDeptOptions() {
   try {
     const { deptApi } = await import('@/api/system')
-    const tree = await deptApi.tree()
+    // 用通讯录用的部门树（权限码 sys:chat:list），避免普通员工进考勤页因 sys:dept:list 被拒
+    const tree = await deptApi.contactsTree()
     summaryDeptOptions.value = Array.isArray(tree) ? tree : []
   } catch {
     summaryDeptOptions.value = []

@@ -67,6 +67,11 @@ export const userApi = {
   options(params?: { deptId?: number }): Promise<UserOption[]> {
     return request({ url: '/sys/user/options', method: 'get', params })
   },
+
+  /** 通讯录分页：全员可见，权限码 sys:chat:list，不走数据权限拦截 */
+  contactsPage(params: { page: number; pageSize: number; keyword?: string; deptId?: number }): Promise<PageResult<SysUser>> {
+    return request({ url: '/sys/user/contacts-page', method: 'get', params })
+  },
   
   detail(id: number): Promise<UserDetailResult> {
     return request({ url: `/sys/user/${id}`, method: 'get' })
@@ -210,7 +215,12 @@ export const deptApi = {
   tree(): Promise<SysDept[]> {
     return request({ url: '/sys/dept/tree', method: 'get' })
   },
-  
+
+  /** 通讯录用：权限码 sys:chat:list（全员可访问），仅启用部门 */
+  contactsTree(): Promise<SysDept[]> {
+    return request({ url: '/sys/dept/contacts-tree', method: 'get' })
+  },
+
   list(): Promise<SysDept[]> {
     return request({ url: '/sys/dept/list', method: 'get' })
   }

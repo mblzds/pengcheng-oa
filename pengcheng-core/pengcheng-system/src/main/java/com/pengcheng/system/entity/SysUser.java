@@ -54,6 +54,8 @@ public class SysUser extends BaseEntity {
     /**
      * 昵称
      */
+    // 历史 DDL 列名是 nickname（无下划线），MyBatis-Plus 默认 camel→snake 会转出错误的 nick_name，必须显式标注
+    @TableField("nickname")
     private String nickname;
 
     /**

@@ -126,7 +126,7 @@ const pagination = reactive({
 // 加载部门树
 async function loadDeptTree() {
   try {
-    const res = await deptApi.tree()
+    const res = await deptApi.contactsTree()
     deptData.value = [{ id: 0, deptName: '全公司', children: res } as any]
     // 默认选中第一个
     if (res.length > 0) {
@@ -176,11 +176,11 @@ async function loadUsers() {
   loading.value = true
   try {
     const deptId = selectedDeptKeys.value[0] === 0 ? undefined : selectedDeptKeys.value[0]
-    const res = await userApi.page({
+    const res = await userApi.contactsPage({
       page: pagination.page,
       pageSize: pagination.pageSize,
       deptId: deptId,
-      username: userSearch.value || undefined
+      keyword: userSearch.value || undefined
     })
     userList.value = res.list
     pagination.itemCount = Number(res.total)

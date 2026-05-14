@@ -23,6 +23,15 @@ public class SysDeptController {
     private final SysDeptService deptService;
 
     /**
+     * 通讯录用部门树：权限码 sys:chat:list（普通员工可访问），仅返回启用部门。
+     */
+    @GetMapping("/contacts-tree")
+    @SaCheckPermission("sys:chat:list")
+    public Result<List<SysDept>> contactsTree() {
+        return Result.ok(deptService.tree(null, 1));
+    }
+
+    /**
      * 获取部门树
      */
     @GetMapping("/tree")

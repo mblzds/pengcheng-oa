@@ -11,6 +11,8 @@ import com.pengcheng.system.entity.SysPost;
 import com.pengcheng.system.entity.SysUser;
 import com.pengcheng.system.entity.SysUserPost;
 import com.pengcheng.system.entity.SysUserRole;
+import com.pengcheng.system.entity.SysDept;
+import com.pengcheng.system.mapper.SysDeptMapper;
 import com.pengcheng.system.mapper.SysMenuMapper;
 import com.pengcheng.system.mapper.SysUserMapper;
 import com.pengcheng.system.mapper.SysUserPostMapper;
@@ -39,6 +41,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     private final SysUserRoleMapper userRoleMapper;
     private final SysUserPostMapper userPostMapper;
     private final com.pengcheng.system.mapper.SysPostMapper postMapper;
+    private final SysDeptMapper deptMapper;
     private final SysMenuMapper menuMapper;
     private final SystemConfigHelper configHelper;
 
@@ -97,6 +100,46 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
                         .filter(java.util.Objects::nonNull)
                         .collect(Collectors.joining(","));
                 user.setPostNames(postNames);
+            }
+        });
+        return PageResult.of(result);
+    }
+
+    @Override
+    public PageResult<SysUser> pageForContacts(Integer page, Integer pageSize, String keyword, Long deptId) {
+        // 走 BaseMapper.selectPage，不触发 SysUserMapper.selectUserPage 的 @DataScope；通讯录全员可见
+        Page<SysUser> pageParam = new Page<>(page, pageSize);
+        LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(SysUser::getStatus, 1)
+                .ne(SysUser::getIsQuit, 1)  // 离职员工不出现在通讯录
+                .eq(deptId != null, SysUser::getDeptId, deptId);
+        if (StringUtils.hasText(keyword)) {
+            wrapper.and(w -> w.like(SysUser::getNickname, keyword)
+                    .or().like(SysUser::getUsername, keyword)
+                    .or().like(SysUser::getPhone, keyword));
+        }
+        wrapper.orderByAsc(SysUser::getDeptId).orderByAsc(SysUser::getId);
+        IPage<SysUser> result = this.page(pageParam, wrapper);
+
+        // 填充 deptName + postNames；清空敏感字段
+        List<SysPost> allPosts = postMapper.selectList(null);
+        Map<Long, String> postMap = allPosts.stream().collect(Collectors.toMap(SysPost::getId, SysPost::getPostName));
+        List<SysDept> allDepts = deptMapper.selectList(null);
+        Map<Long, String> deptNameMap = allDepts.stream().collect(Collectors.toMap(SysDept::getId, SysDept::getDeptName));
+
+        result.getRecords().forEach(u -> {
+            u.setPassword(null);
+            u.setOpenId(null);
+            if (u.getDeptId() != null) {
+                u.setDeptName(deptNameMap.get(u.getDeptId()));
+            }
+            List<Long> postIds = getPostIds(u.getId());
+            if (postIds != null && !postIds.isEmpty()) {
+                String postNames = postIds.stream()
+                        .map(postMap::get)
+                        .filter(java.util.Objects::nonNull)
+                        .collect(Collectors.joining(","));
+                u.setPostNames(postNames);
             }
         });
         return PageResult.of(result);

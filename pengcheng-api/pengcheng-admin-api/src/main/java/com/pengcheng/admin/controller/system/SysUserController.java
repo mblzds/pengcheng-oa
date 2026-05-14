@@ -56,6 +56,21 @@ public class SysUserController {
     }
 
     /**
+     * 通讯录分页：权限码 sys:chat:list（普通员工可访问），全员可见、不走 @DataScope。
+     * 仅返回在职启用状态的用户，敏感字段（password / openId）一律置空。
+     */
+    @Operation(summary = "通讯录分页", description = "通讯录页面专用，权限码 sys:chat:list，对全员可见，仅返回在职启用员工")
+    @GetMapping("/contacts-page")
+    @SaCheckPermission("sys:chat:list")
+    public Result<PageResult<SysUser>> contactsPage(
+            @Parameter(description = "页码", example = "1") @RequestParam(defaultValue = "1") Integer page,
+            @Parameter(description = "每页数量", example = "24") @RequestParam(defaultValue = "24") Integer pageSize,
+            @Parameter(description = "关键字（昵称/用户名/手机号）") @RequestParam(required = false) String keyword,
+            @Parameter(description = "部门 ID") @RequestParam(required = false) Long deptId) {
+        return Result.ok(userService.pageForContacts(page, pageSize, keyword, deptId));
+    }
+
+    /**
      * 用户下拉选项（用于部门负责人 / 任务指派等场景）
      * 仅返回启用状态的用户，字段精简到 id / username / nickname / deptId / deptName
      * 传 deptId 时仅返回该部门下成员（部门负责人选人场景）
