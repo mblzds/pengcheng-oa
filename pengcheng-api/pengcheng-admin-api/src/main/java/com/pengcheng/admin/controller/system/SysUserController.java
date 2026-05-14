@@ -66,8 +66,9 @@ public class SysUserController {
             @Parameter(description = "页码", example = "1") @RequestParam(defaultValue = "1") Integer page,
             @Parameter(description = "每页数量", example = "24") @RequestParam(defaultValue = "24") Integer pageSize,
             @Parameter(description = "关键字（昵称/用户名/手机号）") @RequestParam(required = false) String keyword,
-            @Parameter(description = "部门 ID") @RequestParam(required = false) Long deptId) {
-        return Result.ok(userService.pageForContacts(page, pageSize, keyword, deptId));
+            @Parameter(description = "部门 ID") @RequestParam(required = false) Long deptId,
+            @Parameter(description = "岗位 ID（用于「按岗位看挂载员工」场景）") @RequestParam(required = false) Long postId) {
+        return Result.ok(userService.pageForContacts(page, pageSize, keyword, deptId, postId));
     }
 
     /**

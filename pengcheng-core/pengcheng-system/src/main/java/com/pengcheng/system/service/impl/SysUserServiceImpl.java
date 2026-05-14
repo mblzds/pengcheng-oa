@@ -106,13 +106,21 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     }
 
     @Override
-    public PageResult<SysUser> pageForContacts(Integer page, Integer pageSize, String keyword, Long deptId) {
+    public PageResult<SysUser> pageForContacts(Integer page, Integer pageSize, String keyword, Long deptId, Long postId) {
         // 走 BaseMapper.selectPage，不触发 SysUserMapper.selectUserPage 的 @DataScope；通讯录全员可见
         Page<SysUser> pageParam = new Page<>(page, pageSize);
         LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(SysUser::getStatus, 1)
                 .ne(SysUser::getIsQuit, 1)  // 离职员工不出现在通讯录
                 .eq(deptId != null, SysUser::getDeptId, deptId);
+        if (postId != null) {
+            // 按岗位过滤：取 sys_user_post 里挂该岗位的 user_id 子集
+            List<Long> filterUserIds = userPostMapper.selectUserIdsByPostId(postId);
+            if (filterUserIds == null || filterUserIds.isEmpty()) {
+                return PageResult.empty();
+            }
+            wrapper.in(SysUser::getId, filterUserIds);
+        }
         if (StringUtils.hasText(keyword)) {
             wrapper.and(w -> w.like(SysUser::getNickname, keyword)
                     .or().like(SysUser::getUsername, keyword)

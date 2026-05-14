@@ -68,8 +68,8 @@ export const userApi = {
     return request({ url: '/sys/user/options', method: 'get', params })
   },
 
-  /** 通讯录分页：全员可见，权限码 sys:chat:list，不走数据权限拦截 */
-  contactsPage(params: { page: number; pageSize: number; keyword?: string; deptId?: number }): Promise<PageResult<SysUser>> {
+  /** 通讯录分页：全员可见，权限码 sys:chat:list，不走数据权限拦截；支持按部门/岗位筛选 */
+  contactsPage(params: { page: number; pageSize: number; keyword?: string; deptId?: number; postId?: number }): Promise<PageResult<SysUser>> {
     return request({ url: '/sys/user/contacts-page', method: 'get', params })
   },
   

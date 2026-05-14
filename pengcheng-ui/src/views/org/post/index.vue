@@ -263,10 +263,11 @@ const userColumns: DataTableColumns<SysUser> = [
 async function loadUserData() {
   userLoading.value = true
   try {
-    const res = await userApi.page({
+    // 用通讯录接口（权限码 sys:chat:list），HR 也能查岗位下挂的员工
+    const res = await userApi.contactsPage({
       page: pagination.page,
       pageSize: pagination.pageSize,
-      postId: selectedPostId.value
+      postId: selectedPostId.value ?? undefined
     })
     userData.value = res.list
     pagination.itemCount = res.total
