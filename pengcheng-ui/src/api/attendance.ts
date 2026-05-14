@@ -52,6 +52,7 @@ export interface LeaveRequestItem {
   reason?: string
   status?: number
   createTime?: string
+  currentNodeName?: string
 }
 
 export interface CompensateRequestItem {
@@ -64,6 +65,7 @@ export interface CompensateRequestItem {
   reason?: string
   status?: number
   createTime?: string
+  currentNodeName?: string
 }
 
 /** 考勤/请假/调休（公司级假勤，接口 /admin/attendance） */

@@ -577,6 +577,12 @@ const leaveColumns: DataTableColumns<LeaveRequestItem> = [
     key: 'status',
     width: 100,
     render: row => renderApprovalStatus(row.status)
+  },
+  {
+    title: '当前节点',
+    key: 'currentNodeName',
+    width: 120,
+    render: row => row.currentNodeName || '—'
   }
 ]
 
@@ -590,6 +596,12 @@ const compensateColumns: DataTableColumns<CompensateRequestItem> = [
     key: 'status',
     width: 100,
     render: row => renderApprovalStatus(row.status)
+  },
+  {
+    title: '当前节点',
+    key: 'currentNodeName',
+    width: 120,
+    render: row => row.currentNodeName || '—'
   }
 ]
 

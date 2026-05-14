@@ -4,7 +4,9 @@ import com.pengcheng.hr.approval.dto.ApprovalFlowNodeVO;
 import com.pengcheng.hr.approval.dto.ApprovalProgressVO;
 import com.pengcheng.hr.approval.entity.ApprovalRecordNode;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 审批流引擎服务
@@ -60,6 +62,13 @@ public interface ApprovalFlowService {
      * 已无待处理节点时返回 null。
      */
     ApprovalRecordNode getCurrentNode(String businessType, Long businessId);
+
+    /**
+     * 批量获取多个业务单的当前节点名（避免 N+1）。语义同 {@link #getCurrentNode}：
+     * 每个 businessId 取 result IS NULL 中 seq 最小者的 nodeName；终态业务单（已通过/驳回/撤销）
+     * 不会出现在返回 Map 中。
+     */
+    Map<Long, String> getCurrentNodeNames(String businessType, Collection<Long> businessIds);
 
     /**
      * 查询整条审批流转链（含已审批节点、当前节点、未来节点占位）。

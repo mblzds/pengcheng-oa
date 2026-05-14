@@ -30,6 +30,8 @@ public class CompensateRequest implements Serializable {
     private String employeeNo;
     @TableField(exist = false)
     private String deptName;
+    @TableField(exist = false)
+    private String currentNodeName;
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -51,6 +53,8 @@ public class CompensateRequest implements Serializable {
     public void setEmployeeNo(String employeeNo) { this.employeeNo = employeeNo; }
     public String getDeptName() { return deptName; }
     public void setDeptName(String deptName) { this.deptName = deptName; }
+    public String getCurrentNodeName() { return currentNodeName; }
+    public void setCurrentNodeName(String currentNodeName) { this.currentNodeName = currentNodeName; }
 
     public static Builder builder() { return new Builder(); }
     public static class Builder {

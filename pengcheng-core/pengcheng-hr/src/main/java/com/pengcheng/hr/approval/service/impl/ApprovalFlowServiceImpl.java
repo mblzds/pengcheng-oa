@@ -31,6 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -208,6 +209,24 @@ public class ApprovalFlowServiceImpl implements ApprovalFlowService {
                         .isNull(ApprovalRecordNode::getResult)
                         .orderByAsc(ApprovalRecordNode::getSeq)
                         .last("LIMIT 1"));
+    }
+
+    @Override
+    public Map<Long, String> getCurrentNodeNames(String businessType, Collection<Long> businessIds) {
+        if (businessIds == null || businessIds.isEmpty()) return Collections.emptyMap();
+        List<ApprovalRecordNode> nodes = recordNodeMapper.selectList(
+                new LambdaQueryWrapper<ApprovalRecordNode>()
+                        .eq(ApprovalRecordNode::getBusinessType, businessType)
+                        .in(ApprovalRecordNode::getBusinessId, businessIds)
+                        .isNull(ApprovalRecordNode::getResult)
+                        .orderByAsc(ApprovalRecordNode::getSeq));
+        // orderByAsc(seq) + toMap merger 取首个 → 每个 businessId 拿到 seq 最小（即当前）节点的 nodeName
+        return nodes.stream()
+                .filter(n -> n.getBusinessId() != null && n.getNodeName() != null)
+                .collect(Collectors.toMap(
+                        ApprovalRecordNode::getBusinessId,
+                        ApprovalRecordNode::getNodeName,
+                        (a, b) -> a));
     }
 
     @Override

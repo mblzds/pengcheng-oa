@@ -25,6 +25,8 @@ public class LeaveRequest extends BaseEntity {
     private String employeeNo;
     @TableField(exist = false)
     private String deptName;
+    @TableField(exist = false)
+    private String currentNodeName;
 
     public Long getUserId() { return userId; }
     public void setUserId(Long userId) { this.userId = userId; }
@@ -44,6 +46,8 @@ public class LeaveRequest extends BaseEntity {
     public void setEmployeeNo(String employeeNo) { this.employeeNo = employeeNo; }
     public String getDeptName() { return deptName; }
     public void setDeptName(String deptName) { this.deptName = deptName; }
+    public String getCurrentNodeName() { return currentNodeName; }
+    public void setCurrentNodeName(String currentNodeName) { this.currentNodeName = currentNodeName; }
 
     public static Builder builder() { return new Builder(); }
     public static class Builder {

@@ -80,6 +80,9 @@ class AttendanceServiceImplTest {
         when(systemConfigHelper.isAttendanceEnforceLocation()).thenReturn(false);
         when(systemConfigHelper.getAttendanceWorkStartTime()).thenReturn("09:00");
         when(systemConfigHelper.getAttendanceWorkEndTime()).thenReturn("18:00");
+        // listLeaveRequests / listCompensateRequests 会调它批量补 currentNodeName；测试默认无活跃节点
+        when(approvalFlowService.getCurrentNodeNames(org.mockito.ArgumentMatchers.anyString(), any()))
+                .thenReturn(java.util.Collections.emptyMap());
 
         service = new AttendanceServiceImpl(
                 attendanceRecordMapper,

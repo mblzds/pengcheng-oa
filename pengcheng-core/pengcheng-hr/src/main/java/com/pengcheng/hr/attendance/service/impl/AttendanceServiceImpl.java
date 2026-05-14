@@ -516,6 +516,8 @@ public class AttendanceServiceImpl implements AttendanceService {
             r.setEmployeeNo(info.employeeNo);
             r.setDeptName(info.deptName);
         });
+        enrichCurrentNodeName(list, ApprovalConstants.BUSINESS_TYPE_LEAVE,
+                LeaveRequest::getId, LeaveRequest::setCurrentNodeName);
         return list;
     }
 
@@ -541,7 +543,30 @@ public class AttendanceServiceImpl implements AttendanceService {
             r.setEmployeeNo(info.employeeNo);
             r.setDeptName(info.deptName);
         });
+        enrichCurrentNodeName(list, ApprovalConstants.BUSINESS_TYPE_COMPENSATE,
+                CompensateRequest::getId, CompensateRequest::setCurrentNodeName);
         return list;
+    }
+
+    /**
+     * 批量回填当前活跃节点名。终态业务单（已通过/驳回/撤销）无活跃节点，map 无对应 key，
+     * 此时 setter 写入 null，前端按需展示占位符。
+     */
+    private <T> void enrichCurrentNodeName(List<T> list,
+                                           String businessType,
+                                           Function<T, Long> idGetter,
+                                           BiConsumer<T, String> setter) {
+        if (list == null || list.isEmpty()) return;
+        List<Long> ids = list.stream()
+                .map(idGetter)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        if (ids.isEmpty()) return;
+        Map<Long, String> nodeNameMap = approvalFlowService.getCurrentNodeNames(businessType, ids);
+        for (T row : list) {
+            Long id = idGetter.apply(row);
+            if (id != null) setter.accept(row, nodeNameMap.get(id));
+        }
     }
 
     /**
