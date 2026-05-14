@@ -511,16 +511,25 @@ async function confirmAction() {
     return false
   }
   submitting.value = true
+  const actionLabel = actionApproved.value ? '通过' : '驳回'
   try {
     await approvalApi.approve(actionTarget.value.id, {
       type: actionTarget.value.type,
       approved: actionApproved.value,
       reason: actionForm.reason.trim() || undefined
     })
-    message.success(`${actionApproved.value ? '通过' : '驳回'}成功`)
+    message.success(`${actionLabel}成功`)
     actionVisible.value = false
     await loadList()
     return true
+  } catch (e: any) {
+    // 后端业务异常（如"该申请已完成审批，不可重复操作"）会被 axios 拦截器
+    // 包成 Error 抛上来，message 就是后端原始 message；明确告诉用户"为何失败"
+    const reason = e?.message && e.message !== '请求失败' ? e.message : '请稍后重试'
+    message.error(`${actionLabel}失败：${reason}`)
+    // 拉一次列表，避免用户继续操作已过期的单子
+    await loadList()
+    return false
   } finally {
     submitting.value = false
   }

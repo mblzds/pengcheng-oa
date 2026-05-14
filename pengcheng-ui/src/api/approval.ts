@@ -1,4 +1,4 @@
-import request from '@/utils/request'
+import { request } from '@/utils/request'
 
 export interface ApprovalFlowNodeVO {
   id?: number
@@ -139,6 +139,8 @@ export const approvalApi = {
   },
 
   approve(id: number, dto: ApproveDTO): Promise<void> {
-    return request({ url: `/admin/approval/${id}/approve`, method: 'post', data: dto })
+    // _silent：抑制全局通用错误 toast，由页面 catch 块自行展示更明确的提示
+    // （例如"该申请已完成审批，不可重复操作"等业务原因）
+    return request({ url: `/admin/approval/${id}/approve`, method: 'post', data: dto, _silent: true })
   }
 }
