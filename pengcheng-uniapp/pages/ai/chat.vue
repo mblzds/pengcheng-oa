@@ -266,7 +266,10 @@
 	/* 消息 */
 	.msg-item {
 		display: flex; align-items: flex-start; margin-bottom: 24rpx;
-		&.msg-user { flex-direction: row-reverse; }
+		/* 用户消息：整行右对齐（DOM 顺序保持 bubble 后接 avatar-user，
+		   于是视觉上 bubble 在左、头像在右，符合微信聊天习惯，
+		   并且不会因 row-reverse 让 bubble 撞屏幕边） */
+		&.msg-user { justify-content: flex-end; }
 	}
 	.msg-avatar { flex-shrink: 0; }
 	.avatar-ai {
