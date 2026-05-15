@@ -23,6 +23,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -117,6 +118,17 @@ public class AppAuthController {
         user.setAvatar(sysFile.getUrl());
         userService.updateById(user);
         return Result.ok(sysFile.getUrl());
+    }
+
+    /**
+     * 当前登录用户的角色 code 列表，供小程序前端做按角色显隐 UI。
+     * 例如 AI 助手页里的"营销文案生成 / 销售数据分析"等管理向功能，仅 admin 可见。
+     */
+    @SaCheckLogin
+    @GetMapping("/role-codes")
+    public Result<List<String>> getRoleCodes() {
+        Long userId = StpUtil.getLoginIdAsLong();
+        return Result.ok(userService.getRoleCodes(userId));
     }
 
     /**

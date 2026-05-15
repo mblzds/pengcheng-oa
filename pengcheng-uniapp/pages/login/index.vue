@@ -87,8 +87,8 @@
 </template>
 
 	<script>
-		import { wxLogin, sendSmsCode } from '../../utils/api.js'
-		import { setToken, setUserInfo } from '../../utils/auth.js'
+		import { wxLogin, sendSmsCode, getAppRoleCodes } from '../../utils/api.js'
+		import { setToken, setUserInfo, getUserInfo } from '../../utils/auth.js'
 		import wsClient from '../../utils/websocket.js'
 
 	export default {
@@ -105,14 +105,26 @@
 		},
 		onUnload() { if (this.codeTimer) clearInterval(this.codeTimer) },
 		methods: {
-			completeLogin(data) {
+			async completeLogin(data) {
 				setToken(data.token)
 				setUserInfo({
 					userId: data.userId,
 					username: data.nickname || data.username || '',
 					nickname: data.nickname || '',
-					avatar: data.avatar || ''
+					avatar: data.avatar || '',
+					roleCodes: []
 				})
+				// 顺手拉一次角色列表缓存，供前端按角色显隐 UI（如 AI 助手仅 admin 可见）
+				// 失败不阻塞登录流程，最差情况下管理员菜单暂时不显示，用户重新进页面会再拉
+				try {
+					const r = await getAppRoleCodes()
+					const codes = Array.isArray(r.data) ? r.data : []
+					const info = getUserInfo() || {}
+					info.roleCodes = codes
+					setUserInfo(info)
+				} catch (e) {
+					console.warn('拉取角色列表失败，按非管理员处理：', e)
+				}
 				wsClient.connect()
 				uni.showToast({ title: '登录成功', icon: 'success' })
 				setTimeout(() => { uni.switchTab({ url: '/pages/index/index' }) }, 500)

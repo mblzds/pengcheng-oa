@@ -1,7 +1,7 @@
 <template>
 	<view class="page">
-		<!-- 文案生成 -->
-		<view class="copywriting-panel">
+		<!-- 文案生成（仅 admin 角色可见） -->
+		<view v-if="isAdmin" class="copywriting-panel">
 			<view class="panel-title">营销文案生成</view>
 			<view class="panel-form">
 				<input class="panel-input" v-model="copyForm.projectId" type="number" placeholder="输入项目ID" />
@@ -32,7 +32,7 @@
 				</view>
 				<text class="welcome-title">AI 助手</text>
 				<text class="welcome-desc">我是您的房产销售智能助手，可以帮您：</text>
-				<view class="welcome-tags">
+				<view v-if="isAdmin" class="welcome-tags">
 					<view class="tag-item" @tap="quickAsk('帮我分析本月销售数据')">销售数据分析</view>
 					<view class="tag-item" @tap="quickAsk('帮我写一段楼盘营销文案')">营销文案生成</view>
 					<view class="tag-item" @tap="quickAsk('本月业绩排行是怎样的')">业绩排行查询</view>
@@ -92,7 +92,8 @@
 </template>
 
 <script>
-	import { aiChat, aiCopywriting } from '../../utils/api.js'
+	import { aiChat, aiCopywriting, getAppRoleCodes } from '../../utils/api.js'
+	import { getUserInfo, setUserInfo } from '../../utils/auth.js'
 
 	export default {
 		data() {
@@ -111,10 +112,32 @@
 					{ label: '短视频', value: 'video' }
 				],
 				copyLoading: false,
-				copyResult: ''
+				copyResult: '',
+				// 是否管理员（决定营销文案面板 + 快捷问题 tag 是否显示）
+				isAdmin: false
 			}
 		},
+		onLoad() {
+			this.refreshAdminFlag()
+		},
 		methods: {
+			async refreshAdminFlag() {
+				// 先按本地缓存兜底，避免每次进页面闪一下
+				const info = getUserInfo() || {}
+				if (Array.isArray(info.roleCodes)) {
+					this.isAdmin = info.roleCodes.includes('admin')
+				}
+				// 再异步刷一次，处理升降权 + 历史用户没缓存的情况
+				try {
+					const r = await getAppRoleCodes()
+					const codes = Array.isArray(r.data) ? r.data : []
+					this.isAdmin = codes.includes('admin')
+					info.roleCodes = codes
+					setUserInfo(info)
+				} catch (e) {
+					// 网络问题就维持本地缓存值
+				}
+			},
 			onCopyTypeChange(e) {
 				const item = this.copyTypes[e.detail.value]
 				if (!item) return

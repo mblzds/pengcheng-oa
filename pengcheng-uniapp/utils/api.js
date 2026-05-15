@@ -24,6 +24,9 @@ export const updateProfile = (data) => put('/api/auth/profile', data)
 /** App端获取个人资料 */
 export const getAppProfile = () => get('/api/app/auth/profile')
 
+/** App端获取当前用户角色 code 列表（用于前端按角色显隐 UI，如 AI 助手仅 admin 可见的功能） */
+export const getAppRoleCodes = () => get('/api/app/auth/role-codes')
+
 /** App端更新个人资料（头像、昵称、邮箱、手机、性别） */
 export const updateAppProfile = (data) => put('/api/app/auth/profile', data)
 
