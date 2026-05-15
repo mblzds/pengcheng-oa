@@ -278,7 +278,10 @@
 	}
 	.avatar-user {
 		width: 56rpx; height: 56rpx; border-radius: 50%; background: #1890FF;
-		display: flex; align-items: center; justify-content: center; margin-left: 16rpx;
+		display: flex; align-items: center; justify-content: center;
+		/* 左边距：和气泡之间留白；右边距：和屏幕右边缘留白（scroll-view 在 mp-weixin
+		   上对 chat-list 的 padding 兜底不稳，给头像加显式 margin-right 更可靠） */
+		margin-left: 16rpx; margin-right: 12rpx;
 		text { font-size: 24rpx; color: #FFF; font-weight: 600; }
 	}
 	.msg-bubble {
