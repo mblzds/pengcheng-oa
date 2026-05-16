@@ -64,9 +64,14 @@ public class CustomerService {
     private static final DateTimeFormatter REPORT_NO_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
     private static final AtomicLong REPORT_NO_SEQUENCE = new AtomicLong();
 
-    /** 中国大陆手机号正则（11 位、1 开头、第二位 3-9） */
+    /**
+     * 中国大陆手机号正则，兼容两种录入形式：
+     *  - 全号：11 位纯数字、1 开头、第二位 3-9
+     *  - 隐号：前 3 位 + ****（4 个星号） + 后 4 位，例如 138****5678
+     * 隐号场景下 phone 字段原样存储，phoneMasked 同样为该值（PhoneMaskUtil.mask 对其幂等）。
+     */
     private static final java.util.regex.Pattern CHINA_MOBILE_PATTERN =
-            java.util.regex.Pattern.compile("^1[3-9]\\d{9}$");
+            java.util.regex.Pattern.compile("^1[3-9](\\d{9}|\\d\\*{4}\\d{4})$");
 
     /**
      * 手机号加密器：LambdaQueryWrapper.eq() 不会触发 @TableField TypeHandler，

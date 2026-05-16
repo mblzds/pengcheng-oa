@@ -19,7 +19,23 @@
 				</view>
 				<view class="form-item">
 					<text class="form-label">联系方式 <text class="required">*</text></text>
-					<input class="form-input" v-model="form.phone" type="number" placeholder="请输入联系电话" maxlength="11" />
+					<view class="phone-mode">
+						<view class="mode-btn" :class="{ active: phoneMode === 'full' }" @tap="phoneMode = 'full'">
+							<text>全号</text>
+						</view>
+						<view class="mode-btn" :class="{ active: phoneMode === 'masked' }" @tap="phoneMode = 'masked'">
+							<text>隐号</text>
+						</view>
+					</view>
+					<input v-if="phoneMode === 'full'" class="form-input" v-model="form.phone"
+						type="number" placeholder="请输入 11 位手机号" maxlength="11" />
+					<view v-else class="masked-row">
+						<input class="form-input masked-part" v-model="phonePrefix"
+							type="number" placeholder="前3位" maxlength="3" />
+						<text class="masked-sep">****</text>
+						<input class="form-input masked-part" v-model="phoneSuffix"
+							type="number" placeholder="后4位" maxlength="4" />
+					</view>
 				</view>
 				<view class="form-item">
 					<text class="form-label">带看人数</text>
@@ -89,6 +105,10 @@
 					agentName: '',
 					agentPhone: ''
 				},
+				// 客户联系方式录入模式：full=全号 11 位，masked=隐号（前3位+****+后4位）
+				phoneMode: 'full',
+				phonePrefix: '',
+				phoneSuffix: '',
 				projectList: [],
 				allianceList: [],
 				projectKeyword: '',
@@ -148,11 +168,27 @@
 			onAllianceKeywordSearch() {
 				this.loadAlliances(this.allianceKeyword.trim())
 			},
+			// 根据当前模式拼出最终提交的 phone 字段；返回空串表示校验失败已弹 toast
+			resolvePhone() {
+				if (this.phoneMode === 'full') {
+					const phone = (this.form.phone || '').trim()
+					if (!phone) { uni.showToast({ title: '请输入联系方式', icon: 'none' }); return '' }
+					if (!/^1[3-9]\d{9}$/.test(phone)) { uni.showToast({ title: '手机号格式不正确', icon: 'none' }); return '' }
+					return phone
+				}
+				const prefix = (this.phonePrefix || '').trim()
+				const suffix = (this.phoneSuffix || '').trim()
+				if (!prefix || !suffix) { uni.showToast({ title: '请输入隐号前3位和后4位', icon: 'none' }); return '' }
+				if (!/^1[3-9]\d$/.test(prefix)) { uni.showToast({ title: '隐号前3位格式不正确', icon: 'none' }); return '' }
+				if (!/^\d{4}$/.test(suffix)) { uni.showToast({ title: '隐号后4位需为4位数字', icon: 'none' }); return '' }
+				return `${prefix}****${suffix}`
+			},
+
 			async handleSubmit() {
 				if (!this.form.projectIds.length) return uni.showToast({ title: '请选择带看项目', icon: 'none' })
 				if (!this.form.customerName.trim()) return uni.showToast({ title: '请输入客户姓氏', icon: 'none' })
-				if (!this.form.phone.trim()) return uni.showToast({ title: '请输入联系方式', icon: 'none' })
-				if (!/^1[3-9]\d{9}$/.test(this.form.phone.trim())) return uni.showToast({ title: '手机号格式不正确', icon: 'none' })
+				const phone = this.resolvePhone()
+				if (!phone) return
 				if (!this.form.visitTime) return uni.showToast({ title: '请选择带看时间', icon: 'none' })
 				if (!this.form.allianceId) return uni.showToast({ title: '请选择带看公司', icon: 'none' })
 				if (!this.form.agentName.trim()) return uni.showToast({ title: '请输入经纪人姓名', icon: 'none' })
@@ -163,7 +199,7 @@
 					const res = await reportCustomer({
 						projectIds: this.form.projectIds,
 						customerName: this.form.customerName.trim(),
-						phone: this.form.phone.trim(),
+						phone,
 						visitCount: Number(this.form.visitCount || 1),
 						visitTime: this.form.visitTime.replace(' ', 'T'),
 						allianceId: this.form.allianceId,
@@ -205,6 +241,19 @@
 		border: 1rpx solid #E8E8E8; border-radius: 8rpx; padding: 0 16rpx;
 	}
 	.form-search { margin-bottom: 12rpx; }
+	.phone-mode {
+		display: flex; gap: 12rpx; margin-bottom: 12rpx;
+		.mode-btn {
+			padding: 6rpx 20rpx; border: 1rpx solid #E8E8E8; border-radius: 999rpx;
+			font-size: 24rpx; color: #666; background: #FFF;
+			&.active { border-color: #07C160; color: #07C160; background: rgba(7, 193, 96, 0.08); }
+		}
+	}
+	.masked-row {
+		display: flex; align-items: center; gap: 12rpx;
+		.masked-part { flex: 1; text-align: center; }
+		.masked-sep { font-size: 28rpx; color: #999; letter-spacing: 2rpx; }
+	}
 	.picker-row { display: flex; gap: 16rpx; }
 	.picker-half { flex: 1; }
 	.picker-value-sm { padding: 0 12rpx; font-size: 26rpx; }
