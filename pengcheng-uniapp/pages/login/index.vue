@@ -25,37 +25,6 @@
 					</button>
 					<view class="bind-cancel" @tap="cancelBind"><text>取消</text></view>
 				</view>
-
-				<view class="divider-line" v-if="!needBindPhone">
-					<view class="line"></view>
-					<text class="divider-text">或</text>
-					<view class="line"></view>
-				</view>
-
-				<view class="toggle-login" v-if="!needBindPhone" @tap="showPhoneLogin = !showPhoneLogin">
-					<text>{{ showPhoneLogin ? '返回微信登录' : '手机号登录' }}</text>
-				</view>
-
-				<view class="phone-form" v-if="showPhoneLogin">
-					<view class="input-group">
-						<view class="input-wrap">
-							<pc-icon name="phone" color="#BBB" size="18" style="margin-right: 16rpx;"></pc-icon>
-							<input class="input-field" type="number" maxlength="11"
-								v-model="phone" placeholder="请输入手机号" placeholder-class="placeholder" />
-						</view>
-					</view>
-					<view class="input-group">
-						<view class="input-wrap">
-							<pc-icon name="lock" color="#BBB" size="18" style="margin-right: 16rpx;"></pc-icon>
-							<input class="input-field code-field" type="number" maxlength="6"
-								v-model="smsCode" placeholder="请输入验证码" placeholder-class="placeholder" />
-							<view class="code-btn" :class="{ 'code-disabled': codeCountdown > 0 }" @tap="handleSendCode">
-								<text>{{ codeCountdown > 0 ? `${codeCountdown}s` : '获取验证码' }}</text>
-							</view>
-						</view>
-					</view>
-					<button class="phone-login-btn" @tap="handlePhoneLogin" :loading="loading">登录</button>
-				</view>
 			</view>
 
 			<view class="agreement">
@@ -87,7 +56,7 @@
 </template>
 
 	<script>
-		import { wxLogin, sendSmsCode, getAppRoleCodes } from '../../utils/api.js'
+		import { wxLogin, getAppRoleCodes } from '../../utils/api.js'
 		import { setToken, setUserInfo, getUserInfo } from '../../utils/auth.js'
 		import wsClient from '../../utils/websocket.js'
 
@@ -95,15 +64,12 @@
 		data() {
 			return {
 				loading: false,
-				showPhoneLogin: false,
-				phone: '', smsCode: '', codeCountdown: 0, codeTimer: null,
 				// 微信登录返回 BIND_REQUIRED(4001) 时进入"授权手机号绑定"分支
 				needBindPhone: false,
 				// 隐私协议引导弹窗
 				showPrivacyModal: false
 			}
 		},
-		onUnload() { if (this.codeTimer) clearInterval(this.codeTimer) },
 		methods: {
 			async completeLogin(data) {
 				setToken(data.token)
@@ -240,38 +206,6 @@
 					})
 				}
 				// #endif
-			},
-
-			async handleSendCode() {
-				if (this.codeCountdown > 0) return
-				if (!this.phone || !/^1[3-9]\d{9}$/.test(this.phone)) {
-					uni.showToast({ title: '请输入正确的手机号', icon: 'none' }); return
-				}
-				try {
-					await sendSmsCode({ phone: this.phone })
-					uni.showToast({ title: '验证码已发送', icon: 'success' })
-					this.codeCountdown = 60
-					this.codeTimer = setInterval(() => {
-						this.codeCountdown--
-						if (this.codeCountdown <= 0) clearInterval(this.codeTimer)
-					}, 1000)
-				} catch (err) { console.error('发送验证码失败:', err) }
-			},
-
-			async handlePhoneLogin() {
-				if (this.loading) return
-				if (!this.phone || !/^1[3-9]\d{9}$/.test(this.phone)) {
-					uni.showToast({ title: '请输入正确的手机号', icon: 'none' }); return
-				}
-				if (!this.smsCode || this.smsCode.length < 4) {
-					uni.showToast({ title: '请输入验证码', icon: 'none' }); return
-				}
-				this.loading = true
-				try {
-					const res = await wxLogin({ phone: this.phone, smsCode: this.smsCode, loginType: 'SMS' })
-					this.completeLogin(res.data)
-				} catch (err) { console.error('登录失败:', err) }
-				finally { this.loading = false }
 			}
 		}
 	}
@@ -318,48 +252,12 @@
 		.bind-cancel { text-align: center; padding: 8rpx 0; text { font-size: 26rpx; color: #999; } }
 	}
 
-	.divider-line { display: flex; align-items: center; margin: 32rpx 0 20rpx; }
-	.divider-line .line { flex: 1; height: 1rpx; background: #EBEBEB; }
-	.divider-text { padding: 0 20rpx; font-size: 22rpx; color: #BBB; }
-
-	.toggle-login {
-		text-align: center; padding: 8rpx 0;
-		text { font-size: 26rpx; color: #07C160; }
-	}
-
-	.phone-form {
-		margin-top: 24rpx;
-		.input-group { margin-bottom: 20rpx; }
-		.input-wrap {
-			display: flex; align-items: center;
-			height: 84rpx; background: #F8F8F8; border-radius: 42rpx;
-			padding: 0 28rpx; border: 1rpx solid #EBEBEB;
-		}
-		.input-field { flex: 1; height: 84rpx; font-size: 28rpx; color: #333; }
-		.code-field { flex: 1; }
-		.code-btn {
-			padding: 0 20rpx; height: 52rpx; line-height: 52rpx;
-			border-left: 1rpx solid #E0E0E0; margin-left: 16rpx; padding-left: 20rpx;
-			text { font-size: 24rpx; color: #07C160; }
-		}
-		.code-disabled text { color: #BBB; }
-	}
-
-	.phone-login-btn {
-		height: 88rpx; background: linear-gradient(135deg, #06AD56, #07C160);
-		color: #FFF; font-size: 30rpx; font-weight: 500;
-		border-radius: 44rpx; border: none; margin-top: 8rpx;
-	}
-	.phone-login-btn::after { border: none; }
-
 	.agreement {
 		display: flex; align-items: center; justify-content: center;
 		flex-wrap: wrap; padding: 32rpx 0;
 		.agree-text { font-size: 22rpx; color: #BBB; }
 		.agree-link { font-size: 22rpx; color: #07C160; }
 	}
-
-	.placeholder { color: #CCC; }
 
 	.privacy-mask {
 		position: fixed; inset: 0; background: rgba(0,0,0,0.5);
