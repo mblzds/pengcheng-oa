@@ -20,20 +20,6 @@
 					<pc-icon name="arrow-right" color="#CCCCCC" size="14"></pc-icon>
 				</view>
 			</view>
-			<view class="cell" @tap="showGenderPicker">
-				<text class="cell-label">性别</text>
-				<view class="cell-right">
-					<text class="cell-value">{{ genderText }}</text>
-					<pc-icon name="arrow-right" color="#CCCCCC" size="14"></pc-icon>
-				</view>
-			</view>
-			<view class="cell" @tap="editPhone">
-				<text class="cell-label">手机号</text>
-				<view class="cell-right">
-					<text class="cell-value">{{ form.phone || '未设置' }}</text>
-					<pc-icon name="arrow-right" color="#CCCCCC" size="14"></pc-icon>
-				</view>
-			</view>
 			<view class="cell" @tap="editEmail">
 				<text class="cell-label">邮箱</text>
 				<view class="cell-right">
@@ -57,17 +43,16 @@
 					<text class="cell-value cell-readonly">{{ form.username || '--' }}</text>
 				</view>
 			</view>
-		</view>
-
-		<!-- 性别选择弹窗（u-action-sheet 在 mp-weixin 体验版 :show 失灵，改自写 fixed 弹层） -->
-		<view v-if="genderSheetVisible" class="custom-popup-mask" @tap="genderSheetVisible = false"></view>
-		<view v-if="genderSheetVisible" class="custom-popup-sheet">
-			<view class="action-sheet" @tap.stop>
-				<view class="action-item" v-for="item in genderActions" :key="item.value" @tap="onGenderSelect(item)">
-					<text>{{ item.name }}</text>
+			<view class="cell">
+				<text class="cell-label">性别</text>
+				<view class="cell-right">
+					<text class="cell-value cell-readonly">{{ genderText }}</text>
 				</view>
-				<view class="action-cancel" @tap="genderSheetVisible = false">
-					<text>取消</text>
+			</view>
+			<view class="cell">
+				<text class="cell-label">手机号</text>
+				<view class="cell-right">
+					<text class="cell-value cell-readonly">{{ form.phone || '--' }}</text>
 				</view>
 			</view>
 		</view>
@@ -91,13 +76,7 @@
 					gender: 0,
 					phone: '',
 					email: ''
-				},
-				genderSheetVisible: false,
-				genderActions: [
-					{ name: '男', value: 1 },
-					{ name: '女', value: 2 },
-					{ name: '保密', value: 0 }
-				]
+				}
 			}
 		},
 		computed: {
@@ -179,36 +158,6 @@
 				})
 			},
 
-			showGenderPicker() {
-				this.genderSheetVisible = true
-			},
-
-			async onGenderSelect(item) {
-				this.genderSheetVisible = false
-				await this.saveField({ gender: item.value })
-				this.form.gender = item.value
-			},
-
-			editPhone() {
-				uni.showModal({
-					title: '修改手机号',
-					editable: true,
-					placeholderText: '请输入手机号',
-					content: this.form.phone || '',
-					success: async (res) => {
-						if (res.confirm && res.content) {
-							const phone = res.content.trim()
-							if (phone && !/^1[3-9]\d{9}$/.test(phone)) {
-								uni.showToast({ title: '请输入正确的手机号', icon: 'none' })
-								return
-							}
-							await this.saveField({ phone })
-							this.form.phone = phone
-						}
-					}
-				})
-			},
-
 			editEmail() {
 				uni.showModal({
 					title: '修改邮箱',
@@ -250,30 +199,6 @@
 		min-height: 100vh; min-height: 100dvh;
 		background: #F0F0F0;
 		padding-top: 20rpx;
-	}
-
-	/* 自写底部弹层（替代 u-action-sheet / u-popup，绕开 mp-weixin :show 失灵） */
-	.custom-popup-mask {
-		position: fixed; left: 0; right: 0; top: 0; bottom: 0;
-		background: rgba(0, 0, 0, 0.5); z-index: 998;
-	}
-	.custom-popup-sheet {
-		position: fixed; left: 0; right: 0; bottom: 0;
-		background: #F5F5F5; border-top-left-radius: 24rpx; border-top-right-radius: 24rpx;
-		z-index: 999; padding-bottom: env(safe-area-inset-bottom);
-	}
-	.action-sheet { padding: 0; }
-	.action-item {
-		height: 100rpx; line-height: 100rpx; text-align: center;
-		font-size: 32rpx; color: #1A1A1A; background: #FFF;
-		border-bottom: 1rpx solid #F2F2F2;
-		&:active { background: #F7F7F7; }
-	}
-	.action-cancel {
-		height: 100rpx; line-height: 100rpx; text-align: center;
-		font-size: 32rpx; color: #666; background: #FFF;
-		margin-top: 12rpx;
-		&:active { background: #F7F7F7; }
 	}
 
 	.section {
