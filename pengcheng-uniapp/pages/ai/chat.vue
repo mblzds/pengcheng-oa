@@ -4,7 +4,11 @@
 		<view v-if="isAdmin" class="copywriting-panel">
 			<view class="panel-title">营销文案生成</view>
 			<view class="panel-form">
-				<input class="panel-input" v-model="copyForm.projectId" type="number" placeholder="输入项目ID" />
+				<picker :range="projectList" range-key="projectName" @change="onProjectChange">
+					<view class="panel-picker panel-picker-project">
+						<text :class="{ placeholder: !copyForm.projectId }">{{ copyForm.projectName || '选择项目' }}</text>
+					</view>
+				</picker>
 				<picker :range="copyTypes" range-key="label" @change="onCopyTypeChange">
 					<view class="panel-picker">
 						<text>{{ copyForm.typeLabel || '选择文案类型' }}</text>
@@ -92,7 +96,7 @@
 </template>
 
 <script>
-	import { aiChat, aiCopywriting, getAppRoleCodes } from '../../utils/api.js'
+	import { aiChat, aiCopywriting, getAppRoleCodes, searchCustomerProjects } from '../../utils/api.js'
 	import { getUserInfo, setUserInfo } from '../../utils/auth.js'
 
 	export default {
@@ -105,7 +109,8 @@
 				lastInput: '',
 				conversationId: '',
 				scrollToId: '',
-				copyForm: { projectId: '', type: '', typeLabel: '' },
+				copyForm: { projectId: '', projectName: '', type: '', typeLabel: '' },
+				projectList: [],
 				copyTypes: [
 					{ label: '通用', value: 'general' },
 					{ label: '朋友圈', value: 'moments' },
@@ -127,6 +132,7 @@
 				if (Array.isArray(info.roleCodes)) {
 					this.isAdmin = info.roleCodes.includes('admin')
 				}
+				if (this.isAdmin && !this.projectList.length) this.loadProjects()
 				// 再异步刷一次，处理升降权 + 历史用户没缓存的情况
 				try {
 					const r = await getAppRoleCodes()
@@ -134,9 +140,24 @@
 					this.isAdmin = codes.includes('admin')
 					info.roleCodes = codes
 					setUserInfo(info)
+					if (this.isAdmin && !this.projectList.length) this.loadProjects()
 				} catch (e) {
 					// 网络问题就维持本地缓存值
 				}
+			},
+			async loadProjects() {
+				try {
+					const res = await searchCustomerProjects('')
+					this.projectList = Array.isArray(res.data) ? res.data : []
+				} catch (e) {
+					this.projectList = []
+				}
+			},
+			onProjectChange(e) {
+				const item = this.projectList[e.detail.value]
+				if (!item) return
+				this.copyForm.projectId = item.id
+				this.copyForm.projectName = item.projectName
 			},
 			onCopyTypeChange(e) {
 				const item = this.copyTypes[e.detail.value]
@@ -146,7 +167,7 @@
 			},
 			async generateCopywriting() {
 				if (!this.copyForm.projectId) {
-					return uni.showToast({ title: '请输入项目ID', icon: 'none' })
+					return uni.showToast({ title: '请选择项目', icon: 'none' })
 				}
 				this.copyLoading = true
 				try {
@@ -222,14 +243,13 @@
 	}
 	.panel-title { font-size: 26rpx; color: #333; font-weight: 600; margin-bottom: 12rpx; }
 	.panel-form { display: flex; gap: 12rpx; align-items: center; }
-	.panel-input {
-		flex: 1; height: 64rpx; border: 1rpx solid #E8E8E8; border-radius: 8rpx;
-		padding: 0 16rpx; font-size: 24rpx; background: #FAFAFA;
-	}
 	.panel-picker {
 		height: 64rpx; padding: 0 16rpx; border: 1rpx solid #E8E8E8; border-radius: 8rpx;
 		display: flex; align-items: center; font-size: 24rpx; color: #666; background: #FAFAFA;
+		text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+		.placeholder { color: #999; }
 	}
+	.panel-picker-project { flex: 1; min-width: 0; }
 	.panel-btn {
 		height: 64rpx; line-height: 64rpx; padding: 0 20rpx; font-size: 24rpx;
 		background: #07C160; color: #FFF; border-radius: 8rpx; border: none;
