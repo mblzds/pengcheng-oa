@@ -155,7 +155,33 @@
           <n-input v-model:value="createForm.customerName" placeholder="请输入客户姓氏" />
         </n-form-item>
         <n-form-item label="联系方式" path="phone">
-          <n-input v-model:value="createForm.phone" placeholder="请输入手机号" />
+          <n-space vertical :size="8" style="width: 100%">
+            <n-radio-group v-model:value="createForm.phoneMode">
+              <n-radio value="full">全号</n-radio>
+              <n-radio value="masked">隐号</n-radio>
+            </n-radio-group>
+            <n-input
+              v-if="createForm.phoneMode === 'full'"
+              v-model:value="createForm.phone"
+              placeholder="请输入 11 位手机号"
+              :maxlength="11"
+            />
+            <n-space v-else align="center" :wrap="false" :size="8" style="width: 100%">
+              <n-input
+                v-model:value="createForm.phonePrefix"
+                placeholder="前3位"
+                :maxlength="3"
+                style="width: 120px"
+              />
+              <span style="color: #999; letter-spacing: 2px">****</span>
+              <n-input
+                v-model:value="createForm.phoneSuffix"
+                placeholder="后4位"
+                :maxlength="4"
+                style="width: 120px"
+              />
+            </n-space>
+          </n-space>
         </n-form-item>
         <n-form-item label="带看人数" path="visitCount">
           <n-input-number v-model:value="createForm.visitCount" :min="1" style="width: 100%" />
@@ -286,6 +312,10 @@ const createForm = reactive<{
   projectIds: number[]
   customerName: string
   phone: string
+  /** 联系方式录入模式：full=全号 11 位；masked=隐号（前3+****+后4），提交前拼接到 phone 字段 */
+  phoneMode: 'full' | 'masked'
+  phonePrefix: string
+  phoneSuffix: string
   visitCount: number | null
   /** 带看时间模式：sameAsReport=与报备时间一致（提交时 visitTime 不传，后端用 createTime 兜底）；custom=用户指定 */
   visitTimeMode: 'sameAsReport' | 'custom'
@@ -298,6 +328,9 @@ const createForm = reactive<{
   projectIds: [],
   customerName: '',
   phone: '',
+  phoneMode: 'full',
+  phonePrefix: '',
+  phoneSuffix: '',
   visitCount: 1,
   visitTimeMode: 'sameAsReport',
   visitTime: null,
@@ -309,7 +342,7 @@ const createForm = reactive<{
 const createRules: FormRules = {
   projectIds: [{ required: true, type: 'array', min: 1, message: '请选择带看项目', trigger: 'change' }],
   customerName: [{ required: true, message: '请输入客户姓氏', trigger: 'blur' }],
-  phone: [{ required: true, message: '请输入联系方式', trigger: 'blur' }],
+  // phone 字段在 handleCreateSubmit 里按模式手动拼接+校验，所以这里只挂占位规则
   visitCount: [{ required: true, type: 'number', message: '请输入带看人数', trigger: 'change' }],
   allianceId: [{ required: true, type: 'number', message: '请选择带看公司', trigger: 'change' }],
   agentName: [{ required: true, message: '请输入经纪人姓名', trigger: 'blur' }],
@@ -567,6 +600,9 @@ function resetCreateForm() {
   createForm.projectIds = []
   createForm.customerName = ''
   createForm.phone = ''
+  createForm.phoneMode = 'full'
+  createForm.phonePrefix = ''
+  createForm.phoneSuffix = ''
   createForm.visitCount = 1
   createForm.visitTimeMode = 'sameAsReport'
   createForm.visitTime = null
@@ -575,12 +611,50 @@ function resetCreateForm() {
   createForm.agentPhone = ''
 }
 
+/**
+ * 按当前模式拼出并校验联系方式，成功返回最终 phone 字符串；
+ * 失败时弹 message.warning 提示并返回 null。
+ */
+function resolvePhone(): string | null {
+  if (createForm.phoneMode === 'full') {
+    const phone = (createForm.phone || '').trim()
+    if (!phone) {
+      message.warning('请输入联系方式')
+      return null
+    }
+    if (!/^1[3-9]\d{9}$/.test(phone)) {
+      message.warning('手机号格式不正确')
+      return null
+    }
+    return phone
+  }
+  const prefix = (createForm.phonePrefix || '').trim()
+  const suffix = (createForm.phoneSuffix || '').trim()
+  if (!prefix || !suffix) {
+    message.warning('请输入隐号前3位和后4位')
+    return null
+  }
+  if (!/^1[3-9]\d$/.test(prefix)) {
+    message.warning('隐号前3位格式不正确')
+    return null
+  }
+  if (!/^\d{4}$/.test(suffix)) {
+    message.warning('隐号后4位需为4位数字')
+    return null
+  }
+  return `${prefix}****${suffix}`
+}
+
 function openCreateModal() {
   resetCreateForm()
   createVisible.value = true
 }
 
 async function handleCreateSubmit() {
+  // 先按模式拼联系方式：失败已弹 toast，不再走表单校验
+  const phone = resolvePhone()
+  if (!phone) return
+
   await createFormRef.value?.validate()
 
   if (!createForm.visitCount || !createForm.allianceId) {
@@ -595,7 +669,7 @@ async function handleCreateSubmit() {
   const payload: CustomerCreateParams = {
     projectIds: createForm.projectIds,
     customerName: createForm.customerName,
-    phone: createForm.phone,
+    phone,
     visitCount: createForm.visitCount,
     // sameAsReport → 不传 visitTime，后端用 createTime 兜底，确保两者严格相等
     visitTime: createForm.visitTimeMode === 'custom' && createForm.visitTime
