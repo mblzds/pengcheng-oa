@@ -3,6 +3,14 @@ spring:
     name: MasterLife
   profiles:
     active: dev
+  servlet:
+    multipart:
+      # 文件上传大小限制：覆盖 Spring 默认的 1MB（默认值在不同手机相机拍照场景下会触发
+      # "Maximum upload size exceeded"——iPhone/华为高像素相机即便走小程序压缩后仍可能 3-8MB）。
+      # nginx 侧 client_max_body_size = 100MB，这里取 20MB 平衡安全与体验。
+      max-file-size: 20MB
+      max-request-size: 20MB
+      enabled: true
 
 # Knife4j / OpenAPI 配置
 springdoc:
