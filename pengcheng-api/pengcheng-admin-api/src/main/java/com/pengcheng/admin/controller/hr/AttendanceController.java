@@ -1,11 +1,13 @@
 package com.pengcheng.admin.controller.hr;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.pengcheng.common.result.Result;
 import com.pengcheng.hr.attendance.dto.*;
 import com.pengcheng.hr.attendance.entity.AttendanceRecord;
 import com.pengcheng.hr.attendance.entity.CompensateRequest;
 import com.pengcheng.hr.attendance.entity.LeaveRequest;
+import com.pengcheng.hr.attendance.entity.SignInRecord;
 import com.pengcheng.hr.attendance.service.AttendanceService;
 import com.pengcheng.system.annotation.Log;
 import com.pengcheng.system.annotation.Log.BusinessType;
@@ -116,6 +118,26 @@ public class AttendanceController {
         Long effectiveUserId = resolveQueryUserId(userId);
         Set<Long> allowed = effectiveUserId == null ? scopeHelper.visibleUserIds() : null;
         return Result.ok(attendanceService.listCompensateRequests(effectiveUserId, allowed, status));
+    }
+
+    /**
+     * 签到记录分页列表（管理后台「签到记录」页用）。
+     * 权限继承「考勤打卡」：直接复用 realty:attendance:list，无需独立权限码 ——
+     * 谁能进考勤管理，谁就能看签到记录。
+     * 数据权限走 scopeHelper：HR/管理员全员、主管本部门下钻、员工仅自己。
+     * 返回 IPage 序列化后含 records/total/current/size 字段，前端表格直接消费。
+     */
+    @GetMapping("/sign-in/list")
+    @SaCheckPermission("realty:attendance:list")
+    public Result<IPage<SignInRecord>> signInList(
+            @RequestParam(required = false) Long userId,
+            @RequestParam(required = false) LocalDate startDate,
+            @RequestParam(required = false) LocalDate endDate,
+            @RequestParam(required = false, defaultValue = "1") Integer page,
+            @RequestParam(required = false, defaultValue = "20") Integer size) {
+        Long effectiveUserId = resolveQueryUserId(userId);
+        Set<Long> allowed = effectiveUserId == null ? scopeHelper.visibleUserIds() : null;
+        return Result.ok(attendanceService.pageSignInRecords(effectiveUserId, allowed, startDate, endDate, page, size));
     }
 
     /**

@@ -52,3 +52,6 @@ pengcheng:
       group-days: 1095
       # 单次定时任务一次循环最多删多少行；累计 100 批后停手，避免长事务
       cleanup-batch: 1000
+  # 注：签到逆地理编码已搬到小程序前端（utils/geocode.js + BAIDU_MAP_AK），
+  # 因为用户 AK 为「浏览器端」类型，后端直接调 Web 服务接口会被 240「APP 服务被禁用」拒绝。
+  # 此处不再保留 pengcheng.baidu-map 配置。

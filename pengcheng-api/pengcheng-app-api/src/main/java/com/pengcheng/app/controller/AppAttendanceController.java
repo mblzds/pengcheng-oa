@@ -3,6 +3,7 @@ package com.pengcheng.app.controller;
 import cn.dev33.satoken.annotation.SaCheckLogin;
 import cn.dev33.satoken.stp.StpUtil;
 import com.pengcheng.app.dto.AppClockDTO;
+import com.pengcheng.app.dto.AppQuickSignDTO;
 import com.pengcheng.app.dto.AppSignDTO;
 import com.pengcheng.app.dto.SignResultVO;
 import com.pengcheng.common.result.Result;
@@ -14,6 +15,7 @@ import com.pengcheng.hr.attendance.dto.SignInDTO;
 import com.pengcheng.hr.attendance.entity.AttendanceRecord;
 import com.pengcheng.hr.attendance.mapper.AttendanceRecordMapper;
 import com.pengcheng.hr.attendance.service.AttendanceService;
+import com.pengcheng.hr.attendance.service.BaiduGeocodeService;
 import com.pengcheng.realty.project.entity.Project;
 import com.pengcheng.realty.project.mapper.ProjectMapper;
 import com.pengcheng.system.helper.SystemConfigHelper;
@@ -42,6 +44,7 @@ public class AppAttendanceController {
     private final ProjectMapper projectMapper;
     private final SysFileService fileService;
     private final SystemConfigHelper systemConfigHelper;
+    private final BaiduGeocodeService baiduGeocodeService;
 
     /**
      * 上下班时间配置（请假/调休等场景前端预校验用）
@@ -124,6 +127,49 @@ public class AppAttendanceController {
                 .projectName(project.getProjectName())
                 .signTime(now)
                 .locationDesc(location != null ? "经纬度: " + location : "未获取位置")
+                .build();
+        return Result.ok(resultVO);
+    }
+
+    /**
+     * 拍照签到（参考钉钉签到）
+     * 区别于 /sign 的扫码签到——本接口必须拍照，不需要项目码，签到不限频率。
+     * 前端流程：
+     *   1) 拍照 → 调 /upload-photo 拿 photoUrl
+     *   2) 调 uni.getLocation 拿 GCJ-02 → 转 WGS-84，上报本接口
+     *   3) 后端用「系统配置 → 考勤设置」里维护的百度 AK 做逆地理，写入 sign_in_record.address
+     * photoUrl 为空时直接 400，不允许「无照片签到」。
+     */
+    @PostMapping("/quick-sign")
+    public Result<SignResultVO> quickSign(@RequestBody AppQuickSignDTO dto) {
+        if (dto.getPhotoUrl() == null || dto.getPhotoUrl().isBlank()) {
+            return Result.fail(400, "签到必须拍照");
+        }
+        Long userId = StpUtil.getLoginIdAsLong();
+        LocalDateTime now = LocalDateTime.now();
+
+        String location = (dto.getLatitude() != null && dto.getLongitude() != null)
+                ? dto.getLatitude() + "," + dto.getLongitude()
+                : null;
+        // 后端调百度逆地理；AK 未配置 / 服务未开 / 网络异常时返回 null，地点列回退显示经纬度
+        String address = baiduGeocodeService.reverseGeocode(dto.getLatitude(), dto.getLongitude());
+
+        SignInDTO signInDTO = SignInDTO.builder()
+                .userId(userId)
+                .signInTime(now)
+                .location(location)
+                .address(address)
+                .latitude(dto.getLatitude())
+                .longitude(dto.getLongitude())
+                .photoUrl(dto.getPhotoUrl())
+                .remark(dto.getRemark())
+                .build();
+        attendanceService.signIn(signInDTO);
+
+        SignResultVO resultVO = SignResultVO.builder()
+                .projectName("签到")
+                .signTime(now)
+                .locationDesc(address != null ? address : (location != null ? location : ""))
                 .build();
         return Result.ok(resultVO);
     }

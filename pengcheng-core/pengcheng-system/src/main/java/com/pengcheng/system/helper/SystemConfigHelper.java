@@ -985,9 +985,17 @@ public class SystemConfigHelper implements com.pengcheng.crypto.CryptoConfigProv
         return null;
     }
 
-    /** 百度地图 JS API AK（后台地图选点用） */
+    /** 百度地图 JS API AK（浏览器端类型，后台地图选点用） */
     public String getAttendanceBaiduMapAk() {
         return getString(GROUP_ATTENDANCE, "baiduMapAk", "");
+    }
+
+    /**
+     * 百度地图服务端 AK（用于小程序签到的 GPS → 中文地址逆地理编码）。
+     * 必须是「服务端」类型 AK，且在百度控制台勾选「WebService API → 逆地理编码服务」。
+     */
+    public String getAttendanceBaiduMapServerAk() {
+        return getString(GROUP_ATTENDANCE, "baiduMapServerAk", "");
     }
 
     /**

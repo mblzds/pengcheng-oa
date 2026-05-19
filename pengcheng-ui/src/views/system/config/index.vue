@@ -770,6 +770,17 @@
                     clearable
                     style="max-width: 480px"
                   />
+                  <span class="form-hint">「浏览器端」类型 AK，用于本页地图选点</span>
+                </n-form-item>
+
+                <n-form-item label="百度地图服务端 AK">
+                  <n-input
+                    v-model:value="configs.attendance.baiduMapServerAk"
+                    placeholder="申请「服务端」类型 AK，并启用「逆地理编码服务」"
+                    clearable
+                    style="max-width: 480px"
+                  />
+                  <span class="form-hint">用于小程序签到的 GPS → 中文地址翻译；与上方浏览器端 AK 分开维护</span>
                 </n-form-item>
 
                 <n-form-item label="允许位置列表">
@@ -955,7 +966,8 @@ const configs = reactive<Record<string, any>>({
     enforceTime: true,
     enforceLocation: false,
     allowedLocations: [] as Array<{ name: string; address?: string; lat: number | null; lng: number | null; radius: number }>,
-    baiduMapAk: ''
+    baiduMapAk: '',
+    baiduMapServerAk: ''
   },
   other: {}
 })

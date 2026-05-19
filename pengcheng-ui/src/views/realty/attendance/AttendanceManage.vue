@@ -1,28 +1,89 @@
 <template>
   <div class="page-container">
-    <n-space vertical :size="16">
-      <n-card title="考勤记录">
-        <div class="search-form">
-          <n-form inline :model="recordFilter">
-            <n-form-item v-if="!isEmployeeOnly" label="选择用户">
-              <n-select v-model:value="recordFilter.userId" :options="userOptions" label-field="nickname" value-field="id" filterable placeholder="选择用户" clearable style="width: 200px" />
+    <n-card>
+      <!-- 三个核心视图收口为顶部 Tab：考勤记录 / 月度汇总 / 请假调休 -->
+      <n-tabs v-model:value="activeTab" type="line" animated>
+        <n-tab-pane name="records" tab="考勤记录">
+          <div class="search-form">
+            <n-form inline :model="recordFilter">
+              <n-form-item v-if="!isEmployeeOnly" label="选择用户">
+                <n-select v-model:value="recordFilter.userId" :options="userOptions" label-field="nickname" value-field="id" filterable placeholder="选择用户" clearable style="width: 200px" />
+              </n-form-item>
+              <n-form-item label="日期范围">
+                <n-date-picker
+                  v-model:value="recordFilter.dateRange"
+                  type="daterange"
+                  clearable
+                  :shortcuts="dateShortcuts"
+                  :update-value-on-close="true"
+                  format="yyyy-MM-dd"
+                  start-placeholder="开始日期"
+                  end-placeholder="结束日期"
+                  style="width: 320px"
+                />
+              </n-form-item>
+              <n-form-item v-if="!isEmployeeOnly && recordFilter.userId == null" label="部门">
+                <n-tree-select
+                  v-model:value="recordFilter.deptIds"
+                  :options="summaryDeptOptions"
+                  key-field="id"
+                  label-field="deptName"
+                  children-field="children"
+                  multiple
+                  checkable
+                  cascade
+                  filterable
+                  clearable
+                  placeholder="不选则全部"
+                  style="width: 220px"
+                />
+              </n-form-item>
+              <n-form-item v-if="!isEmployeeOnly && recordFilter.userId == null" label="姓名/工号">
+                <n-input
+                  v-model:value="recordFilter.nameKeyword"
+                  placeholder="支持姓名/工号"
+                  clearable
+                  style="width: 180px"
+                />
+              </n-form-item>
+              <n-form-item label="状态">
+                <n-select
+                  v-model:value="recordFilter.statusFilter"
+                  :options="statusFilterOptions"
+                  style="width: 140px"
+                />
+              </n-form-item>
+              <n-form-item>
+                <n-space>
+                  <n-button type="primary" @click="loadAttendanceRecords">查询</n-button>
+                  <n-button @click="resetRecordFilter">重置</n-button>
+                </n-space>
+              </n-form-item>
+            </n-form>
+          </div>
+
+          <n-data-table
+            :columns="recordColumns"
+            :data="filteredRecordData"
+            :loading="recordLoading"
+            :pagination="recordPagination"
+            :row-props="recordRowProps"
+            @update:page="onRecordPageChange"
+            @update:page-size="onRecordPageSizeChange"
+          />
+          <div v-if="filteredRecordData.length > 200" class="table-tip">
+            数据较多，建议缩小日期范围或加状态筛选
+          </div>
+        </n-tab-pane>
+
+        <n-tab-pane name="monthly" tab="月度考勤汇总报表">
+          <n-form inline :model="summaryFilter">
+            <n-form-item label="选择用户">
+              <n-select v-model:value="summaryFilter.userId" :options="userOptions" label-field="nickname" value-field="id" filterable placeholder="不选则显示可见范围内的全员" clearable style="width: 240px" :disabled="isEmployeeOnly" />
             </n-form-item>
-            <n-form-item label="日期范围">
-              <n-date-picker
-                v-model:value="recordFilter.dateRange"
-                type="daterange"
-                clearable
-                :shortcuts="dateShortcuts"
-                :update-value-on-close="true"
-                format="yyyy-MM-dd"
-                start-placeholder="开始日期"
-                end-placeholder="结束日期"
-                style="width: 320px"
-              />
-            </n-form-item>
-            <n-form-item v-if="!isEmployeeOnly && recordFilter.userId == null" label="部门">
+            <n-form-item v-if="summaryFilter.userId == null" label="部门">
               <n-tree-select
-                v-model:value="recordFilter.deptIds"
+                v-model:value="summaryFilter.deptIds"
                 :options="summaryDeptOptions"
                 key-field="id"
                 label-field="deptName"
@@ -33,114 +94,74 @@
                 filterable
                 clearable
                 placeholder="不选则全部"
-                style="width: 220px"
+                style="width: 240px"
               />
             </n-form-item>
-            <n-form-item v-if="!isEmployeeOnly && recordFilter.userId == null" label="姓名/工号">
-              <n-input
-                v-model:value="recordFilter.nameKeyword"
-                placeholder="支持姓名/工号"
-                clearable
-                style="width: 180px"
-              />
+            <n-form-item v-if="summaryFilter.userId == null" label="异常">
+              <n-select v-model:value="summaryFilter.abnormalFilter" :options="abnormalFilterOptions" style="width: 140px" />
             </n-form-item>
-            <n-form-item label="状态">
-              <n-select
-                v-model:value="recordFilter.statusFilter"
-                :options="statusFilterOptions"
-                style="width: 140px"
-              />
+            <n-form-item label="月份">
+              <n-date-picker v-model:value="summaryFilter.month" type="month" style="width: 160px" />
             </n-form-item>
             <n-form-item>
               <n-space>
-                <n-button type="primary" @click="loadAttendanceRecords">查询</n-button>
-                <n-button @click="resetRecordFilter">重置</n-button>
+                <n-button type="primary" @click="loadMonthlySummary">查询</n-button>
+                <n-button @click="exportMonthlyCsv" :disabled="!filteredMonthlyBatchData.length">导出 CSV</n-button>
               </n-space>
             </n-form-item>
           </n-form>
-        </div>
 
-        <n-data-table
-          :columns="recordColumns"
-          :data="filteredRecordData"
-          :loading="recordLoading"
-          :pagination="recordPagination"
-          :row-props="recordRowProps"
-        />
-        <div v-if="filteredRecordData.length > 200" class="table-tip">
-          数据较多，建议缩小日期范围或加状态筛选
-        </div>
-      </n-card>
+          <!-- 统一表格视图：单人 1 行 / 全员多行；columns 一致便于 HR 横向对比 -->
+          <n-data-table
+            :columns="monthlyBatchColumns"
+            :data="filteredMonthlyBatchData"
+            :pagination="monthlyPagination"
+            :bordered="false"
+            size="small"
+            style="margin-top: 12px"
+            @update:page="onMonthlyPageChange"
+            @update:page-size="onMonthlyPageSizeChange"
+          />
+        </n-tab-pane>
 
-      <n-card title="月度考勤汇总报表">
-        <n-form inline :model="summaryFilter">
-          <n-form-item label="选择用户">
-            <n-select v-model:value="summaryFilter.userId" :options="userOptions" label-field="nickname" value-field="id" filterable placeholder="不选则显示可见范围内的全员" clearable style="width: 240px" :disabled="isEmployeeOnly" />
-          </n-form-item>
-          <n-form-item v-if="summaryFilter.userId == null" label="部门">
-            <n-tree-select
-              v-model:value="summaryFilter.deptIds"
-              :options="summaryDeptOptions"
-              key-field="id"
-              label-field="deptName"
-              children-field="children"
-              multiple
-              checkable
-              cascade
-              filterable
-              clearable
-              placeholder="不选则全部"
-              style="width: 240px"
-            />
-          </n-form-item>
-          <n-form-item v-if="summaryFilter.userId == null" label="异常">
-            <n-select v-model:value="summaryFilter.abnormalFilter" :options="abnormalFilterOptions" style="width: 140px" />
-          </n-form-item>
-          <n-form-item label="月份">
-            <n-date-picker v-model:value="summaryFilter.month" type="month" style="width: 160px" />
-          </n-form-item>
-          <n-form-item>
-            <n-space>
-              <n-button type="primary" @click="loadMonthlySummary">查询</n-button>
-              <n-button @click="exportMonthlyCsv" :disabled="!filteredMonthlyBatchData.length">导出 CSV</n-button>
-            </n-space>
-          </n-form-item>
-        </n-form>
+        <n-tab-pane name="approval" tab="请假/调休审批列表">
+          <n-form inline :model="approvalFilter" class="approval-filter">
+            <n-form-item label="选择用户">
+              <n-select v-model:value="approvalFilter.userId" :options="userOptions" label-field="nickname" value-field="id" filterable placeholder="选择用户" clearable style="width: 200px" />
+            </n-form-item>
+            <n-form-item label="审批状态">
+              <n-select v-model:value="approvalFilter.status" :options="approvalStatusOptions" clearable style="width: 160px" />
+            </n-form-item>
+            <n-form-item>
+              <n-button type="primary" @click="loadApprovalLists">查询</n-button>
+            </n-form-item>
+          </n-form>
 
-        <!-- 统一表格视图：单人 1 行 / 全员多行；columns 一致便于 HR 横向对比 -->
-        <n-data-table
-          :columns="monthlyBatchColumns"
-          :data="filteredMonthlyBatchData"
-          :pagination="{ pageSize: 20 }"
-          :bordered="false"
-          size="small"
-          style="margin-top: 12px"
-        />
-      </n-card>
-
-      <n-card title="请假/调休审批列表">
-        <n-form inline :model="approvalFilter" class="approval-filter">
-          <n-form-item label="选择用户">
-            <n-select v-model:value="approvalFilter.userId" :options="userOptions" label-field="nickname" value-field="id" filterable placeholder="选择用户" clearable style="width: 200px" />
-          </n-form-item>
-          <n-form-item label="审批状态">
-            <n-select v-model:value="approvalFilter.status" :options="approvalStatusOptions" clearable style="width: 160px" />
-          </n-form-item>
-          <n-form-item>
-            <n-button type="primary" @click="loadApprovalLists">查询</n-button>
-          </n-form-item>
-        </n-form>
-
-        <n-tabs type="line" animated>
-          <n-tab-pane name="leave" tab="请假申请">
-            <n-data-table :columns="leaveColumns" :data="leaveData" :loading="approvalLoading" :pagination="false" />
-          </n-tab-pane>
-          <n-tab-pane name="compensate" tab="调休申请">
-            <n-data-table :columns="compensateColumns" :data="compensateData" :loading="approvalLoading" :pagination="false" />
-          </n-tab-pane>
-        </n-tabs>
-      </n-card>
-    </n-space>
+          <n-tabs v-model:value="approvalSubTab" type="line" animated>
+            <n-tab-pane name="leave" tab="请假申请">
+              <n-data-table
+                :columns="leaveColumns"
+                :data="leaveData"
+                :loading="approvalLoading"
+                :pagination="leavePagination"
+                @update:page="onLeavePageChange"
+                @update:page-size="onLeavePageSizeChange"
+              />
+            </n-tab-pane>
+            <n-tab-pane name="compensate" tab="调休申请">
+              <n-data-table
+                :columns="compensateColumns"
+                :data="compensateData"
+                :loading="approvalLoading"
+                :pagination="compensatePagination"
+                @update:page="onCompensatePageChange"
+                @update:page-size="onCompensatePageSizeChange"
+              />
+            </n-tab-pane>
+          </n-tabs>
+        </n-tab-pane>
+      </n-tabs>
+    </n-card>
 
     <!-- 考勤详情抽屉：把主表删掉的字段（上班/下班 状态 / 位置 / 照片 + 豁免原因）集中到这里 -->
     <n-drawer v-model:show="detailVisible" :width="520" placement="right">
@@ -374,12 +395,61 @@ const filteredRecordData = computed(() => {
   return rows
 })
 
-// 表格分页（前端分页）
+// 表格分页（前端分页）—— Naive UI 的 n-data-table 在受控分页下
+// 必须显式同步 page / pageSize；仅声明字段而不监听 @update:page-size
+// 会导致用户切换"每页 N 条"时只 emit 事件、reactive 字段不变，表现为"切换无效"
 const recordPagination = reactive({
+  page: 1,
   pageSize: 20,
   showSizePicker: true,
   pageSizes: [10, 20, 50, 100]
 })
+function onRecordPageChange(p: number) { recordPagination.page = p }
+function onRecordPageSizeChange(s: number) {
+  recordPagination.pageSize = s
+  recordPagination.page = 1
+}
+
+// 月度汇总表分页
+const monthlyPagination = reactive({
+  page: 1,
+  pageSize: 20,
+  showSizePicker: true,
+  pageSizes: [10, 20, 50, 100]
+})
+function onMonthlyPageChange(p: number) { monthlyPagination.page = p }
+function onMonthlyPageSizeChange(s: number) {
+  monthlyPagination.pageSize = s
+  monthlyPagination.page = 1
+}
+
+// 请假/调休 子 Tab 切换 + 各自分页
+const approvalSubTab = ref<'leave' | 'compensate'>('leave')
+const leavePagination = reactive({
+  page: 1,
+  pageSize: 10,
+  showSizePicker: true,
+  pageSizes: [10, 20, 50]
+})
+function onLeavePageChange(p: number) { leavePagination.page = p }
+function onLeavePageSizeChange(s: number) {
+  leavePagination.pageSize = s
+  leavePagination.page = 1
+}
+const compensatePagination = reactive({
+  page: 1,
+  pageSize: 10,
+  showSizePicker: true,
+  pageSizes: [10, 20, 50]
+})
+function onCompensatePageChange(p: number) { compensatePagination.page = p }
+function onCompensatePageSizeChange(s: number) {
+  compensatePagination.pageSize = s
+  compensatePagination.page = 1
+}
+
+// 顶部 Tab：考勤记录 / 月度汇总 / 请假调休
+const activeTab = ref<'records' | 'monthly' | 'approval'>('records')
 
 const summaryFilter = reactive<{
   userId: number | null

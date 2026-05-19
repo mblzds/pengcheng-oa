@@ -92,6 +92,7 @@ interface AttendanceConfig {
   enforceLocation: boolean
   allowedLocations: AllowedLocation[]
   baiduMapAk: string
+  baiduMapServerAk: string
   startDate: string | null
 }
 
@@ -111,6 +112,7 @@ const form = reactive<AttendanceConfig>({
   enforceLocation: false,
   allowedLocations: [],
   baiduMapAk: '',
+  baiduMapServerAk: '',
   startDate: null
 })
 
@@ -134,6 +136,7 @@ async function loadConfig() {
           }))
         : []
       form.baiduMapAk = parsed.baiduMapAk || ''
+      form.baiduMapServerAk = parsed.baiduMapServerAk || ''
       form.startDate = typeof parsed.startDate === 'string' && parsed.startDate ? parsed.startDate : null
     }
   } finally {

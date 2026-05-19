@@ -242,6 +242,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '考勤设置', icon: 'SettingsOutline' }
       },
       {
+        path: 'realty/attendance/sign-in',
+        name: 'RealtyAttendanceSignIn',
+        component: () => import('@/views/realty/attendance/SignInRecords.vue'),
+        meta: { title: '签到记录', icon: 'LocationOutline' }
+      },
+      {
         path: 'hr/approval-pending',
         name: 'HrApprovalPending',
         component: () => import('@/views/hr/approval/MyPending.vue'),

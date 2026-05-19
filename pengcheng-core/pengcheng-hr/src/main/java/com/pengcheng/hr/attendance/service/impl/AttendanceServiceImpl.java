@@ -1,6 +1,8 @@
 package com.pengcheng.hr.attendance.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.pengcheng.common.event.DataChangeEvent;
 import com.pengcheng.hr.approval.constant.ApprovalConstants;
@@ -211,11 +213,48 @@ public class AttendanceServiceImpl implements AttendanceService {
                 .userId(dto.getUserId())
                 .signInTime(dto.getSignInTime())
                 .location(dto.getLocation())
+                .address(dto.getAddress())
+                .latitude(dto.getLatitude())
+                .longitude(dto.getLongitude())
+                .photoUrl(dto.getPhotoUrl())
                 .remark(dto.getRemark())
                 .build();
         signInRecordMapper.insert(record);
         eventPublisher.publishEvent(new DataChangeEvent(this, "create", "attendance", record.getId()));
         return record.getId();
+    }
+
+    @Override
+    public IPage<SignInRecord> pageSignInRecords(Long userId, Set<Long> allowedUserIds,
+                                                 LocalDate startDate, LocalDate endDate,
+                                                 int page, int size) {
+        // 空可见集合 → 直接返回空页，避免 IN () 查询全表
+        if (allowedUserIds != null && allowedUserIds.isEmpty()) {
+            return new Page<>(page, size, 0);
+        }
+        // 防御性兜底：page<1 → 1，size 越界限制到 [1, 200]
+        int safePage = Math.max(page, 1);
+        int safeSize = Math.min(Math.max(size, 1), 200);
+
+        LambdaQueryWrapper<SignInRecord> wrapper = new LambdaQueryWrapper<>();
+        if (userId != null) {
+            wrapper.eq(SignInRecord::getUserId, userId);
+        } else if (allowedUserIds != null) {
+            wrapper.in(SignInRecord::getUserId, allowedUserIds);
+        }
+        if (startDate != null) wrapper.ge(SignInRecord::getSignInTime, startDate.atStartOfDay());
+        if (endDate != null) wrapper.le(SignInRecord::getSignInTime, endDate.atTime(LocalTime.MAX));
+        wrapper.orderByDesc(SignInRecord::getSignInTime);
+
+        IPage<SignInRecord> pageResult = signInRecordMapper.selectPage(new Page<>(safePage, safeSize), wrapper);
+        List<SignInRecord> records = pageResult.getRecords();
+        // 仅对当前页结果做姓名/工号/部门回填，避免回填一整张表
+        enrichEmployeeInfo(records, SignInRecord::getUserId, (r, info) -> {
+            r.setUserName(info.userName);
+            r.setEmployeeNo(info.employeeNo);
+            r.setDeptName(info.deptName);
+        });
+        return pageResult;
     }
 
     @Override

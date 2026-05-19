@@ -1,9 +1,11 @@
 package com.pengcheng.hr.attendance.service;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.pengcheng.hr.attendance.dto.*;
 import com.pengcheng.hr.attendance.entity.AttendanceRecord;
 import com.pengcheng.hr.attendance.entity.CompensateRequest;
 import com.pengcheng.hr.attendance.entity.LeaveRequest;
+import com.pengcheng.hr.attendance.entity.SignInRecord;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -62,6 +64,19 @@ public interface AttendanceService {
     List<CompensateRequest> listCompensateRequests(Long userId, Integer status);
 
     List<CompensateRequest> listCompensateRequests(Long userId, Set<Long> allowedUserIds, Integer status);
+
+    /**
+     * 分页查询签到记录（管理后台「签到记录」页用，回填姓名/工号/部门）。
+     * @param userId         单人查询；为 null 时按 allowedUserIds 限制
+     * @param allowedUserIds null = 不限；非空 = 仅这些用户；空集合 = 直接返回空页
+     * @param startDate      可空，按签到时间过滤起始日（含）
+     * @param endDate        可空，按签到时间过滤结束日（含）
+     * @param page           页码，从 1 起
+     * @param size           每页大小
+     */
+    IPage<SignInRecord> pageSignInRecords(Long userId, Set<Long> allowedUserIds,
+                                          LocalDate startDate, LocalDate endDate,
+                                          int page, int size);
 
     /** 判定上班是否迟到 */
     int determineClockInStatus(java.time.LocalTime clockInTime);

@@ -4,78 +4,135 @@
 			<view class="status-bar" :style="{ height: statusBarHeight + 'px' }"></view>
 			<view class="nav-bar">
 				<view class="nav-back" @tap="goBack"><pc-icon name="arrow-left" color="#FFF" size="18"></pc-icon></view>
-				<text class="nav-title">考勤打卡</text>
+				<text class="nav-title">{{ mode === 'sign' ? '考勤签到' : '考勤打卡' }}</text>
 				<view class="nav-placeholder"></view>
 			</view>
-		</view>
-
-		<!-- 当日打卡状态 -->
-		<view class="status-card">
-			<view class="status-row">
-				<view class="status-item">
-					<text class="status-label">上班打卡</text>
-					<text class="status-time">{{ clockInTime || '未打卡' }}</text>
+			<!-- 打卡 / 签到 Tab 切换（参考钉钉的二级 Tab） -->
+			<view class="mode-tabs">
+				<view class="mode-tab" :class="{ active: mode === 'clock' }" @tap="switchMode('clock')">
+					<text class="mode-text">打卡</text>
 				</view>
-				<view class="status-divider"></view>
-				<view class="status-item">
-					<text class="status-label">下班打卡</text>
-					<text class="status-time">{{ clockOutTime || '未打卡' }}</text>
+				<view class="mode-tab" :class="{ active: mode === 'sign' }" @tap="switchMode('sign')">
+					<text class="mode-text">签到</text>
 				</view>
 			</view>
 		</view>
 
-		<!-- 地图 -->
-		<view class="map-section">
-			<map class="clock-map" :latitude="latitude" :longitude="longitude" :markers="markers"
-				:scale="16" show-location></map>
-			<view class="location-tip" v-if="locationError">
-				<pc-icon name="info-circle" color="#F5222D" size="14"></pc-icon>
-				<text class="tip-text">{{ locationError }}</text>
-			</view>
-		</view>
-
-		<!-- 拍照区域（始终可见） -->
-		<view class="photo-card">
-			<!-- 未拍照：显示拍照入口 -->
-			<view v-if="!photoPath" class="photo-placeholder" @tap="takePhoto">
-				<view class="camera-icon-wrap">
-					<pc-icon name="camera" color="#07C160" size="36"></pc-icon>
-				</view>
-				<text class="photo-hint-main">拍照打卡</text>
-				<text class="photo-hint-sub">点击拍摄现场照片（可选）</text>
-			</view>
-
-			<!-- 已拍照：显示预览 -->
-			<view v-else class="photo-preview-wrap">
-				<image class="photo-preview" :src="photoPath" mode="aspectFill" @tap="previewPhoto" />
-				<view class="photo-actions">
-					<view class="photo-tag">
-						<pc-icon name="checkmark-circle-fill" color="#07C160" size="14"></pc-icon>
-						<text class="photo-tag-text">已拍照</text>
+		<!-- ========== 打卡模式 ========== -->
+		<block v-if="mode === 'clock'">
+			<view class="status-card">
+				<view class="status-row">
+					<view class="status-item">
+						<text class="status-label">上班打卡</text>
+						<text class="status-time">{{ clockInTime || '未打卡' }}</text>
 					</view>
-					<view class="retake-btn" @tap="takePhoto">
-						<pc-icon name="reload" color="#666" size="14"></pc-icon>
-						<text class="retake-text">重拍</text>
+					<view class="status-divider"></view>
+					<view class="status-item">
+						<text class="status-label">下班打卡</text>
+						<text class="status-time">{{ clockOutTime || '未打卡' }}</text>
 					</view>
 				</view>
 			</view>
-		</view>
 
-		<!-- 打卡按钮 -->
-		<view class="clock-action">
-			<view class="clock-btn" :class="{ disabled: !canClock || clocking }" @tap="handleClock">
-				<u-loading-icon v-if="clocking" color="#FFF" size="28"></u-loading-icon>
-				<template v-else>
-					<text class="clock-btn-text">{{ clockBtnText }}</text>
-					<text class="clock-btn-time">{{ currentTime }}</text>
-				</template>
+			<view class="map-section">
+				<map class="clock-map" :latitude="latitude" :longitude="longitude" :markers="markers"
+					:scale="16" show-location></map>
+				<view class="location-tip" v-if="locationError">
+					<pc-icon name="info-circle" color="#F5222D" size="14"></pc-icon>
+					<text class="tip-text">{{ locationError }}</text>
+				</view>
 			</view>
-		</view>
+
+			<view class="photo-card">
+				<view v-if="!photoPath" class="photo-placeholder" @tap="takePhoto">
+					<view class="camera-icon-wrap">
+						<pc-icon name="camera" color="#07C160" size="36"></pc-icon>
+					</view>
+					<text class="photo-hint-main">拍照打卡</text>
+					<text class="photo-hint-sub">点击拍摄现场照片（可选）</text>
+				</view>
+				<view v-else class="photo-preview-wrap">
+					<image class="photo-preview" :src="photoPath" mode="aspectFill" @tap="previewPhoto" />
+					<view class="photo-actions">
+						<view class="photo-tag">
+							<pc-icon name="checkmark-circle-fill" color="#07C160" size="14"></pc-icon>
+							<text class="photo-tag-text">已拍照</text>
+						</view>
+						<view class="retake-btn" @tap="takePhoto">
+							<pc-icon name="reload" color="#666" size="14"></pc-icon>
+							<text class="retake-text">重拍</text>
+						</view>
+					</view>
+				</view>
+			</view>
+
+			<view class="clock-action">
+				<view class="clock-btn" :class="{ disabled: !canClock || clocking }" @tap="handleClock">
+					<u-loading-icon v-if="clocking" color="#FFF" size="28"></u-loading-icon>
+					<template v-else>
+						<text class="clock-btn-text">{{ clockBtnText }}</text>
+						<text class="clock-btn-time">{{ currentTime }}</text>
+					</template>
+				</view>
+			</view>
+		</block>
+
+		<!-- ========== 签到模式（参考钉钉签到：拍照必填，不显示位置） ========== -->
+		<block v-else>
+			<!-- 签到说明卡片：不显示位置文字，只提示拍照 -->
+			<view class="sign-hint-card">
+				<pc-icon name="info-circle" color="#07C160" size="16"></pc-icon>
+				<text class="sign-hint-text">签到需拍摄现场照片，地点由系统自动记录</text>
+			</view>
+
+			<!-- 拍照区（签到必拍） -->
+			<view class="photo-card">
+				<view v-if="!signPhotoPath" class="photo-placeholder big" @tap="takeSignPhoto">
+					<view class="camera-icon-wrap big">
+						<pc-icon name="camera" color="#07C160" size="48"></pc-icon>
+					</view>
+					<text class="photo-hint-main">点击拍照</text>
+					<text class="photo-hint-sub">签到必须拍摄现场照片</text>
+				</view>
+				<view v-else class="photo-preview-wrap">
+					<image class="photo-preview" :src="signPhotoPath" mode="aspectFill" @tap="previewSignPhoto" />
+					<view class="photo-actions">
+						<view class="photo-tag">
+							<pc-icon name="checkmark-circle-fill" color="#07C160" size="14"></pc-icon>
+							<text class="photo-tag-text">已拍照</text>
+						</view>
+						<view class="retake-btn" @tap="takeSignPhoto">
+							<pc-icon name="reload" color="#666" size="14"></pc-icon>
+							<text class="retake-text">重拍</text>
+						</view>
+					</view>
+				</view>
+			</view>
+
+			<!-- 备注输入框 -->
+			<view class="remark-card">
+				<text class="remark-label">备注（可选）</text>
+				<textarea class="remark-input" v-model="signRemark" placeholder="补充说明，如外勤事由..."
+					maxlength="200" :auto-height="true" :show-confirm-bar="false" />
+				<text class="remark-counter">{{ (signRemark || '').length }}/200</text>
+			</view>
+
+			<!-- 签到按钮 -->
+			<view class="clock-action">
+				<view class="clock-btn" :class="{ disabled: !canSign || signing }" @tap="handleSign">
+					<u-loading-icon v-if="signing" color="#FFF" size="28"></u-loading-icon>
+					<template v-else>
+						<text class="clock-btn-text">签到</text>
+						<text class="clock-btn-time">{{ currentTime }}</text>
+					</template>
+				</view>
+			</view>
+		</block>
 	</view>
 </template>
 
 <script>
-	import { clockAttendance, getAttendanceRecords, uploadAttendancePhoto } from '../../utils/api.js'
+	import { clockAttendance, getAttendanceRecords, uploadAttendancePhoto, quickSign } from '../../utils/api.js'
 	import { gcj02ToWgs84 } from '../../utils/coordTransform.js'
 	import { ensurePrivacyAuth } from '../../utils/privacy.js'
 
@@ -83,24 +140,41 @@
 		data() {
 			return {
 				statusBarHeight: 20,
+				mode: 'clock', // 'clock' | 'sign'
+
+				// 打卡
 				latitude: 39.908823,
 				longitude: 116.397470,
 				markers: [],
 				clockInTime: '',
 				clockOutTime: '',
-				currentTime: '',
 				canClock: false,
 				locationError: '',
 				clocking: false,
-				timer: null,
 				photoPath: '',
-				photoUrl: ''
+				photoUrl: '',
+
+				// 签到（独立状态，不与打卡共用，避免切回打卡丢失打卡照片）
+				signPhotoPath: '',
+				signPhotoUrl: '',
+				signRemark: '',
+				signing: false,
+				// 签到位置悄悄获取但不显示，按需在提交时用
+				signLatitude: null,
+				signLongitude: null,
+
+				currentTime: '',
+				timer: null
 			}
 		},
 		computed: {
 			clockBtnText() {
 				if (this.locationError) return '定位失败'
 				return this.clockInTime ? '下班打卡' : '上班打卡'
+			},
+			// 签到必须有照片才能提交；位置可以为空（让百度逆地理失败时降级为空地点）
+			canSign() {
+				return !!this.signPhotoPath
 			}
 		},
 		onLoad() {
@@ -117,6 +191,11 @@
 		},
 		methods: {
 			goBack() { uni.navigateBack() },
+
+			switchMode(m) {
+				if (this.mode === m) return
+				this.mode = m
+			},
 
 			startTimer() {
 				this.updateTime()
@@ -150,9 +229,12 @@
 							iconPath: '/static/tabbar/workbench-active.png',
 							width: 30, height: 30
 						}]
+						// 顺便缓存一份给签到用（签到不显示，但提交时需要 WGS-84 经纬度）
+						const [wgsLng, wgsLat] = gcj02ToWgs84(res.longitude, res.latitude)
+						this.signLatitude = wgsLat
+						this.signLongitude = wgsLng
 					},
 					fail: (err) => {
-						// 定位失败禁止打卡：必须先拿到位置后端才能判断是否在合规范围
 						this.canClock = false
 						this.markers = []
 						const msg = err && err.errMsg ? err.errMsg : ''
@@ -160,7 +242,7 @@
 							this.locationError = '请在设置中开启定位权限'
 							uni.showModal({
 								title: '需要定位权限',
-								content: '考勤打卡需要获取你的位置信息，请在小程序设置中开启「位置信息」权限',
+								content: '考勤打卡/签到需要获取你的位置信息，请在小程序设置中开启「位置信息」权限',
 								confirmText: '去开启',
 								cancelText: '取消',
 								success: (r) => {
@@ -202,7 +284,7 @@
 				} catch (err) { console.error(err) }
 			},
 
-			// 拍照（独立操作，不触发打卡）
+			// ===== 打卡相关 =====
 			async takePhoto() {
 				const agreed = await ensurePrivacyAuth()
 				if (!agreed) return
@@ -217,7 +299,7 @@
 						})
 					})
 					this.photoPath = res.tempFilePaths[0]
-					this.photoUrl = '' // 重置，打卡时再上传
+					this.photoUrl = ''
 				} catch (err) {
 					if (!err?.errMsg?.includes('cancel')) {
 						uni.showToast({ title: '拍照失败，请重试', icon: 'none' })
@@ -231,9 +313,6 @@
 				}
 			},
 
-			// 根据后端返回的状态做差异化提示
-			//   clockInStatus / clockOutStatus: 1=正常 2=迟到/早退
-			//   locationStatus: 1=合规 2=超出范围 NULL=未启用位置校验
 			handleClockResult(record, isClockIn) {
 				const tags = []
 				if (isClockIn && record?.clockInStatus === 2) tags.push('迟到')
@@ -252,12 +331,10 @@
 				}
 			},
 
-			// 打卡：若有本地照片则先上传再提交，否则直接提交
 			async handleClock() {
 				if (!this.canClock || this.clocking) return
 				this.clocking = true
 				try {
-					// 有照片且尚未上传，先上传
 					if (this.photoPath && !this.photoUrl) {
 						uni.showLoading({ title: '上传照片…', mask: true })
 						const uploadRes = await uploadAttendancePhoto(this.photoPath)
@@ -269,8 +346,6 @@
 					const pad = v => String(v).padStart(2, '0')
 					const clockTime = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`
 
-					// 设备 GPS 由 uni.getLocation 以 GCJ-02 取出（用于 <map> 渲染），
-					// 上报后端必须转回 WGS-84 以匹配后台合规位置存储坐标系
 					const [wgsLng, wgsLat] = gcj02ToWgs84(this.longitude, this.latitude)
 
 					const isClockIn = !this.clockInTime
@@ -283,17 +358,92 @@
 					})
 
 					this.handleClockResult(res?.data, isClockIn)
-					// 打卡成功后清空照片，供下次重新拍
 					this.photoPath = ''
 					this.photoUrl = ''
 					this.loadTodayRecords()
 				} catch (err) {
 					uni.hideLoading()
 					uni.showToast({ title: err.message || '打卡失败', icon: 'none' })
-					// 上传失败时重置 URL，保留本地预览供重试
 					this.photoUrl = ''
 				} finally {
 					this.clocking = false
+				}
+			},
+
+			// ===== 签到相关 =====
+			async takeSignPhoto() {
+				const agreed = await ensurePrivacyAuth()
+				if (!agreed) return
+				try {
+					const res = await new Promise((resolve, reject) => {
+						uni.chooseImage({
+							count: 1,
+							sizeType: ['compressed'],
+							sourceType: ['camera'], // 强制走相机，杜绝相册作弊
+							success: resolve,
+							fail: reject
+						})
+					})
+					this.signPhotoPath = res.tempFilePaths[0]
+					this.signPhotoUrl = ''
+				} catch (err) {
+					if (!err?.errMsg?.includes('cancel')) {
+						uni.showToast({ title: '拍照失败，请重试', icon: 'none' })
+					}
+				}
+			},
+
+			previewSignPhoto() {
+				if (this.signPhotoPath) {
+					uni.previewImage({ urls: [this.signPhotoPath], current: this.signPhotoPath })
+				}
+			},
+
+			async handleSign() {
+				if (!this.canSign || this.signing) return
+				this.signing = true
+				try {
+					// 1. 上传照片
+					if (!this.signPhotoUrl) {
+						uni.showLoading({ title: '上传照片…', mask: true })
+						const uploadRes = await uploadAttendancePhoto(this.signPhotoPath)
+						uni.hideLoading()
+						this.signPhotoUrl = uploadRes.data || ''
+						if (!this.signPhotoUrl) {
+							throw new Error('照片上传失败')
+						}
+					}
+					// 2. 兜底再拿一次定位（onShow 可能因权限拿不到）
+					if (this.signLatitude == null || this.signLongitude == null) {
+						try {
+							const locRes = await new Promise((resolve, reject) => {
+								uni.getLocation({ type: 'gcj02', success: resolve, fail: reject })
+							})
+							const [wgsLng, wgsLat] = gcj02ToWgs84(locRes.longitude, locRes.latitude)
+							this.signLatitude = wgsLat
+							this.signLongitude = wgsLng
+						} catch (_) {
+							// 定位失败不阻塞签到，地点字段交给后端记 null
+						}
+					}
+					// 3. 提交签到 —— 仅上报 GPS，逆地理交后端读系统配置里的 AK 完成
+					await quickSign({
+						photoUrl: this.signPhotoUrl,
+						latitude: this.signLatitude,
+						longitude: this.signLongitude,
+						remark: this.signRemark || undefined
+					})
+					uni.showToast({ title: '签到成功', icon: 'success' })
+					// 重置，方便连续签到
+					this.signPhotoPath = ''
+					this.signPhotoUrl = ''
+					this.signRemark = ''
+				} catch (err) {
+					uni.hideLoading()
+					uni.showToast({ title: err.message || '签到失败', icon: 'none' })
+					this.signPhotoUrl = ''
+				} finally {
+					this.signing = false
 				}
 			}
 		}
@@ -303,7 +453,7 @@
 <style lang="scss" scoped>
 	.page { min-height: 100vh; background: #F0F0F0; display: flex; flex-direction: column; }
 
-	.header-wrap { background: linear-gradient(160deg, #059B4B 0%, #07C160 45%, #2BD373 100%); }
+	.header-wrap { background: linear-gradient(160deg, #059B4B 0%, #07C160 45%, #2BD373 100%); padding-bottom: 8rpx; }
 	.status-bar { width: 100%; }
 	.nav-bar {
 		height: 88rpx; display: flex; align-items: center; justify-content: space-between; padding: 0 24rpx;
@@ -311,6 +461,23 @@
 	.nav-back { width: 60rpx; }
 	.nav-title { font-size: 34rpx; font-weight: 600; color: #FFF; }
 	.nav-placeholder { width: 60rpx; }
+
+	/* 打卡 / 签到 Tab */
+	.mode-tabs {
+		display: flex; justify-content: center; gap: 60rpx; padding: 0 0 24rpx;
+	}
+	.mode-tab {
+		position: relative; padding: 12rpx 0;
+		.mode-text { font-size: 30rpx; color: rgba(255,255,255,0.7); }
+		&.active {
+			.mode-text { color: #FFF; font-weight: 600; font-size: 32rpx; }
+			&::after {
+				content: ''; position: absolute; bottom: 0; left: 50%;
+				width: 40rpx; height: 4rpx; background: #FFF;
+				transform: translateX(-50%); border-radius: 2rpx;
+			}
+		}
+	}
 
 	.status-card {
 		margin: 20rpx; background: #FFF; border-radius: 16rpx; padding: 32rpx;
@@ -330,14 +497,19 @@
 	}
 	.tip-text { font-size: 24rpx; color: #F5222D; }
 
-	/* 拍照区域 */
+	.sign-hint-card {
+		margin: 20rpx; padding: 20rpx 24rpx; background: rgba(7,193,96,0.08); border-radius: 12rpx;
+		display: flex; align-items: center; gap: 12rpx;
+	}
+	.sign-hint-text { font-size: 24rpx; color: #07C160; flex: 1; }
+
 	.photo-card {
 		margin: 20rpx; background: #FFF; border-radius: 16rpx; overflow: hidden;
 	}
-
 	.photo-placeholder {
 		display: flex; flex-direction: column; align-items: center; justify-content: center;
 		padding: 40rpx 0;
+		&.big { padding: 80rpx 0; }
 		&:active { background: #F8F8F8; }
 	}
 	.camera-icon-wrap {
@@ -345,6 +517,7 @@
 		background: rgba(7, 193, 96, 0.08);
 		display: flex; align-items: center; justify-content: center;
 		margin-bottom: 16rpx;
+		&.big { width: 140rpx; height: 140rpx; margin-bottom: 24rpx; }
 	}
 	.photo-hint-main { font-size: 28rpx; color: #1A1A1A; font-weight: 500; }
 	.photo-hint-sub { font-size: 22rpx; color: #999; margin-top: 8rpx; }
@@ -366,7 +539,18 @@
 	}
 	.retake-text { font-size: 24rpx; color: #666; }
 
-	/* 打卡按钮 */
+	.remark-card {
+		margin: 20rpx; background: #FFF; border-radius: 16rpx; padding: 24rpx;
+	}
+	.remark-label { font-size: 26rpx; color: #666; display: block; margin-bottom: 12rpx; }
+	.remark-input {
+		width: 100%; min-height: 80rpx; font-size: 28rpx; color: #1A1A1A;
+		background: #F8F8F8; border-radius: 8rpx; padding: 16rpx; box-sizing: border-box;
+	}
+	.remark-counter {
+		display: block; text-align: right; font-size: 22rpx; color: #999; margin-top: 8rpx;
+	}
+
 	.clock-action {
 		flex: 1; display: flex; align-items: center; justify-content: center; padding: 40rpx 0;
 	}

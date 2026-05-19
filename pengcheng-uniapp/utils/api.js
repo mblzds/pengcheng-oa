@@ -193,8 +193,11 @@ export const clockAttendance = (data) => post('/api/app/attendance/clock', data)
 /** 上传打卡照片，返回照片 URL */
 export const uploadAttendancePhoto = (filePath) => upload('/api/app/attendance/upload-photo', filePath)
 
-/** 扫码签到 */
+/** 扫码签到（项目码签到，工作台原有入口仍在用） */
 export const signAttendance = (data) => post('/api/app/attendance/sign', data)
+
+/** 拍照签到（参考钉钉的签到能力，photoUrl 必填，无项目码、不限频率） */
+export const quickSign = (data) => post('/api/app/attendance/quick-sign', data)
 
 /** 考勤记录查询 */
 export const getAttendanceRecords = (params) => get('/api/app/attendance/records', params)

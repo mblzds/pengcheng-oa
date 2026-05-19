@@ -68,6 +68,25 @@ export interface CompensateRequestItem {
   currentNodeName?: string
 }
 
+/** 签到记录（与后端 SignInRecord 对应） */
+export interface SignInRecordItem {
+  id?: number
+  userId?: number
+  userName?: string
+  employeeNo?: string
+  deptName?: string
+  signInTime?: string
+  /** 百度逆地理翻译后的中文地址；为空时回退用 location（lat,lng 字符串） */
+  address?: string
+  location?: string
+  latitude?: number
+  longitude?: number
+  /** 签到照片 URL，前端用 n-image 预览 */
+  photoUrl?: string
+  remark?: string
+  createTime?: string
+}
+
 /** 考勤/请假/调休（公司级假勤，接口 /admin/attendance） */
 export const attendanceApi = {
   records(params: { userId?: number; startDate?: string; endDate?: string }) {
@@ -90,5 +109,24 @@ export const attendanceApi = {
   },
   compensateList(params: { userId?: number; status?: number }) {
     return request<CompensateRequestItem[]>({ url: '/admin/attendance/compensate/list', method: 'get', params })
+  },
+  /**
+   * 签到记录分页查询。
+   * 后端返回 MyBatis-Plus 的 IPage 结构，前端按 records/total 消费。
+   */
+  signInList(params: {
+    userId?: number
+    startDate?: string
+    endDate?: string
+    page?: number
+    size?: number
+  }) {
+    return request<{
+      records: SignInRecordItem[]
+      total: number
+      size: number
+      current: number
+      pages?: number
+    }>({ url: '/admin/attendance/sign-in/list', method: 'get', params })
   },
 }
