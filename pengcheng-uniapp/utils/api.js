@@ -185,6 +185,12 @@ export const addCustomerVisit = (data) => post('/api/app/customer/visit', data)
 /** 录入成交 */
 export const addCustomerDeal = (data) => post('/api/app/customer/deal', data)
 
+/**
+ * 成交明细分页查询（工作台「成交明细」页）
+ * 数据权限继承客户列表：仅返回当前用户可见客户的成交记录
+ */
+export const getDealsPage = (params) => get('/api/app/customer/deals/page', params)
+
 // ==================== 考勤管理 ====================
 
 /** GPS 打卡 */

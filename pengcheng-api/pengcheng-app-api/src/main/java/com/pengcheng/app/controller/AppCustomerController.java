@@ -2,6 +2,8 @@ package com.pengcheng.app.controller;
 
 import cn.dev33.satoken.annotation.SaCheckLogin;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.pengcheng.app.dto.AppDealVO;
 import com.pengcheng.app.dto.CustomerDetailVO;
 import com.pengcheng.app.dto.DealOptionVO;
 import com.pengcheng.common.result.PageResult;
@@ -65,6 +67,38 @@ public class AppCustomerController {
     @GetMapping("/alliances")
     public Result<List<Alliance>> alliances(@RequestParam(required = false) String keyword) {
         return Result.ok(customerService.searchAlliances(keyword));
+    }
+
+    /**
+     * 成交明细分页列表（小程序工作台「成交明细」页用）。
+     * 数据权限继承客户列表：仅展示当前用户可见客户的成交记录。
+     */
+    @GetMapping("/deals/page")
+    public Result<IPage<AppDealVO>> dealsPage(
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "20") Integer size) {
+        IPage<CustomerDealService.DealListItem> source = customerDealService.pageDeals(page, size);
+        IPage<AppDealVO> result = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(
+                source.getCurrent(), source.getSize(), source.getTotal());
+        result.setRecords(source.getRecords().stream().map(item -> AppDealVO.builder()
+                .dealId(item.getDealId())
+                .customerId(item.getCustomerId())
+                .customerName(item.getCustomerName())
+                .phoneMasked(item.getPhoneMasked())
+                .projectId(item.getProjectId())
+                .projectName(item.getProjectName())
+                .allianceId(item.getAllianceId())
+                .allianceName(item.getAllianceName())
+                .agentName(item.getAgentName())
+                .agentPhone(item.getAgentPhone())
+                .roomNo(item.getRoomNo())
+                .dealAmount(item.getDealAmount())
+                .dealTime(item.getDealTime())
+                .subscribeType(item.getSubscribeType())
+                .signStatus(item.getSignStatus())
+                .paymentStatus(item.getPaymentStatus())
+                .build()).toList());
+        return Result.ok(result);
     }
 
     /**

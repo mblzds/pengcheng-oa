@@ -105,7 +105,7 @@
 					{ name: '客户列表', icon: 'order', bgColor: '#1890FF', url: '/pages/customer/list' },
 					{ name: '到访录入', icon: 'calendar', bgColor: '#722ED1', url: '/pages/customer/list?action=visit' },
 					{ name: '考勤打卡', icon: 'map', bgColor: '#FA8C16', url: '/pages/attendance/clock' },
-					{ name: '扫码签到', icon: 'scan', bgColor: '#13C2C2', url: '/pages/attendance/sign' },
+					{ name: '成交明细', icon: 'order', bgColor: '#13C2C2', url: '/pages/customer/deals' },
 					{ name: '付款申请', icon: 'rmb-circle', bgColor: '#F5222D', url: '/pages/apply/list' },
 					{ name: '审批中心', icon: 'checkbox-mark', bgColor: '#EB2F96', url: '/pages/approval/list', badge: this.pendingApprovalCount },
 					{ name: 'AI助手', icon: 'integral', bgColor: '#2F54EB', url: '/pages/ai/chat' }

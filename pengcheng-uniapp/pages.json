@@ -116,6 +116,12 @@
 			}
 		},
 		{
+			"path": "pages/customer/deals",
+			"style": {
+				"navigationBarTitleText": "成交明细"
+			}
+		},
+		{
 			"path": "pages/attendance/clock",
 			"style": {
 				"navigationBarTitleText": "考勤打卡",
