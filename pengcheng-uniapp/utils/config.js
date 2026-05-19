@@ -3,8 +3,8 @@
  * Keep API base URL configurable to avoid hardcoded localhost in real devices.
  */
 
-const API_BASE_URL_KEY = 'http://192.168.31.135:8080/api'
-const DEFAULT_API_BASE_URL = 'http://192.168.31.135:8080'
+const API_BASE_URL_KEY = 'https://www.jiashunpingtai.com/api'
+const DEFAULT_API_BASE_URL = 'https://www.jiashunpingtai.com'
 
 // 百度地图 AK 已统一移到后端「系统配置 → 考勤设置」维护，
 // 小程序通过 /api/app/attendance/baidu-map-ak 拉取（见 utils/geocode.js）。
