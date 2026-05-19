@@ -1,12 +1,15 @@
 package com.pengcheng.realty.customer.service;
 
+import com.pengcheng.realty.alliance.mapper.AllianceMapper;
 import com.pengcheng.realty.common.exception.InvalidStateTransitionException;
 import com.pengcheng.realty.customer.dto.CustomerDealDTO;
 import com.pengcheng.realty.customer.dto.CustomerDealUpdateDTO;
 import com.pengcheng.realty.customer.entity.Customer;
 import com.pengcheng.realty.customer.entity.CustomerDeal;
 import com.pengcheng.realty.customer.mapper.CustomerDealMapper;
+import com.pengcheng.realty.customer.mapper.CustomerProjectMapper;
 import com.pengcheng.realty.customer.mapper.RealtyCustomerMapper;
+import com.pengcheng.realty.project.mapper.ProjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -28,13 +31,21 @@ class CustomerDealServiceTest {
 
     private CustomerDealMapper customerDealMapper;
     private RealtyCustomerMapper customerMapper;
+    private AllianceMapper allianceMapper;
+    private ProjectMapper projectMapper;
+    private CustomerProjectMapper customerProjectMapper;
     private CustomerDealService service;
 
     @BeforeEach
     void setUp() {
         customerDealMapper = mock(CustomerDealMapper.class);
         customerMapper = mock(RealtyCustomerMapper.class);
-        service = new CustomerDealService(customerDealMapper, customerMapper);
+        // pageDeals 用到这三个 mapper；createDeal/updateDeal/listDealsByCustomerId 不依赖，给个 mock 占位
+        allianceMapper = mock(AllianceMapper.class);
+        projectMapper = mock(ProjectMapper.class);
+        customerProjectMapper = mock(CustomerProjectMapper.class);
+        service = new CustomerDealService(customerDealMapper, customerMapper,
+                allianceMapper, projectMapper, customerProjectMapper);
     }
 
     @Test
