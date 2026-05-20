@@ -634,8 +634,10 @@ function resolvePhone(): string | null {
     message.warning('请输入隐号前3位和后4位')
     return null
   }
-  if (!/^1[3-9]\d$/.test(prefix)) {
-    message.warning('隐号前3位格式不正确')
+  // 隐号前 3 位不再校验"1[3-9]X 合法号段"——中介给的隐号常见去掉首位 1
+  // 只保留长度 = 3 的基本完整性校验，避免拼出 "**xxxx" 这种残缺串
+  if (!/^\d{3}$/.test(prefix)) {
+    message.warning('隐号前3位需为3位数字')
     return null
   }
   if (!/^\d{4}$/.test(suffix)) {
