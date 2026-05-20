@@ -150,6 +150,10 @@ spring.flyway:
     baseline-version: 9
     validate-on-migrate: true
     out-of-order: true
+    # 启动时自动修复 failed 迁移记录（清掉 success=0 行）。
+    # 避免一次 SQL 失败之后再启动卡在 "contains a failed migration to version X"，
+    # 必须人肉进 MySQL 删 flyway_schema_history。开发期 dev profile 早已开启。
+    repair-on-migrate: true
 
 # 日志配置
 logging:
