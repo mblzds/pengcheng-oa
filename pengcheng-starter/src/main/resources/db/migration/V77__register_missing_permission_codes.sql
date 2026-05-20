@@ -17,15 +17,21 @@
 -- 拿到所有权限，关联只是为了管理界面里这些菜单上的勾被打上，提升可观测性）。
 -- 业务侧其他角色（行政文员/总监/驻场/渠道）是否赋权，留给运营在管理界面手动配置。
 
+-- 0. 强制 connection collation 与 sys_menu / sys_role / sys_role_menu 实际一致。
+--    现网 sys_menu 等表的 TABLE_COLLATION 是 MySQL 8 默认 utf8mb4_0900_ai_ci
+--    （由 baseline 前的 dump 建的，跟 V1 init.sql 里写的 utf8mb4_unicode_ci 不一致），
+--    而 mysql JDBC 默认 connection collation 是 latin1_swedish_ci。三方混用 JOIN/=
+--    必触发 1267 Illegal mix of collations。一开始就 SET NAMES 锁死 connection。
+SET NAMES utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+
 -- 1. 临时表存权限码 → 父权限码 → 中文显示名的映射
 DROP TEMPORARY TABLE IF EXISTS pengcheng_v77_perms;
--- 显式声明 collation 与 sys_menu 一致（V1 init 里 sys_menu 是 utf8mb4_unicode_ci）
--- 否则与 MySQL 8 默认的 utf8mb4_0900_ai_ci 不一致，JOIN/= 时报 1267
+-- 列级 + 表级都显式声明 utf8mb4_0900_ai_ci，与 sys_menu 实际 TABLE_COLLATION 一致
 CREATE TEMPORARY TABLE pengcheng_v77_perms (
-    permission   VARCHAR(100) COLLATE utf8mb4_unicode_ci PRIMARY KEY,
-    display_name VARCHAR(50)  COLLATE utf8mb4_unicode_ci NOT NULL,
-    parent_perm  VARCHAR(100) COLLATE utf8mb4_unicode_ci NULL
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+    permission   VARCHAR(100) COLLATE utf8mb4_0900_ai_ci PRIMARY KEY,
+    display_name VARCHAR(50)  COLLATE utf8mb4_0900_ai_ci NOT NULL,
+    parent_perm  VARCHAR(100) COLLATE utf8mb4_0900_ai_ci NULL
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
 
 INSERT INTO pengcheng_v77_perms (permission, display_name, parent_perm) VALUES
     -- realty: 联盟商
